@@ -1,0 +1,16 @@
+[project]
+name = "equilx"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Salvador Blasco", email = "salvador.blasco@protonmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.4.2",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.21,<0.10.0"]
+build-backend = "uv_build"
