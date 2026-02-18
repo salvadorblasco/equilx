@@ -5,7 +5,7 @@ from enum import IntEnum, auto
 
 import numpy as np
 
-from types import FArray, IArray
+from .mytypes import FArray, IArray
 
 from numpy.typing import NDArray
 
@@ -177,19 +177,19 @@ class PyESData:
 
 @dataclass
 class EquilibriumData:
-    analytical_concentration = FArray
+    analytical_concentration: FArray
     log_beta: FArray
     stoichiometry: IArray
-    log_ks: FArray = np.array([], dtype=float)
-    solid_stoichiometry: IArray = np.array([[]], dtype=int)
+    log_ks: FArray = field(default_factory=lambda:np.array([], dtype=float))
+    solid_stoichiometry: IArray = field(default_factory=lambda:np.array([[]], dtype=int))
 
     def __post_init__(self):
         # validate arrays
-        __assert_dim(self.analytical_concentration.ndim, 2)
-        __assert_dim(self.log_beta.ndim, 1)
-        __assert_dim(self.log_ks.ndim, 1)
-        __assert_dim(self.stoichiometry.ndim, 2)
-        __assert_dim(self.solid_stoichiometry.ndim, 2)
+        _assert_dim(self.analytical_concentration, 2)
+        _assert_dim(self.log_beta, 1)
+        _assert_dim(self.log_ks, 1)
+        _assert_dim(self.stoichiometry, 2)
+        _assert_dim(self.solid_stoichiometry, 2)
 
         n_equils, n_components = self.stoichiometry.shape
         assert self.analytical_concentration.shape[1] == n_components
@@ -222,7 +222,7 @@ class EquilibriumData:
 
 # Assertions
 
-def __assert_dim(array: NDArray, dim:int):
+def _assert_dim(array: NDArray, dim:int):
     if array.ndim != dim:
         raise TypeError(f"Array must be {dim}-dimmensioned")
 
