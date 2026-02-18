@@ -2,11 +2,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, MISSING
 from enum import IntEnum, auto
 
-import numpy.typing as npt
 import numpy as np
 
-FArray = npt.NDArray[float]
-IArray = npt.NDArray[int]
+from types import FArray, IArray
 
 
 @dataclass
@@ -173,6 +171,18 @@ class PyESData:
     def __post_init__(self):
         ...
 
+
+@dataclass
+class EquilibriumData:
+    analytical_concentration = FArray
+    log_beta: FArray
+    stoichiometry: IArray
+    log_ks: FArray = np.array([], dtype=float)
+    solid_stoichiometry: IArray = np.array([[]], dtype=int)
+
+    def __post_init__(self):
+        # validate arrays
+        ...
 
 # Assertions
 

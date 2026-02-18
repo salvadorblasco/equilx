@@ -1,13 +1,11 @@
 import numpy as np
-from typing import TypeVar
+import numpy.typing as npt
+from typing import TypeVar, Literal
 
 NP = TypeVar("NP", bound=int)
 NC = TypeVar("NC", bound=int)
 NS = TypeVar("NS", bound=int)
+NE = TypeVar("NE", bound=int)
 
-# # Variable but known dimensionality
-# MatrixLike[N, M] = np.ndarray[tuple[N, M], np.dtype[np.float64]]
-# VectorLike[N]    = np.ndarray[tuple[N],         np.dtype[np.float64]]
-# 
-# # Fully generic shape (any number of dimensions)
-# NDArrayFloat = np.ndarray[tuple[int, ...], np.dtype[np.float64]]
+FArray = npt.NDArray[np.float64]
+IArray = npt.NDArray[np.int64]
