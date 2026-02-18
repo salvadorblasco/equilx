@@ -1,10 +1,13 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field, MISSING
+from functools import cached_property
 from enum import IntEnum, auto
 
 import numpy as np
 
 from types import FArray, IArray
+
+from numpy.typing import NDArray
 
 
 @dataclass
@@ -182,9 +185,47 @@ class EquilibriumData:
 
     def __post_init__(self):
         # validate arrays
-        ...
+        __assert_dim(self.analytical_concentration.ndim, 2)
+        __assert_dim(self.log_beta.ndim, 1)
+        __assert_dim(self.log_ks.ndim, 1)
+        __assert_dim(self.stoichiometry.ndim, 2)
+        __assert_dim(self.solid_stoichiometry.ndim, 2)
+
+        n_equils, n_components = self.stoichiometry.shape
+        assert self.analytical_concentration.shape[1] == n_components
+        assert len(self.log_beta) == n_equils
+
+    @cached_property
+    def n_points(self) -> int:
+        return self.analytical_concentration.shape[0]
+
+    @cached_property
+    def n_components(self) -> int:
+        return self.stoichiometry.shape[1]
+
+    @cached_property
+    def n_equils(self) -> int:
+        return self.stoichiometry.shape[0]
+
+    @cached_property
+    def n_solids(self) -> int:
+        return len(self.log_ks)
+
+    @cached_property
+    def n_soluble(self) -> int:
+        return self.n_components + self.n_equils
+
+    @cached_property
+    def stoichiometryx(self):
+        return np.vstack((np.eye(self.n_components),self.solid_stoichiometry))
+
 
 # Assertions
+
+def __assert_dim(array: NDArray, dim:int):
+    if array.ndim != dim:
+        raise TypeError(f"Array must be {dim}-dimmensioned")
+
 
 def __assert_floatarray(array, description: str, ndim:int = 1):
     if not isinstance(array, np.ndarray):
