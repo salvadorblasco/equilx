@@ -7,13 +7,29 @@ import numpy.testing as npt
 
 from equilx.data_structure import EquilibriumData
 from equilx.solver.utils import make_distribution
-from equilx.solver.precond import _pick_exponent
+from equilx.solver.precond import _pick_exponent, _newx, _update_theta
 
 
 class TestPrecond(unittest.TestCase):
     def test_pick_exponent(self):
         retv = _pick_exponent(self.distri1)
         npt.assert_equal(1/np.array([1.0,2.0,4.0,6.0]), retv)
+
+    def test_newx(self):
+        x = np.array([[1.0,1.0],[1.0,2.0],[1.0,3.0]])
+        ratio = np.ones_like(x, dtype=float)
+        exp = np.array(3*[1.0], dtype=float)
+        for theta in (0.0, 0.2, 0.5, 0.8, 1.0):
+            with self.subTest(theta=theta):
+                xn = _newx(x, ratio, theta, exp)
+                npt.assert_equal(xn, x)
+
+    def test_update_theta(self):
+        ratio = np.linspace(0.2, 2.0, 10)
+        real = np.array([0.74, 0.58, 0.42, 0.26, 0.1, 0.23333333, 0.32857143,
+                         0.4, 0.45555556, 0.5])
+        calc = _update_theta(ratio)
+        npt.assert_equal(calc, real)
 
     def setUp(self):
         self.distri1 = self.__fixture1()

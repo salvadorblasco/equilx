@@ -53,13 +53,15 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
 
 
 def _newx(x0, ratio, theta, expn):
-    return x0*(theta*ratio**expn + (theta-1))
+    return x0*(theta*ratio**expn[:, None] + (1-theta))
 
 
 def _update_theta(ratio: FArray) -> FArray:
-    aux1 = 0.9 - 0.8*ratio
-    aux2 = 0.9 - 0.8/ratio
-    return np.where(ratio<1.0, aux2, aux1)
+    ALPHA: Final[float] = 0.9
+    BETA: Final[float] = 0.8
+    aux1 = ALPHA - BETA*ratio
+    aux2 = ALPHA - BETA/ratio
+    return np.where(ratio>1.0, aux2, aux1)
 
 
 def _pick_exponent(equil: EquilibriumData) -> FArray:
