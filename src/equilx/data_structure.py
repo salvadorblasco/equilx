@@ -217,7 +217,7 @@ class EquilibriumData:
 
     @cached_property
     def stoichiometryx(self):
-        return np.vstack((np.eye(self.n_components),self.solid_stoichiometry))
+        return np.concatenate((np.eye(self.n_components, dtype=int),self.stoichiometry), axis=0)
 
 
 # Assertions
