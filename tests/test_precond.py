@@ -7,7 +7,9 @@ import numpy.testing as npt
 
 from equilx.data_structure import EquilibriumData
 from equilx.solver.utils import make_distribution
-from equilx.solver.precond import _pick_exponent, _newx, _update_theta
+from equilx.solver.precond import _pick_exponent, _newx, _update_theta, precondition
+
+from fixtures import synthetic_simple1_wsld, synthetic_simple1_wosld
 
 
 class TestPrecond(unittest.TestCase):
@@ -29,10 +31,15 @@ class TestPrecond(unittest.TestCase):
         real = np.array([0.74, 0.58, 0.42, 0.26, 0.1, 0.23333333, 0.32857143,
                          0.4, 0.45555556, 0.5])
         calc = _update_theta(ratio)
-        npt.assert_equal(calc, real)
+        npt.assert_allclose(calc, real)
+
+    def test_precond(self):
+        x = precondition(self.titr1)
 
     def setUp(self):
         self.distri1 = self.__fixture1()
+        self.titr1 = self.__fixture2()
+        self.titr2 = self.__fixture3()
 
     def __fixture1(self):
         labels = "L Cu Im H".split()
@@ -44,6 +51,22 @@ class TestPrecond(unittest.TestCase):
                                   np.array([0.001, 0.001, 0.001, 11.0]),
                                   [False, False, False, True], 10)
         return EquilibriumData(analc, logbeta, stoich)
+
+    def __fixture2(self):
+        data = synthetic_simple1_wosld()
+        return _read_fixture(data)
+
+    def __fixture3(self):
+        data = synthetic_simple1_wsld()
+        return _read_fixture(data)
+
+
+def _read_fixture(data):
+    return EquilibriumData(analytical_concentration=data.analyticalc,
+                           log_beta=data.log_beta,
+                           stoichiometry=data.stoichiometry,
+                           log_ks=data.log_ks,
+                           solid_stoichiometry=data.solid_stoichiometry)
 
 
 if __name__ == '__main__':

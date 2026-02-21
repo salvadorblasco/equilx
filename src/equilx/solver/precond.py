@@ -26,8 +26,9 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
     abs_analc = np.abs(equil.analytical_concentration)
 
     def _calc_ratio(conc: FArray) -> FArray:
+        nonlocal abs_analc
         sum_pr = conc @ positive_stoich
-        sum_nr = abs_analc + sum1
+        sum_nr = abs_analc + sum_pr
         sum_np = conc @ negative_stoich
         sum_pp = abs_analc = sum_np
         sum_p = np.where(neg_analc, sum_np, sum_pp)
@@ -42,6 +43,7 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
     for iteration in range(MAX_ITERATIONS):
         extconc = species_concentration(x, equil, full=True)
         ratio = _calc_ratio(extconc)
+        print(iteration, ratio)
         x = _newx(x, ratio, theta, exponent)
         theta = _update_theta(ratio)
         if iteration > MAX_ITERATIONS:
