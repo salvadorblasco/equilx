@@ -7,7 +7,7 @@ import numpy.testing as npt
 
 from equilx.data_structure import EquilibriumData
 from equilx.solver.utils import make_distribution
-from equilx.solver.precond import _pick_exponent, _newx, _update_theta, precondition
+from equilx.solver.precond import _pick_exponent, _newx, _update_theta, precondition, _calc_ratio
 
 from fixtures import synthetic_simple1_wsld, synthetic_simple1_wosld
 
@@ -33,6 +33,18 @@ class TestPrecond(unittest.TestCase):
         calc = _update_theta(ratio)
         npt.assert_allclose(calc, real)
 
+    def test_calc_ratio(self):
+        stoichx = np.concatenate((np.eye(2, dtype=int), self.fixt4['stoich']), axis=0)
+        st_sign = stoichx > 0
+        st_pos = np.where(st_sign, stoichx, np.zeros_like(stoichx, dtype=int))
+        st_neg = np.where(np.logical_not(st_sign), -stoichx, np.zeros_like(stoichx, dtype=int))
+        abs_analc = np.abs(self.fixt4['analc'])
+        calc_sump, calc_sumr = _calc_ratio(self.fixt4['conc'],
+                                           st_pos, st_neg, abs_analc, self.fixt4['analc']<0.0)
+        npt.assert_allclose(self.fixt4['true_sump'], calc_sump)
+        npt.assert_allclose(self.fixt4['true_sumr'], calc_sumr)
+
+    @unittest.skip("Incomplete")
     def test_precond(self):
         x = precondition(self.titr1)
 
@@ -40,6 +52,7 @@ class TestPrecond(unittest.TestCase):
         self.distri1 = self.__fixture1()
         self.titr1 = self.__fixture2()
         self.titr2 = self.__fixture3()
+        self.fixt4 = self.__fixture4()
 
     def __fixture1(self):
         labels = "L Cu Im H".split()
@@ -59,6 +72,20 @@ class TestPrecond(unittest.TestCase):
     def __fixture3(self):
         data = synthetic_simple1_wsld()
         return _read_fixture(data)
+
+    def __fixture4(self):
+        return {
+            'conc': np.ones((6,4), dtype=float),
+            'stoich': np.array([[ 1,1], [1,-1]], dtype=int),
+            'analc': np.array([[0.0, 1.0],
+                              [0.2, 0.6],
+                              [0.4, 0.2],
+                              [0.6, -0.2],
+                              [0.8, -0.6],
+                              [1.0, -1.0]]),
+            'true_sumr': np.array([18, 13.8]),
+            'true_sump': np.array([3, 7.8])
+        }
 
 
 def _read_fixture(data):

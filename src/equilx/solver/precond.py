@@ -40,10 +40,10 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
         ratio = sump/sumr
         x = _newx(x, ratio, theta, exponent)
         theta = _update_theta(ratio)
-        if _exit_condition()
+        if _exit_condition(sumr, sump):
             break
     else:
-        ...
+        print("Precondition unconverged")
 
     return x
 
@@ -53,10 +53,10 @@ def _calc_ratio(conc: FArray, positive_stoich: IArray, negative_stoich: IArray, 
     sum_pr = conc @ positive_stoich
     sum_nr = abs_analc + sum_pr
     sum_np = conc @ negative_stoich
-    sum_pp = abs_analc = sum_np
+    sum_pp = abs_analc + sum_np
     sum_p = np.where(neg_analc, sum_np, sum_pp)
     sum_r = np.where(neg_analc, sum_nr, sum_pr)
-    return sum_p, sum_r
+    return np.sum(sum_p, axis=0), np.sum(sum_r, axis=0)
 
 
 def _newx(x0, ratio, theta, expn):
