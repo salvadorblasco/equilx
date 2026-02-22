@@ -23,7 +23,8 @@ class TestPrecond(unittest.TestCase):
         exp = np.array(3*[1.0], dtype=float)
         for theta in (0.0, 0.2, 0.5, 0.8, 1.0):
             with self.subTest(theta=theta):
-                xn = _newx(x, ratio, theta, exp)
+                _theta = np.full(3, theta)
+                xn = _newx(x, ratio, _theta, exp)
                 npt.assert_equal(xn, x)
 
     def test_update_theta(self):
@@ -44,7 +45,7 @@ class TestPrecond(unittest.TestCase):
         npt.assert_allclose(self.fixt4['true_sump'], calc_sump)
         npt.assert_allclose(self.fixt4['true_sumr'], calc_sumr)
 
-    @unittest.skip("Incomplete")
+    @unittest.skip('incomplete')
     def test_precond(self):
         x = precondition(self.titr1)
 
@@ -83,8 +84,18 @@ class TestPrecond(unittest.TestCase):
                               [0.6, -0.2],
                               [0.8, -0.6],
                               [1.0, -1.0]]),
-            'true_sumr': np.array([18, 13.8]),
-            'true_sump': np.array([3, 7.8])
+            'true_sumr': np.array([[ 3,  2],
+                                   [3,  2],
+                                   [3,  2],
+                                   [3,  2.2],
+                                   [3,  2.6],
+                                   [3,  3]]),
+            'true_sump': np.array([[0, 2],
+                                   [0.2, 1.6],
+                                   [0.4, 1.2],
+                                   [0.6, 1],
+                                   [0.8, 1],
+                                   [1, 1]])
         }
 
 

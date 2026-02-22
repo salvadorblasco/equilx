@@ -33,11 +33,11 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
         return abs(sumr-sump)/(sumr+sump) < EXIT_THRESHOLD
 
     x = initial_guess.copy()
-
     for iteration in range(MAX_ITERATIONS):
         extconc = species_concentration(x, equil, full=True)
         sump, sumr = calc_ratio(extconc)
         ratio = sump/sumr
+        print(iteration, ratio)
         x = _newx(x, ratio, theta, exponent)
         theta = _update_theta(ratio)
         if _exit_condition(sumr, sump):
@@ -56,11 +56,11 @@ def _calc_ratio(conc: FArray, positive_stoich: IArray, negative_stoich: IArray, 
     sum_pp = abs_analc + sum_np
     sum_p = np.where(neg_analc, sum_np, sum_pp)
     sum_r = np.where(neg_analc, sum_nr, sum_pr)
-    return np.sum(sum_p, axis=0), np.sum(sum_r, axis=0)
+    return sum_p, sum_r
 
 
 def _newx(x0, ratio, theta, expn):
-    return x0*(theta*ratio**expn[:, None] + (1-theta))
+    return x0*(theta[:,None]*ratio**expn[:,None] + (1-theta[:,None]))
 
 
 def _update_theta(ratio: FArray) -> FArray:
