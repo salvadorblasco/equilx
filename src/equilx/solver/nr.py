@@ -3,6 +3,7 @@ from typing import Final
 import numpy as np
 import numpy.typing as npt
 
+from equilx.excepts import FailedCalculateConcentrations, TooManyIterations
 from equilx.data_structure import EquilibriumData
 from equilx.mytypes import FArray
 from .utils import species_concentration, mass_action, amatrix
@@ -101,7 +102,7 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
             negative_s = x[:,ssolid] < 0.0
             x[:,ssolid][negative_s] = 0.0
 
-    raise TooManyIterations(f"The limit of {max_iterations} has been reached",
+    raise TooManyIterations(f"The limit of {MAX_ITERATIONS} has been reached",
                             _to_linearbase(x, ssolid))
 
 
