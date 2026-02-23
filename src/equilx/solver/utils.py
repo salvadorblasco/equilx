@@ -100,3 +100,10 @@ def make_distribution(initial_conc: FArray, final_conc: FArray, px: list[bool], 
     retval[:, lin_which] = np.linspace(initial_conc[lin_which], final_conc[lin_which], n_points, endpoint=True)
     retval[:, log_which] = np.logspace(initial_conc[log_which], final_conc[log_which], n_points, endpoint=True)
     return retval
+
+
+def mass_action(equil: EquilibriumData, free_concentration: FArray, solid_concentration: FArray|None=None) -> FArray:
+    ffunc = free_concentration @ equil.stoichiometryx - equil.analytical_concentration
+    if solid_concentration is not None: # solids present
+        ffunc += solid_concentration @ equil.solid_stoichiometry
+    return ffunc
