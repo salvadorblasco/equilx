@@ -7,7 +7,7 @@ import numpy.testing as npt
 from equilx.data_structure import EquilibriumData
 from equilx.solver.nr import objective_function, jacobian, newton_raphson
 
-from equilx.solver.utils import mass_action
+from equilx.solver.utils import mass_action, species_concentration
 import fixtures
 from fixtures2 import large_fixture1
 
@@ -37,10 +37,9 @@ class TestNR(unittest.TestCase):
         eq = large_fixture1()
         with np.load("_large_fixture.npz") as f:
             x0 = f['arr_0']
-        breakpoint()
         x = newton_raphson(x0, eq)
-        md = mass_action(eq, x)
-        npt.assert_allclose(md, np.zeros_like(f))
+        md = mass_action(eq, species_concentration(x, eq, full=True))
+        npt.assert_allclose(md, np.zeros_like(md), atol=1e-15)
 
     def setUp(self) -> None:
         self.wsld = fixtures.synthetic_simple1_wsld()
