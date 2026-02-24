@@ -80,8 +80,7 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
 
         dx = -np.squeeze(np.linalg.pinv(J) @ F[...,None])
 
-        print(f"{iteration=} |max F|={np.max(np.abs(F))}, |max dx|={np.max(np.abs(dx))} {pf=} {ps=} {culprit=}")
-
+        # print(f"{iteration=} |max F|={np.max(np.abs(F))}, |max dx|={np.max(np.abs(dx))} {pf=} {ps=} {culprit=}")
         check_residuals = np.all(np.abs(F) < THRESHOLD_RESIDUAL)
         check_step = np.all(np.abs(dx) < THRESHOLD_STEP)
 
