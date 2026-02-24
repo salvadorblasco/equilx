@@ -6,7 +6,10 @@ import numpy.testing as npt
 
 from equilx.data_structure import EquilibriumData
 from equilx.solver.nr import objective_function, jacobian, newton_raphson
+
+from equilx.solver.utils import mass_action
 import fixtures
+from fixtures2 import large_fixture1
 
 np.seterr(all='ignore')
 
@@ -29,6 +32,15 @@ class TestNR(unittest.TestCase):
             with self.subTest(noise=noise):
                 calc_freec = newton_raphson(x0, equil)
             npt.assert_allclose(real_freec, calc_freec, atol=1e-10)
+
+    def test_large(self):
+        eq = large_fixture1()
+        with np.load("_large_fixture.npz") as f:
+            x0 = f['arr_0']
+        breakpoint()
+        x = newton_raphson(x0, eq)
+        md = mass_action(eq, x)
+        npt.assert_allclose(md, np.zeros_like(f))
 
     def setUp(self) -> None:
         self.wsld = fixtures.synthetic_simple1_wsld()

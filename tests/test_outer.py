@@ -14,15 +14,16 @@ from fixtures2 import large_fixture1
 
 class TestOuter(unittest.TestCase):
     def test_outer(self):
+        breakpoint()
         x0 = precondition(self.eq)
-        np.savez_compressed("_large_fixture.npz", x0)
+        # np.savez_compressed("_large_fixture.npz", x0)
         x = outer_fixed_point(x0, self.eq, self.dhp)
         ma = mass_action(self.eq, x)
         npt.assert_allclose(ma, np.zeros_like(ma))
 
     def setUp(self) -> None:
-        eq = large_fixture1()
-        eq.background_ionic = 0.1
+        eq: EquilibriumData = large_fixture1()
+        eq.background_ions = np.linspace(0.1, 0.15, eq.n_points)
         eq.reference_ionic = 0.1
         self.eq = eq
         self.dhp = DebyeHuckelParameters()
