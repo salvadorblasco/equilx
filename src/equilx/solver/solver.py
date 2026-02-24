@@ -2,17 +2,21 @@ import numpy as np
 
 from mytypes import FArray
 from ..data_structure import EquilibriumData
+from precond import precondition
+
 
 def EqSolver(equil: EquilibriumData, **kwargs) -> FArray:
-    do_precondition = kwargs.get('precondition', True)
+    # Extract parameters
     if 'initial_guess' in kwargs:
         initial_guess = kwargs['initial_guess']
     else:
         strategy = kwargs.get('initial_guess_strategy', 4)
         initial_guess = guess_starting_point(equil, strategy)
 
-    # Extract parameters
     # precondition
+    if kwargs.get('precondition', True):
+        x = precondition(equil, initial_guess)
+
     # outer point loop if necessary
     # Newton-Raphson loop
     # return dat

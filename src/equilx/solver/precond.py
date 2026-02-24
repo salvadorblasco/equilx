@@ -13,6 +13,7 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
     EXIT_THRESHOLD: Final[float] = 0.1
     MAX_ITERATIONS: Final[int] = 50
 
+    # TODO remove
     if initial_guess is None:
         initial_guess = 0.01*equil.analytical_concentration
         initial_guess[initial_guess<0.0] = 1e-10
