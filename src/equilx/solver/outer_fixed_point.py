@@ -1,5 +1,7 @@
 from typing import Final
 
+import numpy as np
+
 from equilx.excepts import TooManyIterations
 from equilx.data_structure import EquilibriumData, DebyeHuckelParameters
 from equilx.mytypes import FArray
@@ -9,9 +11,9 @@ from equilx.solver.nr import newton_raphson
 
 def outer_fixed_point(initial_guess, equil: EquilibriumData, dbparms: DebyeHuckelParameters, background_ionic: FArray):
     MAX_ITERATIONS: Final[int] = 10
-    activity_changed: bool = True
+    THRESHOLD: Final[float] = 1e-9
     previous_concentration = initial_guess
-    ref_dh = debye_huckel(equil.reference_ionic, equil, dbparms)
+    ref_dh = debye_huckel(np.array([equil.reference_ionic]), equil, dbparms)
     reference_logbeta = equil.log_beta[None,:] - ref_dh[:,None]
 
     for iteration in range(MAX_ITERATIONS):
@@ -20,6 +22,7 @@ def outer_fixed_point(initial_guess, equil: EquilibriumData, dbparms: DebyeHucke
         total_ionic = background_ionic + equil_ionic
         new_dh = debye_huckel(total_ionic, equil, dbparms)
         new_logbeta = reference_logbeta + new_dh
+        equil.log_beta = new_logbeta
 
         if np.max(np.abs(concentration - previous_concentration)) < THRESHOLD:
             break
