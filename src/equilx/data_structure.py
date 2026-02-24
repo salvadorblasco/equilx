@@ -182,9 +182,9 @@ class EquilibriumData:
     stoichiometry: IArray
     log_ks: FArray = field(default_factory=lambda:np.array([], dtype=float))
     solid_stoichiometry: IArray = field(default_factory=lambda:np.array([[]], dtype=int))
-    charges: IArray = field(default_factory=MISSING)
-    background_ions: FArray = field(default_factory=MISSING)
     reference_ionic: float = 0.0
+    charges: IArray = field(default_factory=lambda :np.array([], dtype=float))
+    background_ions: FArray = field(default_factory=lambda :np.array([], dtype=float))
 
     def __post_init__(self):
         # validate arrays
@@ -198,9 +198,9 @@ class EquilibriumData:
         assert self.analytical_concentration.shape[1] == n_components
         assert len(self.log_beta) == n_equils
 
-        if self.charges is MISSING:
+        if not len(self.charges):
             self.charges = np.zeros(self.n_components, dtype=int)
-        if self.background_ions is MISSING:
+        if not len(self.background_ions):
             self.background_ions = np.zeros(self.n_points, dtype=float)
 
     @cached_property
