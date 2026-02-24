@@ -4,9 +4,65 @@ from mytypes import FArray
 from ..data_structure import EquilibriumData
 
 def EqSolver(equil: EquilibriumData, **kwargs) -> FArray:
+    do_precondition = kwargs.get('precondition', True)
+    if 'initial_guess' in kwargs:
+        initial_guess = kwargs['initial_guess']
+    else:
+        strategy = kwargs.get('initial_guess_strategy', 4)
+        initial_guess = guess_starting_point(equil, strategy)
+
     # Extract parameters
     # precondition
     # outer point loop if necessary
     # Newton-Raphson loop
     # return dat
     ...
+
+
+def guess_starting_point(equil: EquilibriumData, strategy: int=4) -> FArray:
+    """Compute initial guess for concentration based on strategy.
+
+    equil: EquilibriumData
+        data for equilibrium
+    strategy: int
+        number of stategy to use (0 to 6)
+        defaults to 4 (analytical_fraction_low)
+    """
+    def __strategy_flat(filln):
+        return np.full((equil.n_points, equil.n_components), filln)
+
+    def _strategy_flat_very_low() -> FArray:
+        return __strategy_flat(1e-12)
+
+    def _strategy_flat_low() -> FArray:
+        return __strategy_flat(1e-9)
+
+    def _strategy_flat_mid() -> FArray:
+        return __strategy_flat(1e-6)
+
+    def _strategy_flat_high() -> FArray:
+        return __strategy_flat(1e-3)
+
+    def __analytical_fraction(fraction: float, neg_fill: float) -> FArray:
+        initial_guess = fraction*equil.analytical_concentration
+        initial_guess[initial_guess<0.0] = neg_fill
+        return initial_guess
+
+    def _analytical_fraction_low():
+        return __analytical_fraction(1e-6, 1e-12)
+
+    def _analytical_fraction_mid():
+        return __analytical_fraction(1e-4, 1e-9)
+
+    def _analytical_fraction_high():
+        return __analytical_fraction(1e-2, 1e-6)
+
+    strategies = (_strategy_flat_very_low,
+                  _strategy_flat_low,
+                  _strategy_flat_mid,
+                  _strategy_flat_high,
+                  _analytical_fraction_low,
+                  _analytical_fraction_mid,
+                  _analytical_fraction_high)
+
+    return strategies[strategy]()
