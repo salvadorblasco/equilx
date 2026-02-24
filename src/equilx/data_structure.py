@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field, MISSING
-from functools import cached_property
+from functools import cache, cached_property
 from enum import IntEnum, auto
 
 import numpy as np
@@ -182,6 +182,9 @@ class EquilibriumData:
     stoichiometry: IArray
     log_ks: FArray = field(default_factory=lambda:np.array([], dtype=float))
     solid_stoichiometry: IArray = field(default_factory=lambda:np.array([[]], dtype=int))
+    charges: IArray|None = None
+    background_ions: float = 0.0
+    titre_ions: float = 0.0
 
     def __post_init__(self):
         # validate arrays
@@ -194,6 +197,9 @@ class EquilibriumData:
         n_equils, n_components = self.stoichiometry.shape
         assert self.analytical_concentration.shape[1] == n_components
         assert len(self.log_beta) == n_equils
+
+        if self.charges is None:
+            charges = np.zeros(self.n_components)
 
     @cached_property
     def n_points(self) -> int:
@@ -218,6 +224,13 @@ class EquilibriumData:
     @cached_property
     def stoichiometryx(self):
         return np.concatenate((np.eye(self.n_components, dtype=int),self.stoichiometry), axis=0)
+
+    @cached_property
+    def chargesx(self):
+        if self.charges is None:
+            return None
+        species_charge = self.stoichiometry @ self.charges[:,None]
+        return np.concatenate((self.charges, species_charge.flatten()))
 
 
 # Assertions

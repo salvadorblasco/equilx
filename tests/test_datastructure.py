@@ -16,6 +16,9 @@ class TestEquilibriumData(unittest.TestCase):
         logk = np.random.rand(2)
         eq = EquilibriumData(analytical_concentration=analc, log_beta=logb, stoichiometry=stoich, log_ks=logk, solid_stoichiometry=sstoich)
 
+    def test_charges(self):
+        ...
+
 
 if __name__ == '__main__':
     unittest.main()
