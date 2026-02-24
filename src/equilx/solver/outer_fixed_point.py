@@ -7,9 +7,11 @@ from equilx.data_structure import EquilibriumData, DebyeHuckelParameters
 from equilx.mytypes import FArray
 from equilx.solver.ionic import calc_ionic_strength, debye_huckel
 from equilx.solver.nr import newton_raphson
+from equilx.solver.utils import species_concentration
 
 
 def outer_fixed_point(initial_guess, equil: EquilibriumData, dbparms: DebyeHuckelParameters) -> FArray:
+    breakpoint()
     MAX_ITERATIONS: Final[int] = 10
     THRESHOLD: Final[float] = 1e-9
     previous_concentration = initial_guess
@@ -19,7 +21,8 @@ def outer_fixed_point(initial_guess, equil: EquilibriumData, dbparms: DebyeHucke
 
     for iteration in range(MAX_ITERATIONS):
         concentration[...] = newton_raphson(previous_concentration, equil)
-        equil_ionic = calc_ionic_strength(concentration, equil)
+        full_conc = species_concentration(concentration, equil, full=True)
+        equil_ionic = calc_ionic_strength(full_conc, equil)
         total_ionic = equil.background_ions + equil_ionic
         new_dh = debye_huckel(total_ionic, equil, dbparms)
         new_logbeta = reference_logbeta + new_dh
