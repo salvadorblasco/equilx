@@ -62,9 +62,9 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
         c_soluble = species_concentration(c_components, equil, full=True)
 
         F = objective_function(equil, c_soluble, c_solids)
-        culprit = tuple(map(int, np.unravel_index(np.argmax(np.abs(F)), F.shape)))
-        pf = float(np.std(F[:,scomps]))
-        ps = float(np.std(F[:,ssolid]))
+        # culprit = tuple(map(int, np.unravel_index(np.argmax(np.abs(F)), F.shape)))
+        # pf = float(np.std(F[:,scomps]))
+        # ps = float(np.std(F[:,ssolid]))
         gfunc = F[:,-1, None] if equil.n_solids == 1 else F[:, ssolid]
         J = jacobian(c_soluble, c_solids, equil, gfunc)
 
