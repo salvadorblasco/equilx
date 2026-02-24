@@ -3,6 +3,7 @@
 import unittest
 
 import numpy as np
+import numpy.testing as npt
 
 from equilx.data_structure import EquilibriumData
 
@@ -17,7 +18,14 @@ class TestEquilibriumData(unittest.TestCase):
         eq = EquilibriumData(analytical_concentration=analc, log_beta=logb, stoichiometry=stoich, log_ks=logk, solid_stoichiometry=sstoich)
 
     def test_charges(self):
-        ...
+        stoich = np.array([[1,1],[0,-1]], dtype=int)
+        analc = np.random.rand(10,2)
+        logb = np.random.rand(2)
+        charges = np.array([-1, 1], dtype=int)
+        eq = EquilibriumData(analytical_concentration=analc, log_beta=logb, stoichiometry=stoich, charges=charges)
+        chargesx = eq.chargesx
+        truech = np.array([-1, 1, 0, -1], dtype=int)
+        npt.assert_equal(truech, chargesx)
 
 
 if __name__ == '__main__':
