@@ -7,3 +7,7 @@ def calc_ionic_strength(concentration, equil: EquilibriumData) -> FArray:
 
 def beta_increment(ionic_strength: FArray, reference: float, dhparams: DebyeHuckelParameters) -> FArray:
     ...
+
+
+def debye_huckel(ionic_strength: FArray, dbparms: DebyeHuckelParameters) -> FArray:
+    ...

@@ -232,6 +232,19 @@ class EquilibriumData:
         species_charge = self.stoichiometry @ self.charges[:,None]
         return np.concatenate((self.charges, species_charge.flatten()))
 
+    @cached_property
+    def zstar(self) -> IArray|None:
+        if self.charges is None:
+            return None
+        part1 = self.stoichiometry @ self.charges**2
+        part2 = self.stoichiometry @ self.charges
+        return part1 + part2**2
+
+    @cached_property
+    def pstar(self) -> IArray|None:
+        if self.charges is None:
+            return None
+        return np.sum(self.stoichiometry, axis=1) - 1
 
 # Assertions
 

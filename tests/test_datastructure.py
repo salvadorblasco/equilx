@@ -27,6 +27,19 @@ class TestEquilibriumData(unittest.TestCase):
         truech = np.array([-1, 1, 0, -1], dtype=int)
         npt.assert_equal(truech, chargesx)
 
+    def test_star(self):
+        stoich = np.array([[1,1],[0,-1]], dtype=int)
+        analc = np.random.rand(10,2)
+        logb = np.random.rand(2)
+        charges = np.array([-1, 1], dtype=int)
+        eq = EquilibriumData(analytical_concentration=analc, log_beta=logb, stoichiometry=stoich, charges=charges)
+        with self.subTest("z*"):
+            true_zstar = np.array([2,0], dtype=int)
+            npt.assert_equal(true_zstar, eq.zstar)
+        with self.subTest("p*"):
+            true_pstar = np.array([1,-2], dtype=int)
+            npt.assert_equal(true_pstar, eq.pstar)
+
 
 if __name__ == '__main__':
     unittest.main()
