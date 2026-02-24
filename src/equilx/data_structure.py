@@ -185,6 +185,7 @@ class EquilibriumData:
     charges: IArray|None = None
     background_ions: float = 0.0
     titre_ions: float = 0.0
+    reference_ionic: float = 0.0
 
     def __post_init__(self):
         # validate arrays
@@ -199,7 +200,7 @@ class EquilibriumData:
         assert len(self.log_beta) == n_equils
 
         if self.charges is None:
-            charges = np.zeros(self.n_components)
+            self.charges = np.zeros(self.n_components, dtype=int)
 
     @cached_property
     def n_points(self) -> int:
