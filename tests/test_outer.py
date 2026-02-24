@@ -6,16 +6,17 @@ import numpy.testing as npt
 
 from equilx.data_structure import EquilibriumData, DebyeHuckelParameters
 from equilx.solver.outer_fixed_point import outer_fixed_point
-from equilx.solver.utils import mass_action
+from equilx.solver.utils import mass_action, species_concentration
 
 from fixtures2 import large_fixture1
 
 
 class TestOuter(unittest.TestCase):
     def test_outer(self):
-        x = outer_fixed_point(self.initial_guess, self.eq, self.dhp)
-        ma = mass_action(self.eq, x)
-        npt.assert_allclose(ma, np.zeros_like(ma))
+        x, _ = outer_fixed_point(self.initial_guess, self.eq, self.dhp)
+        cex = species_concentration(x, self.eq, full=True)
+        ma = mass_action(self.eq, cex)
+        npt.assert_allclose(ma, np.zeros_like(ma), atol=1e-10)
 
     def setUp(self) -> None:
         eq: EquilibriumData = large_fixture1()

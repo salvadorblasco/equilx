@@ -10,13 +10,12 @@ from equilx.solver.nr import newton_raphson
 from equilx.solver.utils import species_concentration
 
 
-def outer_fixed_point(initial_guess, equil: EquilibriumData, dbparms: DebyeHuckelParameters) -> FArray:
-    breakpoint()
+def outer_fixed_point(initial_guess, equil: EquilibriumData, dbparms: DebyeHuckelParameters) -> tuple[FArray, FArray]:
     MAX_ITERATIONS: Final[int] = 10
     THRESHOLD: Final[float] = 1e-9
     previous_concentration = initial_guess
-    ref_dh = debye_huckel(np.array([equil.reference_ionic]), equil, dbparms)
-    reference_logbeta = equil.log_beta[None,:] - ref_dh[:,None]
+    ref_dh = debye_huckel(np.full(equil.n_points, equil.reference_ionic), equil, dbparms)
+    reference_logbeta = equil.log_beta[None,:] - ref_dh
     concentration = np.empty_like(initial_guess)
 
     for iteration in range(MAX_ITERATIONS):
@@ -28,9 +27,12 @@ def outer_fixed_point(initial_guess, equil: EquilibriumData, dbparms: DebyeHucke
         new_logbeta = reference_logbeta + new_dh
         equil.log_beta = new_logbeta
 
+        # test =np.max(np.abs(concentration - previous_concentration))
+        # print(iteration, test, np.sum(total_ionic), np.sum(equil_ionic))
         if np.max(np.abs(concentration - previous_concentration)) < THRESHOLD:
             break
+        previous_concentration[...] = concentration
     else:
         raise TooManyIterations("Outer fixed point reached iteration limit", concentration)
 
-    return concentration
+    return concentration, equil_ionic
