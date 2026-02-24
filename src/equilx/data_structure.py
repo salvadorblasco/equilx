@@ -14,12 +14,12 @@ from numpy.typing import NDArray
 class DebyeHuckelParameters:
     a: float
     b: float
-    c0: float = field(init=False, default=0.0)
-    c1: float = field(init=False, default=0.0)
-    d0: float = field(init=False, default=0.0)
-    d1: float = field(init=False, default=0.0)
-    e0: float = field(init=False, default=0.0)
-    e1: float = field(init=False, default=0.0)
+    c0: float = field(default=0.0)
+    c1: float = field(default=0.0)
+    d0: float = field(default=0.0)
+    d1: float = field(default=0.0)
+    e0: float = field(default=0.0)
+    e1: float = field(default=0.0)
 
 
 @dataclass
