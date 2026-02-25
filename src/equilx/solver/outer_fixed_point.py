@@ -10,7 +10,7 @@ from equilx.solver.nr import newton_raphson
 from equilx.solver.utils import species_concentration
 
 
-def outer_fixed_point(initial_guess, equil: EquilibriumData, dbparms: DebyeHuckelParameters) -> tuple[FArray, FArray]:
+def outer_fixed_point(initial_guess, equil: EquilibriumData, dbparms: DebyeHuckelParameters) -> FArray:
     MAX_ITERATIONS: Final[int] = 10
     THRESHOLD: Final[float] = 1e-9
     previous_concentration = initial_guess
@@ -35,4 +35,4 @@ def outer_fixed_point(initial_guess, equil: EquilibriumData, dbparms: DebyeHucke
     else:
         raise TooManyIterations("Outer fixed point reached iteration limit", concentration)
 
-    return concentration, equil_ionic
+    return concentration
