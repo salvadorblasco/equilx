@@ -88,7 +88,9 @@ def calc_saturation(concentration: FArray, solid_stoichiometry: IArray, ks: FArr
 
 
 def make_titration(initial_conc: FArray, buret_conc: FArray, starting_vol: float, titre: FArray) -> FArray:
-    ...
+    moles = initial_conc[None,:]*starting_vol +  buret_conc[None,:]*titre[:,None]
+    conc = moles / (titre[:, None] + starting_vol)
+    return conc
 
 
 def make_distribution(initial_conc: FArray, final_conc: FArray, px: list[bool], n_points: int) -> FArray:
