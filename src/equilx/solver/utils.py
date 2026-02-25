@@ -1,7 +1,24 @@
 import numpy as np
 
-from ..mytypes import FArray, IArray
+from ..mytypes import FArray
 from ..data_structure import EquilibriumData
+
+
+def unpack_eqsolve(concentration: FArray, equil: EquilibriumData) -> dict:
+    c_components = concentration[:, :equil.n_components]
+    c_extended = species_concentration(c_components, equil)
+    if equil.n_solids:
+        c_solids = concentration[:, equil.n_components:]
+        saturation = calc_saturation(c_components, equil)
+    else:
+        c_solids = None
+        saturation = None
+    return {
+        'concentration components': c_components,
+        'concentration species': c_extended,
+        'concentration solids': c_solids,
+        'saturation index': saturation
+    }
 
 
 def unfreeze_concentration(original_equil: EquilibriumData, frozen_equil: EquilibriumData,
@@ -88,8 +105,8 @@ def amatrix(concentration, stoichiometryx):
     return np.einsum('ji,jk,...j->...ik', stoichiometryx, stoichiometryx, concentration)
 
 
-def calc_saturation(concentration: FArray, solid_stoichiometry: IArray, ks: FArray) -> FArray:
-    return np.prod(concentration[...,None]**solid_stoichiometry[...,None],axis=1) / ks 
+def calc_saturation(concentration: FArray, equil: EquilibriumData) -> FArray:
+    return np.prod(concentration[...,None]**equil.solid_stoichiometry[...,None],axis=1) / (10**equil.log_ks) 
 
 
 def make_titration(initial_conc: FArray, buret_conc: FArray, starting_vol: float, titre: FArray) -> FArray:
