@@ -58,7 +58,7 @@ def guess_starting_point(equil: EquilibriumData, strategy: int=4) -> FArray:
 
     def __analytical_fraction(fraction: float, neg_fill: float) -> FArray:
         initial_guess = fraction*equil.analytical_concentration
-        initial_guess[initial_guess<0.0] = neg_fill
+        initial_guess[initial_guess<=0.0] = neg_fill
         return initial_guess
 
     def _analytical_fraction_low():

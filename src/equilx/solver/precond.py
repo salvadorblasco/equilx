@@ -35,12 +35,12 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
     def _exit_condition(sumr: FArray, sump: FArray, cext: FArray) -> bool:
         nonlocal best
         sumsq = float(np.sum(mass_action(equil, extconc)**2))
+        #print('\t', np.max(abs(sumr-sump)/(sumr+sump)), sumsq)
         if sumsq > best:
             return True
         else:
             best = sumsq
 
-        # print('\t', np.max(abs(sumr-sump)/(sumr+sump)))
         thres_cond = bool(np.all(abs(sumr-sump)/(sumr+sump) < EXIT_THRESHOLD))
         return thres_cond
 
@@ -49,12 +49,20 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
         extconc = species_concentration(x, equil, full=True)
         sump, sumr = calc_ratio(extconc)
         ratio = sump/sumr
+        # print(iteration, np.min(ratio), np.max(ratio))
+        _cap_ratio(ratio)
         x = _newx(x, ratio, theta, exponent)
         theta = _update_theta(ratio, theta)
         if _exit_condition(sumr, sump, extconc):
             break
 
     return x
+
+
+def _cap_ratio(ratio: FArray) -> None:
+    CAPPING = 1.0e3
+    ratio[ratio>CAPPING] = CAPPING
+    ratio[ratio<(1/CAPPING)] = 1/CAPPING
 
 
 def _calc_ratio(conc: FArray, positive_stoich: IArray, negative_stoich: IArray, abs_analc: FArray,
@@ -65,6 +73,8 @@ def _calc_ratio(conc: FArray, positive_stoich: IArray, negative_stoich: IArray, 
     sum_pp = abs_analc + sum_np
     sum_p = np.where(neg_analc, sum_np, sum_pp)
     sum_r = np.where(neg_analc, sum_nr, sum_pr)
+    sum_p[sum_p<=0.0] = 1e-10
+    sum_r[sum_r<=0.0] = 1e-10
     return sum_p, sum_r
 
 

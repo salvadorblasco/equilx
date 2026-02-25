@@ -106,7 +106,7 @@ def amatrix(concentration, stoichiometryx):
 
 
 def calc_saturation(concentration: FArray, equil: EquilibriumData) -> FArray:
-    return np.prod(concentration[...,None]**equil.solid_stoichiometry[...,None],axis=1) / (10**equil.log_ks) 
+    return np.prod(concentration[...,None]**equil.solid_stoichiometry.T[None,...],axis=1) / (10**equil.log_ks) 
 
 
 def make_titration(initial_conc: FArray, buret_conc: FArray, starting_vol: float, titre: FArray) -> FArray:

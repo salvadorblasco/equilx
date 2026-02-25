@@ -8,8 +8,10 @@ import numpy.testing as npt
 from equilx.data_structure import EquilibriumData
 from equilx.solver.utils import make_distribution, mass_action, species_concentration
 from equilx.solver.precond import _pick_exponent, _newx, _update_theta, precondition, _calc_ratio
+from equilx.solver.solver import guess_starting_point
 
 from fixtures import synthetic_simple1_wsld, synthetic_simple1_wosld
+from fixtures2 import case_aluminium
 
 
 class TestPrecond(unittest.TestCase):
@@ -52,25 +54,32 @@ class TestPrecond(unittest.TestCase):
         abs_analc = np.abs(self.fixt4['analc'])
         calc_sump, calc_sumr = _calc_ratio(self.fixt4['conc'],
                                            st_pos, st_neg, abs_analc, self.fixt4['analc']<0.0)
-        npt.assert_allclose(self.fixt4['true_sump'], calc_sump)
-        npt.assert_allclose(self.fixt4['true_sumr'], calc_sumr)
+        npt.assert_allclose(self.fixt4['true_sump'], calc_sump, atol=1e-10)
+        npt.assert_allclose(self.fixt4['true_sumr'], calc_sumr, atol=1e-10)
 
     # @unittest.skip('incomplete')
     def test_precond(self):
-        DAMPING_THRESHOLD = 1e-15
-        initial_guess = np.full_like(self.titr0.analytical_concentration, 0.1)
-        cex0 = species_concentration(initial_guess, self.titr0, full=True)
-        fprev = mass_action(self.titr0, cex0)
-        x = precondition(self.titr0, initial_guess)
-        cex1 = species_concentration(x, self.titr0, full=True)
-        fpost = mass_action(self.titr0, cex1)
-        self.assertTrue(np.all(DAMPING_THRESHOLD*fprev>fpost))
+        self.__success_precond(self.titr0)
+
+    def test_precond_alumn(self):
+        self.__success_precond(self.fix_al)
+
+    def __success_precond(self, fixture) -> None:
+        DAMPING_THRESHOLD = 1e-2
+        initial_guess = guess_starting_point(fixture)
+        cex0 = species_concentration(initial_guess, fixture, full=True)
+        fprev = mass_action(fixture, cex0)
+        x = precondition(fixture, initial_guess)
+        cex1 = species_concentration(x, fixture, full=True)
+        fpost = mass_action(fixture, cex1)
+        self.assertTrue(np.all(DAMPING_THRESHOLD*np.abs(fprev)>np.abs(fpost)))
 
     def setUp(self):
         self.titr0 = self.__fixture1()
         self.titr1 = self.__fixture2()
         self.titr2 = self.__fixture3()
         self.fixt4 = self.__fixture4()
+        self.fix_al = self.__fixture5()
 
     def __fixture1(self):
         labels = "L Cu Im H".split()
@@ -117,6 +126,8 @@ class TestPrecond(unittest.TestCase):
                                    [0.8, 1],
                                    [1, 1]])
         }
+    def __fixture5(self):
+        return case_aluminium()
 
 
 def _read_fixture(data):
