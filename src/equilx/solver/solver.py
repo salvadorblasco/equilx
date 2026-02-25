@@ -1,10 +1,10 @@
 import numpy as np
 
-from mytypes import FArray
+from ..mytypes import FArray
 from ..data_structure import EquilibriumData, DebyeHuckelParameters
-from precond import precondition
-from outer_fixed_point import outer_fixed_point
-from nr import newton_raphson
+from .precond import precondition
+from .outer_fixed_point import outer_fixed_point
+from .nr import newton_raphson
 
 
 def EqSolver(equil: EquilibriumData, **kwargs) -> FArray:
@@ -17,7 +17,10 @@ def EqSolver(equil: EquilibriumData, **kwargs) -> FArray:
 
     # precondition
     if kwargs.get('precondition', True):
-        x = precondition(equil, initial_guess)
+        initial_guess[...] = precondition(equil, initial_guess)
+
+    # add solids
+    initial_guess = np.concatenate((initial_guess, np.zeros((equil.n_points, equil.n_solids), dtype=float)), axis=1)
 
     # outer point loop if necessary
     if 'dbh_pars' in kwargs:

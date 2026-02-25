@@ -136,7 +136,7 @@ def objective_function(equil: EquilibriumData, free_concentration: FArray, solid
     ffunc = mass_action(equil, free_concentration, solid_concentration)
     if equil.n_solids:
         free = free_concentration[:,:equil.n_components]
-        gfunc = np.prod(free[...,None]**equil.solid_stoichiometry[...,None],axis=1) / 10**equil.log_ks - 1.0
+        gfunc = np.prod(free[...,None]**equil.solid_stoichiometry.T[None,...],axis=1) / 10**equil.log_ks - 1.0
         gfunc[solid_concentration==0.0] = 0.0
         return np.concatenate((ffunc, gfunc), axis=1)
     else:
@@ -167,9 +167,11 @@ def jacobian(free_concentration: FArray, solid_concentration: FArray, equil: Equ
     # dim 3 -> variable c1, c2, ... s1, s2 ...
     dfdc = amatrix(free_concentration, equil.stoichiometryx)
     if equil.n_solids:
-        dfds = np.where(solid_concentration==0.0,
-                        np.zeros_like(solid_concentration), 
-                        np.ones_like(solid_concentration))[:,None,:]*equil.solid_stoichiometry[...,None]
+        dfds = np.where(solid_concentration[:,None,:]==0.0,
+                        np.zeros((equil.n_points, equil.n_components, equil.n_solids), dtype=float), 
+                        np.ones((equil.n_points,1,1), dtype=float)*equil.solid_stoichiometry.T)
+                        #np.zeros_like(solid_concentration), 
+                        #np.ones_like(solid_concentration))[:,None,:]*equil.solid_stoichiometry[...,None]
         dgdc = equil.solid_stoichiometry[None,...] * (gfunc[...,None]+1)
         dgdc[solid_concentration==0.0] = 0.0
         dgds = np.zeros((equil.n_points, equil.n_solids, equil.n_solids))

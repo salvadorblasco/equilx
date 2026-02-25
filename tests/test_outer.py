@@ -13,7 +13,7 @@ from fixtures2 import large_fixture1
 
 class TestOuter(unittest.TestCase):
     def test_outer(self):
-        x, _ = outer_fixed_point(self.initial_guess, self.eq, self.dhp)
+        x = outer_fixed_point(self.initial_guess, self.eq, self.dhp)
         cex = species_concentration(x, self.eq, full=True)
         ma = mass_action(self.eq, cex)
         npt.assert_allclose(ma, np.zeros_like(ma), atol=1e-10)
