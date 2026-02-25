@@ -4,6 +4,11 @@ from ..mytypes import FArray, IArray
 from ..data_structure import EquilibriumData
 
 
+def unfreeze_concentration(original_equil: EquilibriumData, frozen_equil: EquilibriumData,
+                           free_concentration: FArray, reference_component: int) -> EquilibriumData:
+    ...
+
+
 def freeze_concentration(equil: EquilibriumData, reference_component: int) -> EquilibriumData:
     ...
 
