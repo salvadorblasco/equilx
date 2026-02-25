@@ -78,7 +78,7 @@ class TestJac(unittest.TestCase):
         caljac = jacobian(self.wsld.real_freec[:,:3],
                           self.wsld.real_freec[:, 3, None],
                           equil, self.wsld.gfun)
-        npt.assert_allclose(self.wsld.real_jac, caljac)
+        npt.assert_allclose(caljac, self.wsld.real_jac)
 
     def test_jac2(self):
         equil = _read_fixture(self.wosld)
@@ -86,7 +86,7 @@ class TestJac(unittest.TestCase):
                           np.zeros((5,0)),
                           equil,
                           self.wosld.gfun)
-        npt.assert_allclose(self.wosld.real_jac, caljac)
+        npt.assert_allclose(caljac, self.wosld.real_jac)
 
     def setUp(self) -> None:
         self.wsld = fixtures.synthetic_simple1_wsld()

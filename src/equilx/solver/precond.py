@@ -34,8 +34,8 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
 
     def _exit_condition(sumr: FArray, sump: FArray, cext: FArray) -> bool:
         nonlocal best
-        sumsq = float(np.sum(mass_action(equil, extconc)**2))
-        #print('\t', np.max(abs(sumr-sump)/(sumr+sump)), sumsq)
+        sumsq = float(np.sum(mass_action(equil, cext)**2))
+        # print('\t', np.max(abs(sumr-sump)/(sumr+sump)), sumsq)
         if sumsq > best:
             return True
         else:
@@ -60,7 +60,7 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
 
 
 def _cap_ratio(ratio: FArray) -> None:
-    CAPPING = 1.0e3
+    CAPPING = 1.0e4
     ratio[ratio>CAPPING] = CAPPING
     ratio[ratio<(1/CAPPING)] = 1/CAPPING
 

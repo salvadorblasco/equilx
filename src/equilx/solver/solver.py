@@ -20,7 +20,7 @@ def EqSolver(equil: EquilibriumData, **kwargs) -> FArray:
         initial_guess[...] = precondition(equil, initial_guess)
 
     # add solids
-    initial_guess = np.concatenate((initial_guess, np.zeros((equil.n_points, equil.n_solids), dtype=float)), axis=1)
+    initial_guess = np.concatenate((initial_guess, np.full((equil.n_points, equil.n_solids), 1e-10, dtype=float)), axis=1)
 
     # outer point loop if necessary
     if 'dbh_pars' in kwargs:
