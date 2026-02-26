@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 
 from equilx.mytypes import FArray, IArray
 from ..data_structure import EquilibriumData
-from .utils import species_concentration, mass_action
+from .utils import species_concentration
 
 
 def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) -> FArray:
@@ -85,9 +85,3 @@ def _pick_exponent(equil: EquilibriumData) -> FArray:
     stoich = equil.stoichiometryx
     aux = np.max(stoich, axis=0)
     return 1/aux
-
-
-def _calc_reactive_stoich(equil: EquilibriumData) -> IArray:
-    return np.concatenate((np.eye(equil.n_components, dtype=int),
-                           equil.stoichiometry),
-                          axis=0)
