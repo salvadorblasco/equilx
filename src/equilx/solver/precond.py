@@ -12,36 +12,36 @@ from .utils import species_concentration, mass_action
 def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) -> FArray:
     EXIT_THRESHOLD: Final[float] = 0.1
     MAX_ITERATIONS: Final[int] = 100
+    BUFFER: Final[float] = 1e-10
 
-    stoich = _calc_reactive_stoich(equil)
     exponent = _pick_exponent(equil)
     neg_analc = equil.analytical_concentration < 0.0
     theta = 0.01+np.zeros((equil.n_points, equil.n_components), dtype=float)
-    positive_stoich = stoich.copy()
+    positive_stoich = equil.stoichiometryx.copy()
     positive_stoich[positive_stoich<0] = 0
-    negative_stoich = -stoich     # negatives -> positives
+    negative_stoich = -equil.stoichiometryx     # negatives -> positives
     negative_stoich[negative_stoich<0] = 0      # cancel former negatives
     assert np.all(negative_stoich>=0)
     abs_analc = np.abs(equil.analytical_concentration)
     calc_ratio = partial(_calc_ratio, positive_stoich= positive_stoich, negative_stoich=negative_stoich,
                          abs_analc=abs_analc, neg_analc=neg_analc)
 
-    def _exit_condition(sumr: FArray, sump: FArray, cext: FArray) -> bool:
-        sumsq = float(np.sum(mass_action(equil, cext)**2))
+    def _exit_condition(sumr: FArray, sump: FArray) -> bool:
+        #sumsq = float(np.sum(mass_action(equil, cext)**2))
         #print('\t', np.max(abs(sumr-sump)/(sumr+sump)), sumsq)
         thres_cond = bool(np.all(abs(sumr-sump)/(sumr+sump) < EXIT_THRESHOLD))
         return thres_cond
 
-    x = initial_guess.copy()
-    for iteration in range(MAX_ITERATIONS):
+    x: FArray = initial_guess
+    for _ in range(MAX_ITERATIONS):
         extconc = species_concentration(x, equil, full=True)
         sump, sumr = calc_ratio(extconc)
-        ratio = (sump+1e-10)/(sumr+1e-10)
+        ratio = (sump+BUFFER)/(sumr+BUFFER)
         #print(iteration, np.min(ratio), np.max(ratio), np.min(theta), np.max(theta))
         # _cap_ratio(ratio)
         x = _newx(x, ratio, theta, exponent)
         theta = _update_theta(ratio, theta)
-        if _exit_condition(sumr, sump, extconc):
+        if _exit_condition(sumr, sump):
             break
 
     return x
