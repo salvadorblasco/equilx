@@ -50,11 +50,12 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
     ZERO_OFFDIAG: Final[bool] = kwargs.get('zero_offdiag', False)
     THRESHOLD_RESIDUAL: Final[float] = kwargs.get('threshold_residual', 1e-11)
     THRESHOLD_STEP: Final[float] = kwargs.get('threshold_step', 1e-12)
+    DEBUG = True
     x = np.log(x0)
     scomps = slice(0, equil.n_components)
     ssolid = slice(equil.n_components, equil.n_components+equil.n_solids)
     x[:,ssolid] = x0[:,ssolid]
-
+    breakpoint()
     # ------ main loop ----------
     for iteration in range(MAX_ITERATIONS):
         c_components = np.exp(x[:, scomps])
@@ -69,9 +70,6 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
         # c_solids[there_should_be_solid] = 1e-12
 
         F = objective_function(equil, c_soluble, c_solids)
-        culprit = tuple(map(int, np.unravel_index(np.argmax(np.abs(F)), F.shape)))
-        pf = float(np.std(F[:,scomps]))
-        ps = float(np.std(F[:,ssolid]))
         gfunc = F[:,-1, None] if equil.n_solids == 1 else F[:, ssolid]
         J = jacobian(c_soluble, c_solids, equil, gfunc)
 
@@ -88,7 +86,12 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
         dx = -np.squeeze(np.linalg.pinv(J) @ F[...,None])
         #print(iteration, dx[25:39,-1].T)
 
-        print(f"{iteration=} |max F|={np.max(np.abs(F))}, |max dx|={np.max(np.abs(dx))} {pf=} {ps=} {culprit=}")
+        if DEBUG:
+            culprit = tuple(map(int, np.unravel_index(np.argmax(np.abs(F)), F.shape)))
+            pf = float(np.std(F[:,scomps]))
+            ps = float(np.std(F[:,ssolid]))
+            print(f"{iteration=} |max F|={np.max(np.abs(F))}, |max dx|={np.max(np.abs(dx))} {pf=} {ps=} {culprit=}")
+
         check_residuals = np.all(np.abs(F) < THRESHOLD_RESIDUAL)
         check_step = np.all(np.abs(dx) < THRESHOLD_STEP)
 
@@ -193,5 +196,4 @@ def jacobian(free_concentration: FArray, solid_concentration: FArray, equil: Equ
         dgdc[solid_concentration==0.0] = 0.0
         dgds = np.zeros((equil.n_points, equil.n_solids, equil.n_solids))
         return np.block([[dfdc, dfds],[dgdc, dgds]])
-    else:
-        return dfdc
+    return dfdc

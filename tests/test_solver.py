@@ -51,7 +51,7 @@ class TestSolver(unittest.TestCase):
         true_c_soluble, true_c_solid, true_si = true_case_aluminium()
         crude_conc = EqSolver(eq)
         d = unpack_eqsolve(crude_conc, eq)
-        #print(np.hstack((true_c_solid, d['concentration solids'])))
+        print(np.hstack((true_c_solid, d['concentration solids'])))
         q = -(d['concentration components'] + d['concentration species']@eq.stoichiometry - eq.analytical_concentration)
         si = d['saturation index']
         #breakpoint()

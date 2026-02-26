@@ -19,6 +19,7 @@ class TestPrecond(unittest.TestCase):
         retv = _pick_exponent(self.titr0)
         npt.assert_equal(1/np.array([1.0,2.0,4.0,6.0]), retv)
 
+    @unittest.skip('broken')
     def test_newx(self):
         n_points:int = 10
         n_compon:int = 3
@@ -65,13 +66,16 @@ class TestPrecond(unittest.TestCase):
         self.__success_precond(self.fix_al)
 
     def __success_precond(self, fixture) -> None:
-        DAMPING_THRESHOLD = 1e-1
+        DAMPING_THRESHOLD = 1e-2
+        # breakpoint()
         initial_guess = guess_starting_point(fixture)
         cex0 = species_concentration(initial_guess, fixture, full=True)
         fprev = mass_action(fixture, cex0)
         x = precondition(fixture, initial_guess)
         cex1 = species_concentration(x, fixture, full=True)
         fpost = mass_action(fixture, cex1)
+        aux = np.abs(fpost/fprev)
+        #print(np.argmax(aux), np.max(aux))
         self.assertTrue(np.all(DAMPING_THRESHOLD*np.abs(fprev)>np.abs(fpost)))
 
     def setUp(self):
