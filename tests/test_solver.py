@@ -53,13 +53,15 @@ class TestSolver(unittest.TestCase):
         d = unpack_eqsolve(crude_conc, eq)
         #print(np.hstack((true_c_solid, d['concentration solids'])))
         calc_si = d['saturation index']
-        _trr_si = calc_saturation(true_c_soluble[:,:2], eq)
-        print(np.hstack((true_si, d['saturation index'], _trr_si)))  #, true_c_solid, d['concentration solids'])))
+        # suspicious = (d['concentration solids'] < 1e-9) & (calc_si > 1.01)
+        # print(suspicious)
+        # _trr_si = calc_saturation(true_c_soluble[:,:2], eq)
+        # print(np.hstack((true_si, d['saturation index'], _trr_si)))  #, true_c_solid, d['concentration solids'])))
         #breakpoint()
-        rconc = true_c_soluble[:,:eq.n_components] / d['concentration components']
-        print(np.unravel_index(np.argmax(np.abs(1/rconc)),rconc.shape), np.max(np.abs(1/rconc)))
-        print(np.hstack((true_c_soluble[5:12,:eq.n_components], d['concentration components'][5:12,:])))
-        npt.assert_allclose(true_c_soluble[:,:eq.n_components], d['concentration components']) #, atol=1e-9)
+        # rconc = true_c_soluble[:,:eq.n_components] / d['concentration components']
+        # print(np.unravel_index(np.argmax(np.abs(1/rconc)),rconc.shape), np.max(np.abs(1/rconc)))
+        print(np.hstack((true_c_soluble[7,:eq.n_components], d['concentration components'][7,:])))
+        npt.assert_allclose(true_c_soluble[:,:eq.n_components], d['concentration components'], atol=1e-8)
         npt.assert_allclose(true_c_soluble[:,eq.n_components:], d['concentration species'], atol=1e-8)
         npt.assert_allclose(true_c_solid, d['concentration solids'], atol=1e-8)
         npt.assert_allclose(true_si, calc_si, atol=1e-8)

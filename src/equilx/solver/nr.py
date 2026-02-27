@@ -50,7 +50,7 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
     ZERO_OFFDIAG: Final[bool] = kwargs.get('zero_offdiag', False)
     THRESHOLD_RESIDUAL: Final[float] = kwargs.get('threshold_residual', 1e-9)
     THRESHOLD_STEP: Final[float] = kwargs.get('threshold_step', 1e-10)
-    DEBUG = True
+    DEBUG = False
     x = np.log(x0)
     scomps = slice(0, equil.n_components)
     ssolid = slice(equil.n_components, equil.n_components+equil.n_solids)
@@ -59,19 +59,13 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
     # ------ main loop ----------
     for iteration in range(MAX_ITERATIONS):
         c_components = np.exp(x[:, scomps])
-        #c_solids = np.exp(x[:, ssolid])
         c_solids = x[:, ssolid]
         c_soluble = species_concentration(c_components, equil, full=True)
 
-        # print(iteration, c_solids[25:39].T)
         si = np.prod(c_components[...,None]**equil.solid_stoichiometry.T[None,...],axis=1) / 10**equil.log_ks
-        # print(si[25:39].T)
-        # there_should_be_solid = np.logical_and(si>1.0, c_solids==0.0)
-        # c_solids[there_should_be_solid] = 1e-12
 
         F = objective_function(equil, c_soluble, c_solids, si)
-        gfunc = F[:,-1, None] if equil.n_solids == 1 else F[:, ssolid]
-        J = jacobian(c_soluble, c_solids, equil, gfunc, si)
+        J = jacobian(c_soluble, c_solids, equil, si)
 
         if np.any(np.isnan(J)):
             msg2 = f"could not calculate jacobian (iteration {iteration + 1})"
@@ -84,7 +78,6 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
             J = np.eye(equil.n_components)[None,...]  # zerom
 
         dx = -np.squeeze(np.linalg.pinv(J) @ F[...,None])
-        #print(iteration, dx[25:39,-1].T)
 
         if DEBUG:
             culprit = tuple(map(int, np.unravel_index(np.argmax(np.abs(F)), F.shape)))
@@ -96,17 +89,12 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
         check_step = np.all(np.abs(dx) < THRESHOLD_STEP)
 
         if check_step or check_residuals:
-            #retval = np.exp(x)
-            # retval[:,ssolid] = x[:,ssolid]
-            #return retval
             return _to_linearbase(x, ssolid)
 
         # cap step for soluble species
         overshoots = np.abs(dx[:,scomps]) > OVERSHOOT_CAPPING
-        # overshoots = np.abs(dx) > OVERSHOOT_CAPPING
         if np.any(overshoots):
             dx[:,scomps][overshoots] = np.sign(dx[:,scomps][overshoots]) * OVERSHOOT_CAPPING
-            # dx[overshoots] = np.sign(dx[overshoots]) * OVERSHOOT_CAPPING
 
         x += dx
         # correct for solids absent
@@ -160,7 +148,7 @@ def objective_function(equil: EquilibriumData, free_concentration: FArray, solid
         return ffunc
 
 
-def jacobian(free_concentration: FArray, solid_concentration: FArray, equil: EquilibriumData, gfunc: FArray, si: FArray):
+def jacobian(free_concentration: FArray, solid_concentration: FArray, equil: EquilibriumData, si: FArray):
     """
     Compute the Jacobian matrix for the given system of equations.
 
@@ -177,24 +165,15 @@ def jacobian(free_concentration: FArray, solid_concentration: FArray, equil: Equ
     -------
     numpy.ndarray
         The Jacobian matrix of shape (n, nt, nt), where nt is the total number of components (n + f).
-
     """
     # dim 1 -> number of titration points
     # dim 2 -> function f1, f2, ... g1, g2 ...
     # dim 3 -> variable c1, c2, ... s1, s2 ...
     dfdc = amatrix(free_concentration, equil.stoichiometryx)
     if equil.n_solids:
-        # v df/dS v
         dfds = np.where(solid_concentration[:,None,:]==0.0,
                         np.zeros((equil.n_points, equil.n_components, equil.n_solids), dtype=float), 
                         np.ones((equil.n_points,1,1), dtype=float)*equil.solid_stoichiometry.T)
-        #                 #np.zeros_like(solid_concentration), 
-        #                 #np.ones_like(solid_concentration))[:,None,:]*equil.solid_stoichiometry[...,None]
-        # v df/dlogS v
-        # dfds = solid_concentration[...,None] * equil.solid_stoichiometry.T[None,...] 
-        #dgdc = -equil.solid_stoichiometry[None,...] * (gfunc[...,None]+1)
-        #dgdc[gfunc==0.0] = 0.0
-        #dgdc[solid_concentration==0.0] = 0.0
         dgdc = -equil.solid_stoichiometry[None,...] * si[...,None]
         dgdc[np.logical_and(solid_concentration==0.0, si <= 1.0)] = 0.0
         dgds = np.zeros((equil.n_points, equil.n_solids, equil.n_solids))
