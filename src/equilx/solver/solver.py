@@ -28,7 +28,7 @@ def EqSolver(equil: EquilibriumData, **kwargs) -> FArray:
         assert isinstance(dbh_pars, DebyeHuckelParameters)
         res = outer_fixed_point(initial_guess, equil, dbh_pars)
     else:
-        res = newton_raphson(initial_guess, equil)
+        res = newton_raphson(initial_guess, equil, **kwargs)
     return res
 
 

@@ -50,7 +50,7 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
     ZERO_OFFDIAG: Final[bool] = kwargs.get('zero_offdiag', False)
     THRESHOLD_RESIDUAL: Final[float] = kwargs.get('threshold_residual', 1e-10)
     THRESHOLD_STEP: Final[float] = kwargs.get('threshold_step', 1e-10)
-    DEBUG = True
+    DEBUG = False
     x = np.log(x0)
     scomps = slice(0, equil.n_components)
     ssolid = slice(equil.n_components, equil.n_components+equil.n_solids)
@@ -62,7 +62,10 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
         c_solids = x[:, ssolid]
         c_soluble = species_concentration(c_components, equil, full=True)
 
-        si = np.prod(c_components[...,None]**equil.solid_stoichiometry.T[None,...],axis=1) / 10**equil.log_ks
+        if equil.n_solids:
+            si = np.prod(c_components[...,None]**equil.solid_stoichiometry.T[None,...],axis=1) / 10**equil.log_ks
+        else:
+            si = np.array([])
 
         F = objective_function(equil, c_soluble, c_solids, si)
         J = jacobian(c_soluble, c_solids, equil, si)
@@ -75,7 +78,7 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
             raise FailedCalculateConcentrations(msg2, x)
 
         if ZERO_OFFDIAG:
-            J = np.eye(equil.n_components)[None,...]  # zerom
+            J *= np.eye(equil.n_components+equil.n_solids)[None,...]  # zerom
 
         dx = -np.squeeze(np.linalg.pinv(J) @ F[...,None])
 

@@ -58,12 +58,12 @@ def _read_fixture(data):
 class TestOF(unittest.TestCase):
     def test_of1(self):
         equil = _read_fixture(self.wsld)
-        f = objective_function(equil, self.wsld.real_freec[:,:3], self.wsld.real_freec[:,3,None])
+        f = objective_function(equil, self.wsld.real_freec[:,:3], self.wsld.real_freec[:,3,None], np.array([]))
         npt.assert_allclose(f, np.zeros_like(f), atol=5e-9)
         
     def test_of2(self):
         equil = _read_fixture(self.wosld)
-        f = objective_function(equil, self.wosld.real_freec, np.zeros((5,0)))
+        f = objective_function(equil, self.wosld.real_freec, np.zeros((5,0)), np.array([]))
         npt.assert_allclose(f, np.zeros_like(f), atol=5e-9)
 
     def setUp(self) -> None:
