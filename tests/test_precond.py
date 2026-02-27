@@ -11,7 +11,7 @@ from equilx.solver.precond import _pick_exponent, _newx, _update_theta, precondi
 from equilx.solver.solver import guess_starting_point
 
 from fixtures import synthetic_simple1_wsld, synthetic_simple1_wosld
-from fixtures2 import case_aluminium
+from fixtures2 import case_aluminium, case_phosphoric_calcium
 
 
 class TestPrecond(unittest.TestCase):
@@ -65,8 +65,11 @@ class TestPrecond(unittest.TestCase):
     def test_precond_alumn(self):
         self.__success_precond(self.fix_al)
 
+    def test_precond_phos_ca(self):
+        self.__success_precond(self.fix_p_ca)
+
     def __success_precond(self, fixture) -> None:
-        DAMPING_THRESHOLD = 1e-2
+        DAMPING_THRESHOLD = 1e-3
         # breakpoint()
         initial_guess = guess_starting_point(fixture)
         cex0 = species_concentration(initial_guess, fixture, full=True)
@@ -84,6 +87,7 @@ class TestPrecond(unittest.TestCase):
         self.titr2 = self.__fixture3()
         self.fixt4 = self.__fixture4()
         self.fix_al = self.__fixture5()
+        self.fix_p_ca = self.__fixture6()
 
     def __fixture1(self):
         labels = "L Cu Im H".split()
@@ -132,6 +136,9 @@ class TestPrecond(unittest.TestCase):
         }
     def __fixture5(self):
         return case_aluminium()
+
+    def __fixture6(self):
+        return case_phosphoric_calcium()
 
 
 def _read_fixture(data):

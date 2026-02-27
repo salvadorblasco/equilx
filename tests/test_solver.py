@@ -10,34 +10,13 @@ from equilx.solver.solver import EqSolver
 from equilx.solver.utils import calc_saturation, make_titration, mass_action, species_concentration, unpack_eqsolve
 
 from fixtures2 import case_aluminium, true_case_aluminium
+from fixtures2 import case_phosphoric_calcium
 
 
 class TestSolver(unittest.TestCase):
     #@unittest.skip("broken")
     def test_phosphate_calcium(self):
-        analc = make_titration(initial_conc=np.array([1e-3, 1e-3, 4e-3]),
-                               buret_conc=np.array([0.0, 0.0, -0.1]),
-                               starting_vol=10.0,
-                               titre=np.linspace(0.0, 1.0, 50))
-        stoich = np.array([[1, 0, 1],
-                           [1, 0, 2],
-                           [1, 0, 3],
-                           [1, 1, 1],
-                           [0, 1,-1],
-                           [0, 0,-1]], dtype=int)
-        log_beta = np.array([11.7, 18.6, 20.6, 1.7, -12.6, -13.77])
-        sstoich = np.array([[0, 1,-2],
-                            [2, 3, 0],
-                            [1, 1, 1]], dtype=int)
-        log_ks = np.array([-5.0, -26.0, -7.0])
-        charges = np.array([-3, 2, 1], dtype=int)
-        eq = EquilibriumData(
-            analytical_concentration=analc,
-            log_beta=log_beta,
-            stoichiometry=stoich,
-            log_ks=log_ks,
-            solid_stoichiometry=sstoich,
-            charges=charges)
+        eq: EquilibriumData = case_phosphoric_calcium()
         crude_conc = EqSolver(eq)
         c_soluble = crude_conc[:,:3]
         # c_solids = crude_conc[:,4:]

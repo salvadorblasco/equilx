@@ -10,8 +10,8 @@ from .utils import species_concentration
 
 
 def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) -> FArray:
-    EXIT_THRESHOLD: Final[float] = 0.1
-    MAX_ITERATIONS: Final[int] = 100
+    EXIT_THRESHOLD: Final[float] = 1e-9
+    MAX_ITERATIONS: Final[int] = 1000
     BUFFER: Final[float] = 1e-10
 
     exponent = _pick_exponent(equil)
@@ -28,7 +28,7 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
 
     def _exit_condition(sumr: FArray, sump: FArray) -> bool:
         #sumsq = float(np.sum(mass_action(equil, cext)**2))
-        #print('\t', np.max(abs(sumr-sump)/(sumr+sump)), sumsq)
+        #print('\t', np.max(abs(sumr-sump)/(sumr+sump)))
         thres_cond = bool(np.all(abs(sumr-sump)/(sumr+sump) < EXIT_THRESHOLD))
         return thres_cond
 
@@ -37,7 +37,7 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
         extconc = species_concentration(x, equil, full=True)
         sump, sumr = calc_ratio(extconc)
         ratio = (sump+BUFFER)/(sumr+BUFFER)
-        #print(iteration, np.min(ratio), np.max(ratio), np.min(theta), np.max(theta))
+        #print(_, np.min(ratio), np.max(ratio), np.min(theta), np.max(theta))
         # _cap_ratio(ratio)
         x = _newx(x, ratio, theta, exponent)
         theta = _update_theta(ratio, theta)
@@ -47,14 +47,8 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
     return x
 
 
-def _cap_ratio(ratio: FArray) -> None:
-    CAPPING = 1.0e4
-    ratio[ratio>CAPPING] = CAPPING
-    ratio[ratio<(1/CAPPING)] = 1/CAPPING
-
-
 def _calc_ratio(conc: FArray, positive_stoich: IArray, negative_stoich: IArray, abs_analc: FArray,
-                neg_analc: NDArray[bool]) -> tuple[FArray, FArray]:
+                neg_analc: NDArray[np.bool_]) -> tuple[FArray, FArray]:
     sum_pr = conc @ positive_stoich
     sum_nr = abs_analc + sum_pr
     sum_np = conc @ negative_stoich
@@ -67,8 +61,8 @@ def _calc_ratio(conc: FArray, positive_stoich: IArray, negative_stoich: IArray, 
 
 
 def _newx(x0, ratio, theta, expn):
-    #return x0*(theta*ratio**expn[None,:] + (1-theta))
-    return x0*ratio**expn[None,:]
+    return x0*(theta*ratio**expn[None,:] + (1-theta))
+    #return x0*ratio**expn[None,:]
 
 
 def _update_theta(ratio: FArray, prev_theta: FArray) -> FArray:
