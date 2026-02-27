@@ -58,6 +58,7 @@ class TestSolver(unittest.TestCase):
         npt.assert_allclose(true_c_soluble[:,:eq.n_components], d['concentration components'], atol=1e-8)
         npt.assert_allclose(true_c_soluble[:,eq.n_components:], d['concentration species'], atol=1e-8)
         npt.assert_allclose(true_c_solid, d['concentration solids'], atol=1e-8)
+        print(np.hstack((true_si, d['saturation index'])))
         npt.assert_allclose(true_si, d['saturation index'], atol=1e-8)
 
 

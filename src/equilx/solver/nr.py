@@ -64,14 +64,14 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
         c_soluble = species_concentration(c_components, equil, full=True)
 
         # print(iteration, c_solids[25:39].T)
-        # si = np.prod(c_components[...,None]**equil.solid_stoichiometry.T[None,...],axis=1) / 10**equil.log_ks
+        si = np.prod(c_components[...,None]**equil.solid_stoichiometry.T[None,...],axis=1) / 10**equil.log_ks
         # print(si[25:39].T)
         # there_should_be_solid = np.logical_and(si>1.0, c_solids==0.0)
         # c_solids[there_should_be_solid] = 1e-12
 
-        F = objective_function(equil, c_soluble, c_solids)
+        F = objective_function(equil, c_soluble, c_solids, si)
         gfunc = F[:,-1, None] if equil.n_solids == 1 else F[:, ssolid]
-        J = jacobian(c_soluble, c_solids, equil, gfunc)
+        J = jacobian(c_soluble, c_solids, equil, gfunc, si)
 
         if np.any(np.isnan(J)):
             msg2 = f"could not calculate jacobian (iteration {iteration + 1})"
@@ -124,7 +124,7 @@ def _to_linearbase(array, solid_slice):
     return retval
 
 
-def objective_function(equil: EquilibriumData, free_concentration: FArray, solid_concentration: FArray) -> FArray:
+def objective_function(equil: EquilibriumData, free_concentration: FArray, solid_concentration: FArray, si: FArray) -> FArray:
     """
     Calculate the objective function for a given set of parameters.
 
@@ -152,14 +152,15 @@ def objective_function(equil: EquilibriumData, free_concentration: FArray, solid
         si = np.prod(free[...,None]**equil.solid_stoichiometry.T[None,...],axis=1) / 10**equil.log_ks
         #print(si[25:39].T)
         gfunc = 1.0 - si
-        #gfunc[si<=1.0] = 0.0
-        gfunc[solid_concentration==0.0] = 0.0
+        # gfunc[si<=1.0] = 0.0
+        # gfunc[solid_concentration==0.0] = 0.0
+        gfunc[np.logical_and(solid_concentration==0.0, si <= 1.0)] = 0.0
         return np.concatenate((ffunc, gfunc), axis=1)
     else:
         return ffunc
 
 
-def jacobian(free_concentration: FArray, solid_concentration: FArray, equil: EquilibriumData, gfunc: FArray):
+def jacobian(free_concentration: FArray, solid_concentration: FArray, equil: EquilibriumData, gfunc: FArray, si: FArray):
     """
     Compute the Jacobian matrix for the given system of equations.
 
@@ -191,9 +192,11 @@ def jacobian(free_concentration: FArray, solid_concentration: FArray, equil: Equ
         #                 #np.ones_like(solid_concentration))[:,None,:]*equil.solid_stoichiometry[...,None]
         # v df/dlogS v
         # dfds = solid_concentration[...,None] * equil.solid_stoichiometry.T[None,...] 
-        dgdc = -equil.solid_stoichiometry[None,...] * (gfunc[...,None]+1)
+        #dgdc = -equil.solid_stoichiometry[None,...] * (gfunc[...,None]+1)
         #dgdc[gfunc==0.0] = 0.0
-        dgdc[solid_concentration==0.0] = 0.0
+        #dgdc[solid_concentration==0.0] = 0.0
+        dgdc = -equil.solid_stoichiometry[None,...] * si[...,None]
+        dgdc[np.logical_and(solid_concentration==0.0, si <= 1.0)] = 0.0
         dgds = np.zeros((equil.n_points, equil.n_solids, equil.n_solids))
         return np.block([[dfdc, dfds],[dgdc, dgds]])
     return dfdc
