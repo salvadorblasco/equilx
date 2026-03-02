@@ -81,6 +81,35 @@ def case_phosphoric_calcium():
     return eq
 
 
+def case_molybdate():
+    titre=np.linspace(0.0, 2.0, 50)
+    starting_vol=25.0
+    analc = make_titration(initial_conc=np.array([0.001, 0.006]),
+                           buret_conc=np.array([0.0, -0.1]),
+                           starting_vol=starting_vol,
+                           titre=titre)
+    stoich = np.array([[0,-1],
+                       [1, 1],
+                       [1, 2],
+                       [7, 8],
+                       [7, 9],
+                       [7,10],
+                       [7,11]], dtype=int)
+    log_beta = np.array([-14.0, 4.47, 8.12, 51.93, 58.90, 64.45, 68.67])
+    sstoich = np.array([[]], dtype=int)
+    log_ks = np.array([])
+    charges = np.array([-2, 1], dtype=int)
+    eq = EquilibriumData(
+        analytical_concentration=analc,
+        log_beta=log_beta,
+        stoichiometry=stoich,
+        log_ks=log_ks,
+        solid_stoichiometry=sstoich,
+        background_ions=0.2 + 0.1*titre,
+        charges=charges)
+    return eq
+
+
 def true_case_aluminium():
     #          Al             H      (Al)(OH)     (Al)(OH)2     (Al)(OH)3     (Al)(OH)4          (OH)
     true_c_soluble = np.array([[7.100162e-09, 5.000464e-05, 1.419901e-09, 1.423140e-09, 5.678550e-11, 1.135605e-14, 1.999815e-10],

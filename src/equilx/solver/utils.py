@@ -17,6 +17,7 @@ def unpack_eqsolve(concentration: FArray, equil: EquilibriumData) -> dict:
         'concentration components': c_components,
         'concentration species': c_extended,
         'concentration solids': c_solids,
+        'concentration full': np.hstack((c_components, c_extended)),
         'saturation index': saturation
     }
 
