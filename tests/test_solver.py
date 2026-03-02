@@ -16,11 +16,12 @@ from fixtures2 import case_phosphoric_calcium, case_molybdate
 class TestSolver(unittest.TestCase):
     def test_phosphate_calcium(self):
         eq: EquilibriumData = case_phosphoric_calcium()
-        crude_conc = EqSolver(eq, max_iterations=200)
+        crude_conc = EqSolver(eq, max_iterations=100, overshoot_capping=10.0)
         c_soluble = crude_conc[:,:3]
         # c_solids = crude_conc[:,4:]
         cext = species_concentration(c_soluble, eq, full=True)
         fobj = mass_action(eq, cext)
+        # print(c_soluble)
         npt.assert_allclose(fobj, np.zeros_like(fobj), atol=1e-10)
 
     def test_aluminium(self):
