@@ -145,8 +145,22 @@ class PotentiometryTitration(_GenericTitration):
 
 
 @dataclass
-class PotentiometryData:
-    titrations: Sequence[PotentiometryTitration]
+class ExperimentalData:
+    titrations: Sequence[_GenericTitration]
+
+    @property
+    def number_of_titrations(self) -> int:
+        return len(self.titrations)
+
+    def get_slices(self) -> list[slice]:
+        raise NotImplementedError
+
+
+@dataclass
+class PotentiometryData(ExperimentalData):
+    def __post_init__(self):
+        if not all(isinstance(t, PotentiometryTitration) for t in self.titrations):
+            raise TypeError("all instances of titration must be PotentiometryTitration")
 
 
 class PyESModes(IntEnum):
@@ -225,6 +239,12 @@ class _EquilCommon:
 class ModelData(_EquilCommon):
     log_beta_flags: list[Flags]
     log_solids_flags: list[Flags]
+
+    @property
+    def degrees_of_freedom(self) -> int:
+        count1 = sum(1 for flag in self.log_beta_flags if flag == Flags.REFINE)
+        count2 = sum(1 for flag in self.log_solids_flags if flag == Flags.REFINE)
+        return count1 + count2
 
 
 @dataclass(kw_only=True)

@@ -1,13 +1,14 @@
 "Test collection for potentiometry data fitting."
 
-from typing import Protocol, TypeAlias, Any
+from typing import Any, Callable
 
 import numpy as np
-from numpy.typing import NDArray
+
 from equilx.optimizer.opt import OptimizeObject
-from libeq.data_structure import SolverData
-from libeq.solver import solve_equilibrium_equations
-from libeq.consts import Flags, LN10
+from equilx.data_structure import ModelData, PotentiometryData
+from equilx.solver.solver import EqSolver
+from equilx.consts import Flags, LN10
+from equilx.mytypes import FArray
 
 from .. import excepts
 from . import jacobian
@@ -18,9 +19,6 @@ from . import libmath
 from equilx.optimizer.opt import OptimizeObject
 
 
-FArray: TypeAlias = NDArray[float]
-
-
 def refine_indices(flags: list[Flags]) -> list[bool]:
     """
     Return list of bools for whether a particular parameter is to be refined.
@@ -29,20 +27,11 @@ def refine_indices(flags: list[Flags]) -> list[bool]:
 
 
 class PotentiometryOpt(OptimizeObject):
-    def __init__(self, data: SolverData, model, reporter) -> None:
+    def __init__(self, data: PotentiometryData, model: ModelData, reporter: Callable) -> None:
         super().__init__(data, model, reporter)
 
-
-        self._stoich = self._stoichiometry(extended=False)
-        self._stoichx = self._stoichiometry(extended=True)
-        self._nspecies, self._ncomponents = self._stoich.shape
-        self._ntitrations = len(data.potentiometry_opts.titrations)
-        self._experimental_points = [ len(t.get_titre) for t in self._titrations() ]
-        self._total_points = sum(self._experimental_points)
-        self._chargesx = np.sum(self._stoichx*data.charges, axis=1)
-
         # calculate degrees of freedom
-        self._dof_beta = sum(1 for _ in data.potentiometry_opts.beta_flags if _ == Flags.REFINE)
+        self._dof_beta = model.degrees_of_freedom
         self._dof_conc = 0
         self._slices = []
         self._slopes = np.zeros(self._total_points)
@@ -253,13 +242,6 @@ class PotentiometryOpt(OptimizeObject):
         The number of variables to refine.
         """
         return sum(self._experimental_points) - self._dof
-
-    @property
-    def number_of_titrations(self) -> int:
-        """
-        The number of titrations sets available.
-        """
-        return self._ntitrations
 
     def _analytical_concentration(self) -> FArray:
         aconc = []
