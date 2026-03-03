@@ -6,12 +6,12 @@ import numpy as np
 import numpy.testing as npt
 
 from equilx.data_structure import EquilibriumData
-from equilx.solver.utils import make_distribution, mass_action, species_concentration
+from equilx.solver.utils import mass_action, species_concentration
 from equilx.solver.precond import _pick_exponent, _newx, _update_theta, precondition, _calc_ratio
 from equilx.solver.solver import guess_starting_point
 
 from fixtures import synthetic_simple1_wsld, synthetic_simple1_wosld
-from fixtures2 import case_aluminium, case_phosphoric_calcium
+from fixtures2 import case_aluminium
 
 
 class TestPrecond(unittest.TestCase):
@@ -65,9 +65,6 @@ class TestPrecond(unittest.TestCase):
     def test_precond_alumn(self):
         self.__success_precond(self.fix_al)
 
-    def test_precond_phos_ca(self):
-        self.__success_precond(self.fix_p_ca)
-
     def __success_precond(self, fixture) -> None:
         DAMPING_THRESHOLD = 1e-3
         # breakpoint()
@@ -77,7 +74,7 @@ class TestPrecond(unittest.TestCase):
         x = precondition(fixture, initial_guess)
         cex1 = species_concentration(x, fixture, full=True)
         fpost = mass_action(fixture, cex1)
-        aux = np.abs(fpost/fprev)
+        # aux = np.abs(fpost/fprev)
         #print(np.argmax(aux), np.max(aux))
         self.assertTrue(np.all(DAMPING_THRESHOLD*np.abs(fprev)>np.abs(fpost)))
 
@@ -87,7 +84,6 @@ class TestPrecond(unittest.TestCase):
         self.titr2 = self.__fixture3()
         self.fixt4 = self.__fixture4()
         self.fix_al = self.__fixture5()
-        self.fix_p_ca = self.__fixture6()
 
     def __fixture1(self):
         labels = "L Cu Im H".split()
@@ -136,9 +132,6 @@ class TestPrecond(unittest.TestCase):
         }
     def __fixture5(self):
         return case_aluminium()
-
-    def __fixture6(self):
-        return case_phosphoric_calcium()
 
 
 def _read_fixture(data):

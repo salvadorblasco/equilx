@@ -57,23 +57,25 @@ def case_aluminium():
     return eq
 
 
-def case_phosphoric_calcium():
-    analc = make_titration(initial_conc=np.array([1e-3, 1e-3, 4e-3]),
+def case_cobalt_edta():
+    analc = make_titration(initial_conc=np.array([1.3e-3, 1e-3, 4e-3]),
                            buret_conc=np.array([0.0, 0.0, -0.1]),
                            starting_vol=10.0,
-                           titre=np.linspace(0.0, 1.0, 50))
-    stoich = np.array([[1, 0, 1],
-                       [1, 0, 2],
-                       [1, 0, 3],
+                           titre=np.linspace(0.0, 1.25, 25))
+    stoich = np.array([[0, 0,-1],
+                       [1, 0,-1],
+                       [1, 0,-2],
+                       [1, 0,-3],
+                       [1, 1, 0],
                        [1, 1, 1],
-                       [0, 1,-1],
-                       [0, 0,-1]], dtype=int)
-    log_beta = np.array([11.7, 18.6, 20.6, 1.7, -12.6, -13.77])
-    sstoich = np.array([[0, 1,-2],
-                        [2, 3, 0],
-                        [1, 1, 1]], dtype=int)
-    log_ks = np.array([-5.0, -26.0, -7.0])
-    charges = np.array([-3, 2, 1], dtype=int)
+                       [0, 1, 1],
+                       [0, 1, 2],
+                       [0, 1, 3],
+                       [0, 1, 4]], dtype=int)
+    log_beta = np.array([-14.0, -12.2, -19.5, -31.7, 15.9, 3.1, 11.0, 17.3, 19.8, 21.7])
+    sstoich = np.array([[1, 0, -2]], dtype=int)
+    log_ks = np.array([12.65])
+    charges = np.array([2, -4, 1], dtype=int)
     eq = EquilibriumData(
         analytical_concentration=analc,
         log_beta=log_beta,

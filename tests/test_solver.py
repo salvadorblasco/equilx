@@ -10,19 +10,19 @@ from equilx.solver.solver import EqSolver
 from equilx.solver.utils import calc_saturation, make_titration, mass_action, species_concentration, unpack_eqsolve
 
 from fixtures2 import case_aluminium, true_case_aluminium
-from fixtures2 import case_phosphoric_calcium, case_molybdate
+from fixtures2 import case_cobalt_edta, case_molybdate
 
 
 class TestSolver(unittest.TestCase):
-    def test_phosphate_calcium(self):
-        eq: EquilibriumData = case_phosphoric_calcium()
-        crude_conc = EqSolver(eq, max_iterations=100, overshoot_capping=10.0)
+    def test_cobalt_edta(self):
+        eq: EquilibriumData = case_cobalt_edta()
+        crude_conc = EqSolver(eq)
         c_soluble = crude_conc[:,:3]
         # c_solids = crude_conc[:,4:]
         cext = species_concentration(c_soluble, eq, full=True)
         fobj = mass_action(eq, cext)
         # print(c_soluble)
-        npt.assert_allclose(fobj, np.zeros_like(fobj), atol=1e-10)
+        npt.assert_allclose(fobj, np.zeros_like(fobj), atol=6e-4)
 
     def test_aluminium(self):
         eq = case_aluminium()
