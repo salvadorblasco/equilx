@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field, MISSING
-from functools import cache, cached_property
+from functools import cached_property
 from enum import IntEnum, auto
 
 import numpy as np
@@ -8,6 +8,8 @@ import numpy as np
 from .mytypes import FArray, IArray
 
 from numpy.typing import NDArray
+
+from equilx.consts import Flags
 
 
 @dataclass
@@ -28,8 +30,8 @@ class _GenericTitration:
     titre_added: FArray                                            # in mL
     starting_concentration: FArray                                 # in mol/L
     buret_concentration: FArray                                    # in mol/L
-    starting_background_concentration: FArray = field(init=False, default=MISSING)  # in mol/L
-    buret_background_concentration: FArray = field(init=False, default=MISSING)     # in mol/L
+    starting_background_concentration: FArray = field(init=False, default_factory=MISSING)  # in mol/L
+    buret_background_concentration: FArray = field(init=False, default_factory=MISSING)     # in mol/L
 
     def __post_init__(self):
         # type checking
@@ -75,7 +77,6 @@ class _GenericTitration:
 @dataclass
 class _SimulationParameters:
     reference_component: int        # index of the independent component
-    number_of_points: int
 
 
 @dataclass
@@ -83,6 +84,7 @@ class DistributionParameters(_SimulationParameters):
     starting_concentration: FArray  # in mol/L
     final_concentration: FArray     # in mol/L
     logarithmic: Sequence[bool]     # is the concentration in log units?
+    number_of_points: int
 
     def __post_init__(self):
         __assert_floatarray(self.starting_concentration, "starting concentration", ndim=1)
@@ -129,6 +131,8 @@ class PotentiometryTitration(_GenericTitration):
     emf_error: float
     slope: float
     temperature: float = field(init=False, default=298.15)  # kelvin
+    starting_concentration_flag: list[Flags]
+    buret_concentration_flag: list[Flags]
 
     def __post_init__(self):
         super().__post_init__()
@@ -150,62 +154,16 @@ class PyESModes(IntEnum):
     POTENTIOMETRY = auto()
 
 
-@dataclass
-class ModelData:
-    component_labels: list[str]
-    component_charges: IArray
-    stoichiometry: IArray
+@dataclass(kw_only=True)
+class _EquilCommon:
     log_beta: FArray
     error_log_beta: FArray
-    solid_stoichiometry: IArray
-    log_solids: FArray
-    error_log_solids: FArray
-
-
-@dataclass
-class PyESData:
-    mode: PyESModes
-    model: ModelData
-
-    opts_distribution: DistributionParameters | None = field(init=False, default=None)
-    opts_titration: TitrationParameters | None = field(init=False, default=None)
-    opts_potentiometry: PotentiometryData | None = field(init=False, default=None)
-
-    def __post_init__(self):
-        ...
-
-
-@dataclass
-class EquilibriumData:
-    analytical_concentration: FArray
-    log_beta: FArray
     stoichiometry: IArray
-    log_ks: FArray = field(default_factory=lambda:np.array([], dtype=float))
-    solid_stoichiometry: IArray = field(default_factory=lambda:np.array([[]], dtype=int))
+    log_ks: FArray
+    solid_stoichiometry: IArray
     reference_ionic: float = 0.0
-    charges: IArray = field(default_factory=lambda :np.array([], dtype=float))
-    background_ions: FArray = field(default_factory=lambda :np.array([], dtype=float))
-
-    def __post_init__(self):
-        # validate arrays
-        _assert_dim(self.analytical_concentration, 2)
-        _assert_dim(self.log_beta, 1)
-        _assert_dim(self.log_ks, 1)
-        _assert_dim(self.stoichiometry, 2)
-        _assert_dim(self.solid_stoichiometry, 2)
-
-        n_equils, n_components = self.stoichiometry.shape
-        assert self.analytical_concentration.shape[1] == n_components
-        assert len(self.log_beta) == n_equils
-
-        if not len(self.charges):
-            self.charges = np.zeros(self.n_components, dtype=int)
-        if not len(self.background_ions):
-            self.background_ions = np.zeros(self.n_points, dtype=float)
-
-    @cached_property
-    def n_points(self) -> int:
-        return self.analytical_concentration.shape[0]
+    charges: IArray
+    component_labels: list[str]
 
     @cached_property
     def n_components(self) -> int:
@@ -247,6 +205,41 @@ class EquilibriumData:
         if self.charges is None:
             return None
         return np.sum(self.stoichiometry, axis=1) - 1
+
+
+@dataclass(kw_only=True)
+class ModelData(_EquilCommon):
+    log_beta_flags: list[Flags]
+    log_solids_flags: list[Flags]
+
+
+@dataclass(kw_only=True)
+class EquilibriumData(_EquilCommon):
+    analytical_concentration: FArray
+    background_ions: FArray = field(default_factory=lambda :np.array([], dtype=float))
+
+    def __post_init__(self):
+        # validate arrays
+        _assert_dim(self.analytical_concentration, 2)
+        _assert_dim(self.log_beta, 1)
+        _assert_dim(self.log_ks, 1)
+        _assert_dim(self.stoichiometry, 2)
+        _assert_dim(self.solid_stoichiometry, 2)
+
+        n_equils, n_components = self.stoichiometry.shape
+        assert self.analytical_concentration.shape[1] == n_components
+        assert len(self.log_beta) == n_equils
+
+        if not len(self.charges):
+            self.charges = np.zeros(self.n_components, dtype=int)
+        if not len(self.background_ions):
+            self.background_ions = np.zeros(self.n_points, dtype=float)
+
+    @cached_property
+    def n_points(self) -> int:
+        return self.analytical_concentration.shape[0]
+
+
 
 # Assertions
 
