@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, MISSING
 from functools import cached_property
 from enum import IntEnum, auto
+from typing import Optional
 
 import numpy as np
 
@@ -157,13 +158,24 @@ class PyESModes(IntEnum):
 @dataclass(kw_only=True)
 class _EquilCommon:
     log_beta: FArray
-    error_log_beta: FArray
     stoichiometry: IArray
-    log_ks: FArray
-    solid_stoichiometry: IArray
+    log_ks: Optional[FArray] = field(default_factory=lambda : np.array([], dtype=float))
+    solid_stoichiometry: Optional[IArray] = field(default_factory=lambda: np.array([[]], dtype=int))
+    error_log_beta: Optional[FArray] = None
+    error_log_ks: Optional[FArray] = None
     reference_ionic: float = 0.0
-    charges: IArray
-    component_labels: list[str]
+    charges: Optional[IArray] = None
+    component_labels: Optional[list[str]] = None
+
+    def __post_init__(self):
+        if self.charges is None:
+            self.charges = np.zeros(self.n_components, dtype=int)
+        if self.component_labels is None:
+            self.labels = self.n_components * [""]
+        if self.error_log_beta is None:
+            self.error_log_beta = np.zeros_like(self.log_beta)
+        if self.error_log_ks is None:
+            self.error_log_ks = np.zeros_like(self.log_ks)
 
     @cached_property
     def n_components(self) -> int:
@@ -175,6 +187,8 @@ class _EquilCommon:
 
     @cached_property
     def n_solids(self) -> int:
+        if self.log_ks is None:
+            return 0
         return len(self.log_ks)
 
     @cached_property
@@ -217,23 +231,6 @@ class ModelData(_EquilCommon):
 class EquilibriumData(_EquilCommon):
     analytical_concentration: FArray
     background_ions: FArray = field(default_factory=lambda :np.array([], dtype=float))
-
-    def __post_init__(self):
-        # validate arrays
-        _assert_dim(self.analytical_concentration, 2)
-        _assert_dim(self.log_beta, 1)
-        _assert_dim(self.log_ks, 1)
-        _assert_dim(self.stoichiometry, 2)
-        _assert_dim(self.solid_stoichiometry, 2)
-
-        n_equils, n_components = self.stoichiometry.shape
-        assert self.analytical_concentration.shape[1] == n_components
-        assert len(self.log_beta) == n_equils
-
-        if not len(self.charges):
-            self.charges = np.zeros(self.n_components, dtype=int)
-        if not len(self.background_ions):
-            self.background_ions = np.zeros(self.n_points, dtype=float)
 
     @cached_property
     def n_points(self) -> int:
