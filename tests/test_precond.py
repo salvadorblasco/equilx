@@ -101,7 +101,7 @@ class TestPrecond(unittest.TestCase):
         analc = np.empty((20,4), dtype=float)
         analc[:,0:3] = 0.001
         analc[:,3] = np.linspace(0.005, -0.005, 20)
-        return EquilibriumData(analc, logbeta, stoich)
+        return EquilibriumData(analytical_concentration=analc, log_beta=logbeta, stoichiometry=stoich)
 
     def __fixture2(self):
         data = synthetic_simple1_wosld()

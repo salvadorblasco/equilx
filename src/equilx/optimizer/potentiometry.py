@@ -29,10 +29,9 @@ def refine_indices(flags: list[Flags]) -> list[bool]:
 
 
 class PotentiometryOpt(OptimizeObject):
-    def __init__(self, data: SolverData, reporter) -> None:
-        self._data = data
-        self._reporter = reporter
-        self._freeconcentration: FArray | None = None
+    def __init__(self, data: SolverData, model, reporter) -> None:
+        super().__init__(data, model, reporter)
+
 
         self._stoich = self._stoichiometry(extended=False)
         self._stoichx = self._stoichiometry(extended=True)

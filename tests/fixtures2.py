@@ -28,7 +28,10 @@ def large_fixture1():
     analc[:,0:3] = 0.001
     analc[:,3] = np.linspace(0.005, -0.005, 20)
     charge = np.array([0,2,-1,1], dtype=int)
-    return EquilibriumData(analc, logbeta, stoich, charges=charge)
+    return EquilibriumData(analytical_concentration=analc,
+                           log_beta=logbeta,
+                           stoichiometry=stoich,
+                           charges=charge)
 
 def case_aluminium():
     analc = make_titration(initial_conc=np.array([1e-8, 5e-5]),

@@ -50,7 +50,7 @@ def newton_raphson(x0: npt.NDArray, equil: EquilibriumData, **kwargs) -> FArray:
     ZERO_OFFDIAG: Final[bool] = kwargs.get('zero_offdiag', False)
     THRESHOLD_RESIDUAL: Final[float] = kwargs.get('threshold_residual', 1e-10)
     THRESHOLD_STEP: Final[float] = kwargs.get('threshold_step', 1e-10)
-    DEBUG = True
+    DEBUG = False
     x = np.log(x0)
     scomps = slice(0, equil.n_components)
     ssolid = slice(equil.n_components, equil.n_components+equil.n_solids)
