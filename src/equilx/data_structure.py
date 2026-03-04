@@ -191,6 +191,9 @@ class _EquilCommon:
         if self.error_log_ks is None:
             self.error_log_ks = np.zeros_like(self.log_ks)
 
+    def any_solid(self):
+        return (self.n_solids > 0)
+
     @cached_property
     def n_components(self) -> int:
         return self.stoichiometry.shape[1]

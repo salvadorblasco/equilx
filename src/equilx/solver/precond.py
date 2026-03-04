@@ -6,10 +6,10 @@ from numpy.typing import NDArray
 
 from equilx.mytypes import FArray, IArray
 from ..data_structure import EquilibriumData
-from .utils import species_concentration
+from .utils import calc_saturation, species_concentration
 
 
-def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) -> FArray:
+def precondition(equil: EquilibriumData, initial_guess: FArray) -> FArray:
     EXIT_THRESHOLD: Final[float] = 1e-9
     MAX_ITERATIONS: Final[int] = 1000
     BUFFER: Final[float] = 1e-10
@@ -33,6 +33,8 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
         return thres_cond
 
     x: FArray = initial_guess
+    xs: FArray = np.zeros((equil.n_points, equil.n_solids), dtype=float)
+
     for _ in range(MAX_ITERATIONS):
         extconc = species_concentration(x, equil, full=True)
         sump, sumr = calc_ratio(extconc)
@@ -45,6 +47,11 @@ def precondition(equil: EquilibriumData, initial_guess: FArray | None = None) ->
             break
 
     return x
+
+
+def precondition_solids(equil: EquilibriumData, free_conc: FArray, solid_conc: FArray) -> FArray:
+    si = calc_saturation(free_conc, equil)
+
 
 
 def _calc_ratio(conc: FArray, positive_stoich: IArray, negative_stoich: IArray, abs_analc: FArray,
