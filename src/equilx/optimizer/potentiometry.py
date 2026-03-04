@@ -32,63 +32,53 @@ class PotentiometryOpt(OptimizeObject):
 
         # calculate degrees of freedom
         self._dof_beta = model.degrees_of_freedom
-        self._dof_conc = 0
-        self._slices = []
-        self._slopes = np.zeros(self._total_points)
-        self._emf0 = np.zeros(self._total_points)
-        counter = 0
-        for ntit, titration in enumerate(self._titrations()):
-            self._dof_conc += sum(1 for _ in titration.c0_flags if _ == Flags.REFINE)
-            self._dof_conc += sum(1 for _ in titration.ct_flags if _ == Flags.REFINE)
-            self._slices.append(slice(counter, counter+len(titration.get_emf)))
-            self._slopes[self._slices[-1]] = titration.slope / LN10
-            self._emf0[self._slices[-1]] = titration.e0
-            counter += len(titration.get_emf)
+        self._dof_conc = data.get_dof()
+        self._slices = np.fromiter(data.get_slices(), dtype=float)
+        self._slopes = np.fromiter(data.get_slopes(), dtype=float)
+        self._emf0 = np.fromiter(data.get_emf0(), dtype=float)
         self._dof = self._dof_beta + self._dof_conc
 
         ##> self._hindices
-        self._hindices = []
-        for titration in data.potentiometry_opts.titrations:
-            self._hindices.extend(len(titration.get_titre) * [titration.electro_active_compoment])
+        self._hindices = np.fromiter(data.get_per_point_electroactive(), dtype=int)
 
         ##> self._experimental_remf
-        self._experimental_emf = np.concatenate([t.get_emf for t in data.potentiometry_opts.titrations])
+        self._experimental_emf = data.get_collapsed_emf()
 
-        self._bmatrixt = np.concatenate([jacobian.bmatrix_t(t.get_titre, t.v0, self._ncomponents)
-                                         for t in self._titrations()])
+        self._bmatrixt = np.concatenate([jacobian.bmatrix_t(t.get_titre(), t.starting_volume, model.n_components)
+                                         for t in data.titrations])
 
-        self._bmatrixb = np.concatenate([jacobian.bmatrix_b(t.get_titre, t.v0, self._ncomponents)
-                                         for t in self._titrations()])
+        self._bmatrixb = np.concatenate([jacobian.bmatrix_b(t.get_titre, t.starting_volume, model.n_components)
+                                         for t in data.titrations])
 
         self._weights = self.__create_weights()
 
         # initial variable vector
         self._idx_refinable = []
-        idx_refinable_beta = refine_indices(self._data.potentiometry_opts.beta_flags)
+        idx_refinable_beta = refine_indices(model.log_beta_flags)
         self._slice_betas = slice(0, sum(1 for _ in idx_refinable_beta if _))
         self._any_beta_refined = any(idx_refinable_beta)
         self._idx_refinable.extend(idx_refinable_beta)
-        beta_to_refine = np.extract(idx_refinable_beta, self._data.log_beta)
+        beta_to_refine = np.extract(idx_refinable_beta, model.log_beta)
         concs_to_refine = []
 
-        for titration in self._data.potentiometry_opts.titrations:
-            if titration.c0_flags:
-                assert len(titration.c0_flags) == self._ncomponents
-                idx_refinable_c0 = refine_indices(titration.c0_flags)
+        for titration in data.titrations:
+            if titration.starting_concentration_flags:
+                assert len(titration.starting_concentration_flags) == model.n_components
+                idx_refinable_c0 = refine_indices(titration.starting_concentration_flags)
             else:
-                idx_refinable_c0 = self._ncomponents*[False]
+                idx_refinable_c0 = model.n_components*[False]
             self._idx_refinable.extend(idx_refinable_c0)
             if any(idx_refinable_c0):
-                concs_to_refine.extend(np.extract(idx_refinable_c0, titration.c0).tolist())
+                concs_to_refine.extend(np.extract(idx_refinable_c0, titration.starting_concentration).tolist())
 
-            if titration.ct_flags:
-                assert len(titration.ct_flags) == self._ncomponents
-                idx_refinable_ct = refine_indices(titration.ct_flags)
+            if titration.buret_concentration:
+                assert len(titration.buret_concentration_flags) == model.n_components
+                idx_refinable_ct = refine_indices(titration.buret_concentration_flags)
             else:
-                idx_refinable_ct = self._ncomponents*[False]
+                idx_refinable_ct = model.n_components*[False]
             self._idx_refinable.extend(idx_refinable_ct)
             if any(idx_refinable_ct):
-                concs_to_refine.append(np.extract(idx_refinable_ct, titration.ct).tolist())
+                concs_to_refine.append(np.extract(idx_refinable_ct, titration.buret_concentration).tolist())
 
         self._any_conc_refined = (len(concs_to_refine) > 0)
 

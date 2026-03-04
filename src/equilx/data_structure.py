@@ -1,12 +1,13 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field, MISSING
 from functools import cached_property
+import itertools
 from enum import IntEnum, auto
-from typing import Optional
+from typing import Optional, Generator
 
 import numpy as np
 
-from .mytypes import FArray, IArray
+from .mytypes import BArray, FArray, IArray
 
 from numpy.typing import NDArray
 
@@ -33,6 +34,9 @@ class _GenericTitration:
     buret_concentration: FArray                                    # in mol/L
     starting_background_concentration: FArray = field(init=False, default_factory=MISSING)  # in mol/L
     buret_background_concentration: FArray = field(init=False, default_factory=MISSING)     # in mol/L
+    use_point: BArray
+    starting_concentration_flags = list[Flags]
+    buret_concentration_flags = list[Flags]
 
     def __post_init__(self):
         # type checking
@@ -53,6 +57,14 @@ class _GenericTitration:
             setattr(self, what, np.zeros_like(self.starting_concentration))
         else:
             __assert_floatarray(array, what, ndim=1)
+
+    def get_dof(self) -> int:
+        dof = np.count_nonzero(self.starting_concentration_flags == Flags.REFINE)
+        dof+= np.count_nonzero(self.buret_concentration_flags == Flags.REFINE)
+        return dof
+
+    def get_titre(self) -> FArray:
+        return np.extract(self.use_point, self.titre_added)
 
     @property
     def analytical_concentration(self) -> FArray:
@@ -134,6 +146,7 @@ class PotentiometryTitration(_GenericTitration):
     temperature: float = field(init=False, default=298.15)  # kelvin
     starting_concentration_flag: list[Flags]
     buret_concentration_flag: list[Flags]
+    electroactive: int
 
     def __post_init__(self):
         super().__post_init__()
@@ -143,17 +156,28 @@ class PotentiometryTitration(_GenericTitration):
         __assert_float(self.slope, "slope")
         __assert_same_length(self.titre_added, self.emf, "emf")
 
+    def get_emf(self) -> FArray:
+        return np.extract(self.use_point, self.emf)
+
 
 @dataclass
 class ExperimentalData:
-    titrations: Sequence[_GenericTitration]
+    titrations: Sequence[PotentiometryTitration]
 
     @property
     def number_of_titrations(self) -> int:
         return len(self.titrations)
 
+    def get_dof(self) -> int:
+        return sum(t.get_dof() for t in self.titrations)
+
     def get_slices(self) -> list[slice]:
-        raise NotImplementedError
+        slices: list[slice] = []
+        counter: int = 0
+        for tit in self.titrations:
+            slices.append(slice(counter, counter+tit.number_of_points))
+            counter += tit.number_of_points
+        return slices
 
 
 @dataclass
@@ -161,6 +185,25 @@ class PotentiometryData(ExperimentalData):
     def __post_init__(self):
         if not all(isinstance(t, PotentiometryTitration) for t in self.titrations):
             raise TypeError("all instances of titration must be PotentiometryTitration")
+
+    def get_emf0(self) -> Generator[float]:
+        for tit in self.titrations:
+            yield tit.emf0
+
+    def get_slopes(self) -> Generator[float]:
+        for tit in self.titrations:
+            yield tit.slope
+
+    def get_electroactive(self) -> Generator[int]:
+        for tit in self.titrations:
+            yield tit.electroactive
+
+    def get_per_point_electroactive(self) -> Generator[int]:
+        for hindex, tit in zip(self.get_electroactive(), self.titrations):
+            yield from itertools.repeat(hindex, tit.number_of_points)
+
+    def get_collapsed_emf(self) -> FArray:
+        return np.concatenate([t.get_emf() for t in self.titrations])
 
 
 class PyESModes(IntEnum):
