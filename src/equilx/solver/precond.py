@@ -4,7 +4,7 @@ from typing import Final
 import numpy as np
 from numpy.typing import NDArray
 
-from equilx.mytypes import FArray, IArray
+from equilx.mytypes import FArray, IArray, BArray
 from ..data_structure import EquilibriumData
 from .utils import calc_saturation, species_concentration
 
@@ -33,7 +33,6 @@ def precondition(equil: EquilibriumData, initial_guess: FArray) -> FArray:
         return thres_cond
 
     x: FArray = initial_guess
-    xs: FArray = np.zeros((equil.n_points, equil.n_solids), dtype=float)
 
     for _ in range(MAX_ITERATIONS):
         extconc = species_concentration(x, equil, full=True)
@@ -49,9 +48,21 @@ def precondition(equil: EquilibriumData, initial_guess: FArray) -> FArray:
     return x
 
 
-def precondition_solids(equil: EquilibriumData, free_conc: FArray, solid_conc: FArray) -> FArray:
+def precondition_solids(free_conc: FArray, solid_conc: FArray, equil: EquilibriumData, index_control: list[int]) -> tuple[FArray, FArray, BArray]:
     si = calc_saturation(free_conc, equil)
+    with_solids = si > 1.0
+    new_xs = np.zeros_like(solid_conc)
+    aux1 = free_conc @ equil.stoichiometry.T
+    sum_reac = np.empty((equil.n_points, equil.n_components), dtype=float)
 
+    for nsolid, index in enumerate(index_control):
+        aux2 = np.delete(solid_conc, nsolid, axis=1) @ np.delete(equil.solid_stoichiometry.T, nsolid, axis=1)
+        expn = equil.solid_stoichiometry[nsolid, index]
+        assert expn > 0
+        new_xs[:,nsolid] = (equil.analytical_concentration-aux1-aux2)/expn
+        sum_reac[:, nsolid] = 10**equil.log_ks[nsolid]*np.prod(free_conc[:,:equil.n_components]**equil.solid_stoichiometry.T, axis=1)
+
+    return new_xs, sum_reac, with_solids
 
 
 def _calc_ratio(conc: FArray, positive_stoich: IArray, negative_stoich: IArray, abs_analc: FArray,

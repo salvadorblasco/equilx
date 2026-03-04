@@ -173,8 +173,8 @@ class PyESModes(IntEnum):
 class _EquilCommon:
     log_beta: FArray
     stoichiometry: IArray
-    log_ks: Optional[FArray] = field(default_factory=lambda : np.array([], dtype=float))
-    solid_stoichiometry: Optional[IArray] = field(default_factory=lambda: np.array([[]], dtype=int))
+    log_ks: FArray = field(default_factory=lambda : np.array([], dtype=float))
+    solid_stoichiometry: IArray = field(default_factory=lambda: np.array([[]], dtype=int))
     error_log_beta: Optional[FArray] = None
     error_log_ks: Optional[FArray] = None
     reference_ionic: float = 0.0
@@ -253,7 +253,7 @@ class ModelData(_EquilCommon):
 @dataclass(kw_only=True)
 class EquilibriumData(_EquilCommon):
     analytical_concentration: FArray
-    background_ions: FArray = field(default_factory=lambda :np.array([], dtype=float))
+    background_ions: FArray = field(default_factory=lambda: np.array([], dtype=float))
 
     @cached_property
     def n_points(self) -> int:
