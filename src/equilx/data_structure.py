@@ -3,7 +3,8 @@ from dataclasses import dataclass, field, MISSING
 from functools import cached_property
 import itertools
 from enum import IntEnum, auto
-from typing import Optional, Generator
+from typing import Optional
+from collections.abc import Iterator
 
 import numpy as np
 
@@ -186,19 +187,19 @@ class PotentiometryData(ExperimentalData):
         if not all(isinstance(t, PotentiometryTitration) for t in self.titrations):
             raise TypeError("all instances of titration must be PotentiometryTitration")
 
-    def get_emf0(self) -> Generator[float]:
+    def get_emf0(self) -> Iterator[float]:
         for tit in self.titrations:
             yield tit.emf0
 
-    def get_slopes(self) -> Generator[float]:
+    def get_slopes(self) -> Iterator[float]:
         for tit in self.titrations:
             yield tit.slope
 
-    def get_electroactive(self) -> Generator[int]:
+    def get_electroactive(self) -> Iterator[int]:
         for tit in self.titrations:
             yield tit.electroactive
 
-    def get_per_point_electroactive(self) -> Generator[int]:
+    def get_per_point_electroactive(self) -> Iterator[int]:
         for hindex, tit in zip(self.get_electroactive(), self.titrations):
             yield from itertools.repeat(hindex, tit.number_of_points)
 

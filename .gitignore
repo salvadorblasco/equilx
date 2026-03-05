@@ -9,3 +9,6 @@ benchmark/
 
 # Virtual environments
 .venv
+
+# Other
+sandbox/
