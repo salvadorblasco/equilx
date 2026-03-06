@@ -10,9 +10,22 @@ def case_phosphoric():
     log_beta = np.array([12.38, 19.578, 21.726, -13.73])
     stoich = np.array([[1,1],[1,2],[1,3],[0,-1]], dtype=int)
     charge = np.array([1,-3], dtype=int)
-    background_ions = 0.1
-    titre_ions = 0.1
-    return stoich, log_beta
+    starting_vol=1.0
+    titre=np.linspace(0.0, 0.98, 50)
+    background_ions = 0.1 + 0.1 * titre
+    analc = make_titration(initial_conc=np.array([1e-8, 5e-5]),
+                           buret_conc=np.array([0.0, -0.0001]),
+                           starting_vol=starting_vol,
+                           titre=titre)
+    eq = EquilibriumData(
+        analytical_concentration=analc,
+        log_beta=log_beta,
+        stoichiometry=stoich,
+        charges=charge,
+        component_labels=labels,
+        background_ions=background_ions)
+    return eq
+
 
 
 def large_fixture1():
@@ -112,6 +125,25 @@ def case_molybdate():
         solid_stoichiometry=sstoich,
         background_ions=0.2 + 0.1*titre,
         charges=charges)
+    return eq
+
+
+def case_calcium_carbonate():
+    analc = make_titration(initial_conc=np.array([0.05, 0.1, 0.2]),
+                           buret_conc=np.array([0.0, 0.0, -1.0]),
+                           starting_vol=10.0,
+                           titre=np.linspace(0.0, 3.8, 20))
+    eq = EquilibriumData(analytical_concentration=analc,
+                         stoichiometry=np.array([[1,0,1],
+                                            [1,0,2],
+                                            [1,1,0],
+                                            [0,0,-1]], dtype=int),
+                         log_beta=np.array([16.33, 22.68, -12.06, -14.0]),
+                         solid_stoichiometry=np.array([[0,1,-2],
+                                                       [1,1,0]], dtype=int),
+                         log_ks=np.array([23.0, -8.4]),
+                         charges=np.array([-3, 2, 1], dtype=int),
+                         component_labels=['CO3', 'Ca', 'H'])
     return eq
 
 

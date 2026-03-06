@@ -223,7 +223,7 @@ class _EquilCommon:
     error_log_ks: Optional[FArray] = None
     reference_ionic: float = 0.0
     charges: Optional[IArray] = None
-    component_labels: Optional[list[str]] = None
+    component_labels: Optional[Sequence[str]] = None
 
     def __post_init__(self):
         if self.charges is None:
@@ -299,14 +299,19 @@ class EquilibriumData(_EquilCommon):
     analytical_concentration: FArray
     background_ions: FArray = field(default_factory=lambda: np.array([], dtype=float))
 
-    @cached_property
+    @property
     def n_points(self) -> int:
         return self.analytical_concentration.shape[0]
 
+    def __copy__(self):
+        cls = self.__class__
+        copy = cls.__new__(cls)
+        copy.__dict__.update(self.__dict__)
+        copy.__dict__['analytical_concentration'] = self.analytical_concentration.copy()
+        return copy
 
 
 # Assertions
-
 def _assert_dim(array: NDArray, dim:int):
     if array.ndim != dim:
         raise TypeError(f"Array must be {dim}-dimmensioned")
