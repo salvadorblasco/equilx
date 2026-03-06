@@ -62,7 +62,7 @@ class TestPrecond(unittest.TestCase):
                 self.__success_precond(fixture)
 
     def __success_precond(self, fixture) -> None:
-        DAMPING_THRESHOLD = 1.0
+        DAMPING_THRESHOLD = 0.2
         # breakpoint()
         initial_guess = guess_starting_point(fixture)
         cex0 = species_concentration(initial_guess, fixture, full=True)

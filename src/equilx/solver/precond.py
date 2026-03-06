@@ -11,7 +11,7 @@ from equilx.solver.utils import calc_saturation, make_titration, mass_action, sp
 
 def precondition(equil: EquilibriumData, initial_guess: FArray, active_solid_mask: Optional[BArray]=None) -> tuple[FArray, Optional[FArray]]:
     EXIT_THRESHOLD: Final[float] = 1e-9
-    MAX_ITERATIONS: Final[int] = 100
+    MAX_ITERATIONS: Final[int] = 500
 
     do_solids = (active_solid_mask is not None)
     if active_solid_mask is None:
