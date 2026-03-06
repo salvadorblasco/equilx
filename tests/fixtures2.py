@@ -27,7 +27,6 @@ def case_phosphoric():
     return eq
 
 
-
 def large_fixture1():
     labels = "L Cu Im H".split()
     n_comps = len(labels)
@@ -146,6 +145,14 @@ def case_calcium_carbonate():
                          component_labels=['CO3', 'Ca', 'H'])
     return eq
 
+all_fixtures = {
+    'phosphoric': case_phosphoric(),
+    'py33333 Cu Im': large_fixture1(),
+    'aluminium': case_aluminium(),
+    'cobalt EDTA': case_cobalt_edta(),
+    'molybdate': case_molybdate(),
+    'calcium carbonate': case_calcium_carbonate()
+}
 
 def true_case_aluminium():
     #          Al             H      (Al)(OH)     (Al)(OH)2     (Al)(OH)3     (Al)(OH)4          (OH)

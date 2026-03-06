@@ -17,7 +17,7 @@ def EqSolver(equil: EquilibriumData, **kwargs) -> FArray:
 
     # precondition
     if kwargs.get('precondition', True):
-        initial_guess[...] = precondition(equil, initial_guess)
+        initial_guess[...], _ = precondition(equil, initial_guess)
 
     # add solids
     initial_guess = np.concatenate((initial_guess, np.full((equil.n_points, equil.n_solids), 1e-10, dtype=float)), axis=1)

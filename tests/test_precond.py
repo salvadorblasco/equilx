@@ -11,7 +11,7 @@ from equilx.solver.precond import _pick_exponent, _newx, _update_theta, precondi
 from equilx.solver.solver import guess_starting_point
 
 from fixtures import synthetic_simple1_wsld, synthetic_simple1_wosld
-from fixtures2 import case_aluminium, case_calcium_carbonate, case_cobalt_edta, case_molybdate, case_phosphoric, large_fixture1
+from fixtures2 import all_fixtures, large_fixture1
 
 
 class TestPrecond(unittest.TestCase):
@@ -78,14 +78,7 @@ class TestPrecond(unittest.TestCase):
         self.titr1 = self.__fixture2()
         self.titr2 = self.__fixture3()
         self.fixt4 = self.__fixture4()
-        self.fixtures2 = {
-            'phosphoric': case_phosphoric(),
-            'calcium carbonate': case_calcium_carbonate(),
-            'aluminium': case_aluminium(),
-            'molybdate': case_molybdate(),
-            'cobalt EDTA': case_cobalt_edta(),
-            'py33333 Cu Im': large_fixture1()
-        }
+        self.fixtures2 = all_fixtures
 
     def __fixture2(self):
         data = synthetic_simple1_wosld()
