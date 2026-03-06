@@ -19,7 +19,6 @@ class TestPrecond(unittest.TestCase):
         retv = _pick_exponent(large_fixture1())
         npt.assert_equal(1/np.array([1.0,2.0,4.0,6.0]), retv)
 
-    @unittest.skip('broken')
     def test_newx(self):
         n_points:int = 10
         n_compon:int = 3
@@ -43,8 +42,7 @@ class TestPrecond(unittest.TestCase):
         ratio = np.linspace(0.2, 2.0, 10)
         real = np.array([0.74, 0.58, 0.42, 0.26, 0.1, 0.23333333, 0.32857143,
                          0.4, 0.45555556, 0.5])
-        old_theta = np.zeros_like(real)
-        calc = _update_theta(ratio, old_theta)
+        calc = _update_theta(ratio)
         npt.assert_allclose(calc, real)
 
     def test_calc_ratio(self):
@@ -64,12 +62,12 @@ class TestPrecond(unittest.TestCase):
                 self.__success_precond(fixture)
 
     def __success_precond(self, fixture) -> None:
-        DAMPING_THRESHOLD = 1e-3
+        DAMPING_THRESHOLD = 1.0
         # breakpoint()
         initial_guess = guess_starting_point(fixture)
         cex0 = species_concentration(initial_guess, fixture, full=True)
         fprev = mass_action(fixture, cex0)
-        x = precondition(fixture, initial_guess)
+        x, _ = precondition(fixture, initial_guess)
         cex1 = species_concentration(x, fixture, full=True)
         fpost = mass_action(fixture, cex1)
         # aux = np.abs(fpost/fprev)
