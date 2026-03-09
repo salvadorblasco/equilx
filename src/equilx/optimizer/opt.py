@@ -1,6 +1,6 @@
 from typing import Protocol, Any, Callable
 
-from equilx.data_structure import ModelData
+from equilx.data_structure import ExperimentalData, ModelData
 from equilx.mytypes import FArray
 
 
@@ -41,7 +41,7 @@ class OptimizeProtocol(Protocol):
 
 
 class OptimizeObject:
-    def __init__(self, data: OptData, model: ModelData, reporter: Callable):
+    def __init__(self, data: ExperimentalData, model: ModelData, reporter: Callable):
         self._data = data
         self._model = model
         self._reporter = reporter

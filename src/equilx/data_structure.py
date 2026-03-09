@@ -27,7 +27,7 @@ class DebyeHuckelParameters:
     e1: float = 0.0
 
 
-@dataclass
+@dataclass(kw_only=True)
 class _GenericTitration:
     starting_volume: float                                         # in mL
     titre_added: FArray                                            # in mL
@@ -35,9 +35,10 @@ class _GenericTitration:
     buret_concentration: FArray                                    # in mol/L
     starting_background_concentration: FArray = field(init=False, default_factory=MISSING)  # in mol/L
     buret_background_concentration: FArray = field(init=False, default_factory=MISSING)     # in mol/L
-    use_point: BArray
-    starting_concentration_flags = list[Flags]
-    buret_concentration_flags = list[Flags]
+    starting_concentration_flags: list[Flags]
+    buret_concentration_flags: list[Flags]
+    volume_error: float = 0.0
+    use_point: Optional[BArray] = None
 
     def __post_init__(self):
         # type checking
@@ -144,10 +145,8 @@ class PotentiometryTitration(_GenericTitration):
     emf0: float
     emf_error: float
     slope: float
-    temperature: float = field(init=False, default=298.15)  # kelvin
-    starting_concentration_flag: list[Flags]
-    buret_concentration_flag: list[Flags]
     electroactive: int
+    temperature: float = field(init=False, default=298.15)  # kelvin
 
     def __post_init__(self):
         super().__post_init__()
@@ -168,6 +167,10 @@ class ExperimentalData:
     @property
     def number_of_titrations(self) -> int:
         return len(self.titrations)
+
+    @property
+    def total_experimental_points(self) -> int:
+        return sum(len(t) for t in self.titrations)
 
     def get_dof(self) -> int:
         return sum(t.get_dof() for t in self.titrations)
@@ -224,6 +227,7 @@ class _EquilCommon:
     reference_ionic: float = 0.0
     charges: Optional[IArray] = None
     component_labels: Optional[Sequence[str]] = None
+    background_ions: FArray = field(default_factory=lambda: np.array([], dtype=float))
 
     def __post_init__(self):
         if self.charges is None:
@@ -283,21 +287,8 @@ class _EquilCommon:
 
 
 @dataclass(kw_only=True)
-class ModelData(_EquilCommon):
-    log_beta_flags: list[Flags]
-    log_solids_flags: list[Flags]
-
-    @property
-    def degrees_of_freedom(self) -> int:
-        count1 = sum(1 for flag in self.log_beta_flags if flag == Flags.REFINE)
-        count2 = sum(1 for flag in self.log_solids_flags if flag == Flags.REFINE)
-        return count1 + count2
-
-
-@dataclass(kw_only=True)
 class EquilibriumData(_EquilCommon):
     analytical_concentration: FArray
-    background_ions: FArray = field(default_factory=lambda: np.array([], dtype=float))
 
     @property
     def n_points(self) -> int:
@@ -309,6 +300,32 @@ class EquilibriumData(_EquilCommon):
         copy.__dict__.update(self.__dict__)
         copy.__dict__['analytical_concentration'] = self.analytical_concentration.copy()
         return copy
+
+
+@dataclass(kw_only=True)
+class ModelData(_EquilCommon):
+    log_beta_flags: list[Flags]
+    log_solids_flags: list[Flags] = field(init=False, default_factory=lambda: [])
+
+    @property
+    def degrees_of_freedom(self) -> int:
+        count1 = sum(1 for flag in self.log_beta_flags if flag == Flags.REFINE)
+        count2 = sum(1 for flag in self.log_solids_flags if flag == Flags.REFINE)
+        return count1 + count2
+
+    def get_equildata(self, analytical_concentration: FArray) -> EquilibriumData:
+        return EquilibriumData(
+            analytical_concentration=analytical_concentration,
+            log_beta=self.log_beta,
+            stoichiometry=self.stoichiometry,
+            log_ks=self.log_ks,
+            solid_stoichiometry=self.solid_stoichiometry,
+            charges=self.charges,
+            reference_ionic=self.reference_ionic,
+            background_ions=self.background_ions)
+
+    def get_refinable(self) -> Iterator[int]:
+        yield from map(lambda x: x == Flags.REFINE, self.log_beta_flags)
 
 
 # Assertions

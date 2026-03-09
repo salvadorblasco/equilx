@@ -1,4 +1,4 @@
-"Test collection for potentiometry data fitting."
+"Routine for potentiometry data fitting."
 
 from typing import Any, Callable
 
@@ -17,13 +17,6 @@ from . import libfit
 from . import libmath
 
 from equilx.optimizer.opt import OptimizeObject
-
-
-def refine_indices(flags: list[Flags]) -> list[bool]:
-    """
-    Return list of bools for whether a particular parameter is to be refined.
-    """
-    return [i == Flags.REFINE for i in flags]
 
 
 class PotentiometryOpt(OptimizeObject):
@@ -54,17 +47,17 @@ class PotentiometryOpt(OptimizeObject):
 
         # initial variable vector
         self._idx_refinable = []
-        idx_refinable_beta = refine_indices(model.log_beta_flags)
-        self._slice_betas = slice(0, sum(1 for _ in idx_refinable_beta if _))
-        self._any_beta_refined = any(idx_refinable_beta)
-        self._idx_refinable.extend(idx_refinable_beta)
-        beta_to_refine = np.extract(idx_refinable_beta, model.log_beta)
+        self._idx_refinable_beta: tuple = tuple(n for n, f in enumerate(model.log_beta_flags) if f == Flags.REFINE)
+        self._slice_betas = slice(0, sum(1 for _ in self._idx_refinable_beta if _))
+        self._any_beta_refined = any(self._idx_refinable_beta)
+        self._idx_refinable.extend(self._idx_refinable_beta)
+        beta_to_refine = np.extract(self._idx_refinable_beta, model.log_beta)
         concs_to_refine = []
 
         for titration in data.titrations:
             if titration.starting_concentration_flags:
                 assert len(titration.starting_concentration_flags) == model.n_components
-                idx_refinable_c0 = refine_indices(titration.starting_concentration_flags)
+                idx_refinable_c0 = tuple(n for n, f in enumerate(titration.starting_concentration_flags) if f == Flags.REFINE)
             else:
                 idx_refinable_c0 = model.n_components*[False]
             self._idx_refinable.extend(idx_refinable_c0)
@@ -73,7 +66,7 @@ class PotentiometryOpt(OptimizeObject):
 
             if titration.buret_concentration:
                 assert len(titration.buret_concentration_flags) == model.n_components
-                idx_refinable_ct = refine_indices(titration.buret_concentration_flags)
+                idx_refinable_ct = tuple(n for n, f in enumerate(titration.buret_concentration_flags) if f == Flags.REFINE)
             else:
                 idx_refinable_ct = model.n_components*[False]
             self._idx_refinable.extend(idx_refinable_ct)
@@ -114,7 +107,7 @@ class PotentiometryOpt(OptimizeObject):
             istd = iter(stdev.tolist())
 
             err_log_beta = [next(istd)/LN10 if f == Flags.REFINE else None
-                            for f in self._data.potentiometry_opts.beta_flags]
+                            for f in self._model.log_beta_flags]
 
             err_titr_parms = [
                 [
@@ -143,7 +136,7 @@ class PotentiometryOpt(OptimizeObject):
             'background ion concentration': self._background_concentration(),
             'weights': self._weights,
             'degrees of freedom': self._dof,
-            'number of experimental points': self._experimental_points,
+            'number of experimental points': self._data.total_experimental_points,
             'variable names': list(self._name_variables())
         }
         return retval
@@ -154,33 +147,35 @@ class PotentiometryOpt(OptimizeObject):
         """
         # 1. calculate free concentrations
         freec = self._calc_free_concs(initial=False, update=True)
-        assert freec.shape == (self._total_points, self._nspecies + self._ncomponents)
+        assert freec.shape == (self._data.total_experimental_points, self._model.n_components + self._model.n_equils)
 
         # 2. calculate A
-        amatrix = jacobian.amatrix(freec, self._stoichx)
-        assert amatrix.shape == (self._total_points, self._ncomponents, self._ncomponents)
+        amatrix = jacobian.amatrix(freec, self._model.stoichiometryx)
+        assert amatrix.shape == (self._data.total_experimental_points, self._model.n_components, self._model.n_components)
 
         # 3. calculate jacobian part referring to beta
-        dlogc_dlogbeta = jacobian.dlogcdlogbeta(amatrix, freec, self._stoich)
-        assert dlogc_dlogbeta.shape == (self._total_points, self._ncomponents, self._nspecies)
+        dlogc_dlogbeta = jacobian.dlogcdlogbeta(amatrix, freec, self._model.solid_stoichiometry)
+        assert dlogc_dlogbeta.shape == (self._data.total_experimental_points, self._model.n_components, self._model.n_equils)
         jbeta = dlogc_dlogbeta
 
         # 4. calculate jacobian part referring to titration parameters
         _jc0 = jacobian.solve_xmatrix(amatrix, self._bmatrixt)
         _jct = jacobian.solve_xmatrix(amatrix, self._bmatrixb)
-        jtit = np.zeros((self._total_points, self._ncomponents, 2*self._ntitrations*self._ncomponents), dtype=float)
+        jtit = np.zeros((self._data.total_experimental_points, self._model.n_components, 2*self._data.number_of_titrations*self._model.n_components), dtype=float)
         _js = [np.concatenate((_jc0[s], _jct[s]), axis=2) for s in self._slices]
         for n, s1 in enumerate(self._slices):
-            s2 = slice(n*2*self._ncomponents, (n+1)*2*self._ncomponents)
+            s2 = slice(n*2*self._model.n_components, (n+1)*2*self._model.n_components)
             jtit[s1, :, s2] = _js[n]
 
         # 5. compute the total jacobian
         jac =  np.concatenate([jbeta, jtit], axis=2)
-        assert jac.shape == (self._total_points, self._ncomponents, self._nspecies + 2*self._ncomponents*self._ntitrations)
+        assert jac.shape == (self._data.total_experimental_points,
+                             self._model.n_components,
+                             self._model.n_equils + 2*self._model.n_components*self._data.number_of_titrations)
 
         # 6. remove non refined parts
         trimmed_jac1 = jac[..., self._idx_refinable]
-        trimmed_jac2 = trimmed_jac1[np.arange(self._total_points), self._hindices]
+        trimmed_jac2 = trimmed_jac1[np.arange(self._data.total_experimental_points), self._hindices]
         trimmed_jac3 = -LN10*self._slopes[:, None] * trimmed_jac2
 
         # 7. compute residual
@@ -201,7 +196,7 @@ class PotentiometryOpt(OptimizeObject):
         kwargs['log_beta'] = self._beta()
         kwargs['previous log beta'] = self._previous_values[self._slice_betas]/LN10
         kwargs['increment'] /= LN10
-        kwargs['stoichiometry'] = self._stoich
+        kwargs['stoichiometry'] = self._model.stoichiometry
         kwargs['any beta refined'] = self._any_beta_refined
         kwargs['any conc refined'] = self._any_conc_refined
         kwargs['titration params'] = list(self._titration_parameters())
@@ -209,7 +204,7 @@ class PotentiometryOpt(OptimizeObject):
 
     def size(self) -> tuple[int, int]:
         "Return number of points, number of variables."
-        return self._total_points, self._dof
+        return self._data.total_experimental_points, self._dof
 
     def trial_step(self, increments: FArray) -> None:
         if increments.shape != self._step.shape:
@@ -231,7 +226,7 @@ class PotentiometryOpt(OptimizeObject):
         """
         The number of variables to refine.
         """
-        return sum(self._experimental_points) - self._dof
+        return self._data.total_experimental_points - self._dof
 
     def _analytical_concentration(self) -> FArray:
         aconc = []
@@ -253,24 +248,23 @@ class PotentiometryOpt(OptimizeObject):
         """
         Return log10(beta) for the trial step.
         """
-        beta = self._data.log_beta.copy()
-        idx = refine_indices(self._data.potentiometry_opts.beta_flags)
-        beta[idx] = (self._variables[self._slice_betas] + self._step[self._slice_betas]) / LN10
+        beta = self._model.log_beta.copy()
+        beta[self._idx_refinable_beta] = (self._variables[self._slice_betas] + self._step[self._slice_betas]) / LN10
         return beta
 
-    def _stoichiometry(self, extended=False):
-        "Get stoichiometry array."
-        number_components = self._data.stoichiometry.shape[0]
-        if extended:
-            return np.vstack((np.eye(number_components, dtype=int),
-                              np.array(self._data.stoichiometry.T)))
-        return self._data.stoichiometry.T
+    # def _stoichiometry(self, extended=False):
+    #     "Get stoichiometry array."
+    #     number_components = self._model.n_components
+    #     if extended:
+    #         return np.vstack((np.eye(number_components, dtype=int),
+    #                           np.array(self._model.stoichiometry.T)))
+    #     return self._model.stoichiometry.T
 
-    def _titrations(self):
-        """
-        Iterate over the titrations.
-        """
-        yield from iter(self._data.potentiometry_opts.titrations)
+    # def _titrations(self):
+    #     """
+    #     Iterate over the titrations.
+    #     """
+    #     yield from iter(self._data.potentiometry_opts.titrations)
 
     def _titration_parameters(self):
         itx = iter(self._variables[self._dof_beta:].tolist())
@@ -283,16 +277,16 @@ class PotentiometryOpt(OptimizeObject):
                     x[n] = next(itx) + next(itd)
             return x
 
-        for titration in self._titrations():
-            c0 = select(titration.c0, titration.c0_flags)
-            ct = select(titration.ct, titration.ct_flags)
-            yield c0, ct
+        for titration in self._data.titrations:
+            starting_concentration = select(titration.starting_concentration, titration.starting_concentration_flags)
+            buret_concentration = select(titration.buret_concentration, titration.buret_concentration_flags)
+            yield starting_concentration, buret_concentration
         
     def _calc_free_concs(self, initial=False, update=False) -> FArray:
         if initial or self._freeconcentration is None:
             _initial_guess = None
         else:
-            _initial_guess = self._freeconcentration[:,:self._ncomponents]
+            _initial_guess = self._freeconcentration[:,:self._model.n_components]
         log_beta = self._beta()
         total_concentration = self._analytical_concentration()
 
@@ -300,25 +294,8 @@ class PotentiometryOpt(OptimizeObject):
         background_ions_concentration = self._background_concentration()
         independent_component_activity = None
 
-        outer_fixed_point_params = {
-            "ionic_strength_dependence": self._data.ionic_strength_dependence,
-            "reference_ionic_str_species": self._data.reference_ionic_str_species,
-            "reference_ionic_str_solids": self._data.reference_ionic_str_solids,
-            "dbh_values": self._data.dbh_values.copy(),
-            "charges": self._chargesx,
-            "independent_component_activity": independent_component_activity,
-            "background_ions_concentration": background_ions_concentration,
-        }
         try:
-            c, *_ = solve_equilibrium_equations(
-                stoichiometry=self._data.stoichiometry,
-                solid_stoichiometry=self._data.solid_stoichiometry,
-                original_log_beta=log_beta,
-                original_log_ks=self._data.log_ks,
-                total_concentration=total_concentration,
-                outer_fiexd_point_params=outer_fixed_point_params,
-                initial_guess=_initial_guess,
-                full=True)
+            c, *_ = EqSolver(self._model.get_equildata(self._analytical_concentration()))
         except excepts.DivergedIonicStrengthWarning as divergwarn:
             raise divergwarn
         else:
