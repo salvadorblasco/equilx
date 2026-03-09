@@ -1,5 +1,7 @@
 from typing import Protocol, Any, Callable
 
+import numpy as np
+
 from equilx.data_structure import ExperimentalData, ModelData
 from equilx.mytypes import FArray
 
@@ -46,4 +48,5 @@ class OptimizeObject:
         self._model = model
         self._reporter = reporter
 
+        self._background_ion_concentration = np.concatenate([t.background_ions for t in data.titrations])
         self._freeconcentration: FArray | None = None

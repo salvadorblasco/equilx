@@ -9,11 +9,10 @@ from equilx.data_structure import ModelData, PotentiometryData
 from equilx.solver.solver import EqSolver
 from equilx.consts import Flags, LN10
 from equilx.mytypes import FArray
+from equilx import excepts
 
-from .. import excepts
 from . import jacobian
 from . import libemf
-from . import libfit
 from . import libmath
 
 from equilx.optimizer.opt import OptimizeObject
@@ -111,9 +110,9 @@ class PotentiometryOpt(OptimizeObject):
 
             err_titr_parms = [
                 [
-                    [next(istd) if c0f == Flags.REFINE else None for c0f in t.c0_flags],
-                    [next(istd) if ctf == Flags.REFINE else None for ctf in t.ct_flags]
-                ] for t in self._titrations() ]
+                    [next(istd) if c0f == Flags.REFINE else None for c0f in t.starting_concentration_flags],
+                    [next(istd) if ctf == Flags.REFINE else None for ctf in t.buret_concentration_flags]
+                ] for t in self._data.titrations ]
         else:
             err_log_beta = None
             err_titr_parms = None
@@ -230,9 +229,9 @@ class PotentiometryOpt(OptimizeObject):
 
     def _analytical_concentration(self) -> FArray:
         aconc = []
-        for titration, (c0, ct) in zip(self._titrations(), self._titration_parameters()):
-            aux = (c0[None, :] * titration.v0 + ct[None, :] * titration.get_titre[:, None]) / \
-                (titration.v0 + titration.get_titre[:, None])
+        for titration, (c0, ct) in zip(self._data.titrations, self._titration_parameters()):
+            aux = (c0[None, :] * titration.starting_volume + ct[None, :] * titration.get_titre[:, None]) / \
+                (titration.starting_volume + titration.get_titre[:, None])
             aconc.append(aux)
         return np.concatenate(aconc, axis=0)
 
@@ -240,7 +239,7 @@ class PotentiometryOpt(OptimizeObject):
         bconc = [
             (titration.c0back * titration.v0 + titration.ctback * titration.get_titre[:, None]) / \
                 (titration.v0 + titration.get_titre[:, None])
-            for titration in self._titrations()
+            for titration in self._data.titrations
         ]
         return np.concatenate(bconc, axis=0)
 
@@ -287,15 +286,13 @@ class PotentiometryOpt(OptimizeObject):
             _initial_guess = None
         else:
             _initial_guess = self._freeconcentration[:,:self._model.n_components]
-        log_beta = self._beta()
-        total_concentration = self._analytical_concentration()
 
-        #charges = self._data.charges
-        background_ions_concentration = self._background_concentration()
-        independent_component_activity = None
+        equil = self._model.get_equildata(self._analytical_concentration())
+        equil.background_ions = self._background_ion_concentration
+        equil.log_beta[...] = self._beta()
 
         try:
-            c, *_ = EqSolver(self._model.get_equildata(self._analytical_concentration()))
+            c, *_ = EqSolver(equil, initial_guess=_initial_guess)
         except excepts.DivergedIonicStrengthWarning as divergwarn:
             raise divergwarn
         else:
@@ -344,56 +341,56 @@ class PotentiometryOpt(OptimizeObject):
         return retv
 
 
-def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
-    """
-    Solve a potentiometry problem. Refine constants and possibly, concentrations.
-
-    Parameters:
-    -------
-    data : SolverData
-        The data for the refinement.
-
-    Returns:
-        x : 
-            the refined data
-        concs :
-            the final free concentrations
-        final_log_beta :
-            the final refined constant values
-        b_error :
-            the fitting error in the concentration
-        cor_matrix :
-            the correlation matrix
-        cov_matrix :
-            the covariance matrix
-        return_extra :
-            additional information
-    -------
-    """
-    bridge: Bridge = PotentiometryBridge(data, reporter)
-    fit_status, fit_result = libfit.levenberg_marquardt(bridge, debug=False)
-
-    stdev, cor, cov = fit_final_calcs(fit_result['jacobian'], fit_result['residuals'], bridge.weights()) 
-
-    retval = bridge.final_result(stdev)
-    retval.update(fit_result)
-    retval['covariance'] = cov
-    retval['correlation'] = cor
-
-    retval['sigma split'] = [libmath.fit_sigma(fit_result['residuals'][s],
-                                               retval['weights'][s],
-                                               len(fit_result['residuals'][s]),
-                                               retval['degrees of freedom'])
-                             for s in retval['slices']]
-    retval['sigma'] = libmath.fit_sigma(fit_result['residuals'],
-                                        retval['weights'],
-                                        sum(retval['number of experimental points']),
-                                        retval['degrees of freedom'])
-
-    # for compatibility in plotting
-    retval['species_concentrations'] = retval['free concentration']
-
-    return retval
+# def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
+#     """
+#     Solve a potentiometry problem. Refine constants and possibly, concentrations.
+# 
+#     Parameters:
+#     -------
+#     data : SolverData
+#         The data for the refinement.
+# 
+#     Returns:
+#         x : 
+#             the refined data
+#         concs :
+#             the final free concentrations
+#         final_log_beta :
+#             the final refined constant values
+#         b_error :
+#             the fitting error in the concentration
+#         cor_matrix :
+#             the correlation matrix
+#         cov_matrix :
+#             the covariance matrix
+#         return_extra :
+#             additional information
+#     -------
+#     """
+#     bridge: Bridge = PotentiometryBridge(data, reporter)
+#     fit_status, fit_result = libfit.levenberg_marquardt(bridge, debug=False)
+# 
+#     stdev, cor, cov = fit_final_calcs(fit_result['jacobian'], fit_result['residuals'], bridge.weights()) 
+# 
+#     retval = bridge.final_result(stdev)
+#     retval.update(fit_result)
+#     retval['covariance'] = cov
+#     retval['correlation'] = cor
+# 
+#     retval['sigma split'] = [libmath.fit_sigma(fit_result['residuals'][s],
+#                                                retval['weights'][s],
+#                                                len(fit_result['residuals'][s]),
+#                                                retval['degrees of freedom'])
+#                              for s in retval['slices']]
+#     retval['sigma'] = libmath.fit_sigma(fit_result['residuals'],
+#                                         retval['weights'],
+#                                         sum(retval['number of experimental points']),
+#                                         retval['degrees of freedom'])
+# 
+#     # for compatibility in plotting
+#     retval['species_concentrations'] = retval['free concentration']
+# 
+#     return retval
 
 
 def covariance_fun(J, W, F):

@@ -5,7 +5,7 @@ from equilx.data_structure import PotentiometryTitration, PotentiometryData, Mod
 from equilx.consts import Flags
 
 
-def load_data():
+def case_znedta():
     titration1 = PotentiometryTitration(
         electroactive=2,
         emf0=405.0,

@@ -39,6 +39,7 @@ class _GenericTitration:
     buret_concentration_flags: list[Flags]
     volume_error: float = 0.0
     use_point: Optional[BArray] = None
+    background_ions: FArray = field(default_factory=lambda: np.array([], dtype=float))
 
     def __post_init__(self):
         # type checking
@@ -227,7 +228,6 @@ class _EquilCommon:
     reference_ionic: float = 0.0
     charges: Optional[IArray] = None
     component_labels: Optional[Sequence[str]] = None
-    background_ions: FArray = field(default_factory=lambda: np.array([], dtype=float))
 
     def __post_init__(self):
         if self.charges is None:
@@ -289,6 +289,7 @@ class _EquilCommon:
 @dataclass(kw_only=True)
 class EquilibriumData(_EquilCommon):
     analytical_concentration: FArray
+    background_ions: FArray = field(default_factory=lambda: np.array([], dtype=float))
 
     @property
     def n_points(self) -> int:
