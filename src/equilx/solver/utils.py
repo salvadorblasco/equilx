@@ -1,7 +1,9 @@
+from typing import Iterable
+
 import numpy as np
 
 from ..mytypes import FArray
-from ..data_structure import EquilibriumData
+from ..data_structure import EquilibriumData, _EquilCommon
 
 
 def unpack_eqsolve(concentration: FArray, equil: EquilibriumData) -> dict:
@@ -132,3 +134,18 @@ def mass_action(equil: EquilibriumData, free_concentration: FArray, solid_concen
     if equil.n_solids and solid_concentration is not None: # solids present
         ffunc += solid_concentration @ equil.solid_stoichiometry
     return ffunc
+
+
+def species_names(equil: _EquilCommon, replace_proton=True) -> Iterable[str]:
+    if equil.component_labels is None:
+        raise ValueError("component labels must be provided")
+    for stoich in equil.stoichiometry:
+        aux = []
+        for label, s in zip(equil.component_labels, stoich):
+            if label == 'H' and s < 0 and replace_proton:
+                aux.append(f'(OH){-s}')
+            elif s == 0:
+                continue
+            else:
+                aux.append(f'({label}){s}')
+        yield "".join(aux)

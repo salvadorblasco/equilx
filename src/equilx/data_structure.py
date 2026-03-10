@@ -13,6 +13,7 @@ from .mytypes import BArray, FArray, IArray
 from numpy.typing import NDArray
 
 from equilx.consts import Flags
+from equilx.solver import utils
 
 
 @dataclass
@@ -263,6 +264,10 @@ class _EquilCommon:
     @cached_property
     def stoichiometryx(self):
         return np.concatenate((np.eye(self.n_components, dtype=int),self.stoichiometry), axis=0)
+
+    @cached_property
+    def species_names(self) -> list[str]:
+        return list(utils.species_names(self))
 
     @cached_property
     def chargesx(self):

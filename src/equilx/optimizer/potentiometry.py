@@ -12,8 +12,7 @@ from equilx.mytypes import FArray
 from equilx import excepts
 
 from . import jacobian
-from . import libemf
-from . import libmath
+#from . import libmath
 
 from equilx.optimizer.opt import OptimizeObject
 
@@ -118,7 +117,7 @@ class PotentiometryOpt(OptimizeObject):
             err_titr_parms = None
 
         # fvals = self.final_values()
-        eactive = libemf.hselect(self._freeconcentration, self._hindices) 
+        eactive = hselect(self._freeconcentration, self._hindices) 
         
         retval = {
             'final variables': variables,
@@ -302,24 +301,24 @@ class PotentiometryOpt(OptimizeObject):
 
     def _name_variables(self):
         if self._any_beta_refined:
-            species_names = self._data.species_names
-            beta_flags = self._data.potentiometry_opts.beta_flags
+            species_names = self._model.species_labels
+            beta_flags = self._model.log_beta_flags
             for name, flag in zip(species_names, beta_flags):
                 if flag == Flags.REFINE:
                     yield f"logB[{name}]"
         if self._any_conc_refined:
-            components = self._data.components
-            for ntit, titration in enumerate(self._titrations()):
-                for comp, flag in zip(components, titration.c0_flags):
+            components = self._model.component_labels
+            for ntit, titration in enumerate(self._data.titrations):
+                for comp, flag in zip(components, titration.starting_concentration_flags):
                     if flag == Flags.REFINE:
                         yield f"c0[{comp}, tit#{ntit}]"
-                for comp, flag in zip(components, titration.ct_flags):
+                for comp, flag in zip(components, titration.buret_concentration_flags):
                     if flag == Flags.REFINE:
                         yield f"cT[{comp}, tit#{ntit}]"
 
     def __calculate_residual(self, free_concentrations):
-        assert free_concentrations.shape == (self._total_points, self._nspecies + self._ncomponents)
-        eactive = libemf.hselect(free_concentrations, self._hindices) 
+        assert free_concentrations.shape == (self._data.total_experimental_points, self._model.n_soluble)
+        eactive = hselect(free_concentrations, self._hindices) 
         calculated_emf = self._emf0 + self._slopes * np.log(eactive)
         assert calculated_emf.shape == (self._total_points,)
         residual = self._experimental_emf - calculated_emf
@@ -437,41 +436,126 @@ def fit_final_calcs(jacobian, resids, weights):
     return stdev, correlation, covariance
 
 
-def ravel(x, y, flags):
-    """Update values from one iterable with other iterable according to flags.
+def hselect(array: FArray, hindices: list[int]) -> FArray:
+    """Select columns that correspond to the electroactive species.
 
-    This function does the opposite action than :func:`unravel`.
+    Given the concentrations array, selects the columns that correspond
+    to the electroactive species.
 
     Parameters:
-        x (iterable): the original array values
-        y (iterable): the updated values to be plugged into *x*.
-        flags (sequence): flags indicating how to update *x* with *y*. Accepted
-            values are:
+        array (:class:`numpy.ndarray`): The :term:`free concentrations array`
+        hindices (list[int]): Indices of the electroactive specie(s).
 
-            * 0: value is to be kept constant
-            * 1: value is to be refined and the corresponding value from x
-              will be substituted by the corresponding value from y.
-            * >2: value is restrained. All places with the same number are
-              refined together and the ratio between them is maintained.
-
-    Yields:
-        float: Raveled values.
+    Returns:
+        The part of C which is electroactive
     """
-    # indices of the reference parameter for constraining
-    ref_index = {i: flags.index(i) for i in range(2, 1 + max(flags))}
-    ref_val = {}
+    return array[np.arange(len(hindices)),hindices]
 
-    ity = iter(y)
-    for i, f in enumerate(flags):
-        if f == Flags.REFINE:  # refinable: return new value
-            yield next(ity)
-        elif f == Flags.CONSTANT:  # constant: return old value
-            yield x[i]
-        else:  # constrained: return or compute
-            if i == ref_index[f]:
-                val = next(ity)  # reference value: return new value
-                ref_val[f] = val  # and store ref value
-                yield val
-            else:  # other: compute proportional value
-                yield x[i] * ref_val[f] / x[ref_index[f]]
 
+def nernst(electroactive_conc: FArray, emf0: FArray, slope: FArray | float = 1.0,
+           joint: FArray | float=0.0) -> FArray:
+    r"""Calculate the calculated potential.
+
+    Apply Nernst's equation to calculate potential according to
+    .. math ::
+
+    E = E^0 + f\frac{nF}{RT}\ln[C] + J
+
+    Parameters:
+        electroactive_conc (:class:`numpy.ndarray`): a 1D array of floats
+            representing the free concentrations of the electroactive species.
+        emf0 (:class:`numpy.ndarray`): The :term:`standard potential`
+        slope (:class:`numpy.ndarray`): The slope for :term:`Nernst's equation`
+        joint (:class:`numpy.ndarray`): The liquid joint contribution for :term:`Nernst's equation`
+        temperature (float): the absolute temperature
+    Returns:
+        :class:`numpy.ndarray`: an array of floats containing the calculated values
+    """
+    return emf0 + slope*np.log(electroactive_conc) + joint
+
+
+def emf_jac_beta(dlogc_dlogbeta: FArray, slope=1.0, temperature: float=298.15) -> FArray:
+    r"""Calculate the jacobian part related to equilibrium constants.
+
+    The calculation is done according to equation
+    .. math ::
+
+    \frac{\partial E_n}{\partial\log\beta_b}=\frac{fRT}{nF\log e}\frac{\partial\log c_{nh}}
+    {\partial\log\beta_b} 
+
+    Parameters:
+        dlogc_dlogbeta (:class:`numpy.ndarray`): the derivative values. They can be obtained
+            from :func:`libeq.jacobian.dlogcdlogbeta`.
+        slope (:class:`numpy.ndarray`): The slope for :term:`Nernst's equation`
+        temperature (float): the absolute temperature
+    Returns:
+        :class:`numpy.ndarray`: an array of floats containing the calculated values
+    """
+    nernstian_slope = slope*RoverF*temperature
+    return nernstian_slope*dlogc_dlogbeta
+
+
+def emf_jac_init(dlogc_dt: FArray, slope=1.0, temperature=298.15) -> FArray:
+    r"""Calculate the jacobian part related to the initial amount.
+
+    The calculation is done according to equation
+    .. math ::
+
+    \frac{\partial E_n}{\partial t_i} = f\frac{RT}{nF}\frac{\partial\log c_{nh}}{\partial t_i}
+
+    Parameters:
+        dlogc_dt (:class:`numpy.ndarray`): the derivative values. They can be obtained
+            from :func:`libeq.jacobian.dlogcdt`.
+        slope (:class:`numpy.ndarray`): The slope for :term:`Nernst's equation`
+        temperature (float): the absolute temperature
+    Returns:
+        :class:`numpy.ndarray`: an array of floats containing the calculated values
+    """
+    nernstian_slope = slope*RoverF*temperature
+    return nernstian_slope*dlogc_dt
+
+
+def emf_jac_buret(dlogc_db: FArray, slope=1.0, temperature=298.15) -> FArray:
+    r"""Calculate the jacobian part related to the buret concentration.
+
+    The calculation is done according to equation
+    .. math ::
+
+    \frac{\partial E_n}{\partial b_i} = f\frac{RT}{nF}\frac{\partial\log c_{nh}}{\partial b_i}
+
+    Parameters:
+        dlogc_db (:class:`numpy.ndarray`): the derivative values. They can be obtained
+            from :func:`libeq.jacobian.dlogcdb`.
+        slope (:class:`numpy.ndarray`): The slope for :term:`Nernst's equation`
+        temperature (float): the absolute temperature
+    Returns:
+        :class:`numpy.ndarray`: an array of floats containing the calculated values
+    """
+    nernstian_slope = slope*temperature
+    return nernstian_slope*dlogc_db
+
+
+def emf_jac_e0(size: int) -> FArray:
+    r"""Calculate the jacobian part related to the standard potential.
+
+    It returns ones based on the size according to equation
+    .. math ::
+
+    \frac{\partial E_n}{\partial E^0} = 1
+
+    Parameters:
+        size (int): the number of ones to return
+    Returns:
+        :class:`numpy.ndarray`: an array of floats containing the calculated values
+    """
+    return np.ones(size)
+
+
+def emf_weights(titre: FArray, titre_error: float, emf: FArray, emf_error: float) -> FArray:
+    gradient = np.gradient(emf, titre, axis=0)
+    return 1/(emf_error**2 + gradient**2 * titre_error**2)
+
+
+def residual_jacobian(emf: FArray, calc_emf: FArray, weights: FArray, demfdx) -> FArray:
+    aux = np.sqrt(weights)*(emf - calc_emf)*emf
+    return -2*np.sum(aux[:,None,None]*demfdx, axis=0)
