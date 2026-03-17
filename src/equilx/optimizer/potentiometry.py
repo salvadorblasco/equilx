@@ -30,7 +30,7 @@ class PotentiometryOpt(OptimizeObject):
         self._dof = self._dof_beta + self._dof_conc
 
         ##> self._hindices
-        self._hindices = np.fromiter(data.get_per_point_electroactive(), dtype=int)
+        self._hindices: list[int] = list(data.get_per_point_electroactive())
 
         ##> self._experimental_remf
         self._experimental_emf = data.get_collapsed_emf()
@@ -117,6 +117,7 @@ class PotentiometryOpt(OptimizeObject):
             err_titr_parms = None
 
         # fvals = self.final_values()
+        assert self._freeconcentration is not None
         eactive = hselect(self._freeconcentration, self._hindices) 
         
         retval = {
@@ -226,22 +227,6 @@ class PotentiometryOpt(OptimizeObject):
         """
         return self._data.total_experimental_points - self._dof
 
-    def _analytical_concentration(self) -> FArray:
-        aconc = []
-        for titration, (c0, ct) in zip(self._data.titrations, self._titration_parameters()):
-            aux = (c0[None, :] * titration.starting_volume + ct[None, :] * titration.get_titre[:, None]) / \
-                (titration.starting_volume + titration.get_titre[:, None])
-            aconc.append(aux)
-        return np.concatenate(aconc, axis=0)
-
-    def _background_concentration(self) -> FArray:
-        bconc = [
-            (titration.c0back * titration.v0 + titration.ctback * titration.get_titre[:, None]) / \
-                (titration.v0 + titration.get_titre[:, None])
-            for titration in self._data.titrations
-        ]
-        return np.concatenate(bconc, axis=0)
-
     def _beta(self):
         """
         Return log10(beta) for the trial step.
@@ -249,55 +234,6 @@ class PotentiometryOpt(OptimizeObject):
         beta = self._model.log_beta.copy()
         beta[self._idx_refinable_beta] = (self._variables[self._slice_betas] + self._step[self._slice_betas]) / LN10
         return beta
-
-    # def _stoichiometry(self, extended=False):
-    #     "Get stoichiometry array."
-    #     number_components = self._model.n_components
-    #     if extended:
-    #         return np.vstack((np.eye(number_components, dtype=int),
-    #                           np.array(self._model.stoichiometry.T)))
-    #     return self._model.stoichiometry.T
-
-    # def _titrations(self):
-    #     """
-    #     Iterate over the titrations.
-    #     """
-    #     yield from iter(self._data.potentiometry_opts.titrations)
-
-    def _titration_parameters(self):
-        itx = iter(self._variables[self._dof_beta:].tolist())
-        itd = iter(self._step[self._dof_beta:].tolist())
-
-        def select(c, flags):
-            x = c.copy()
-            for n, i in enumerate(flags):
-                if i == Flags.REFINE:
-                    x[n] = next(itx) + next(itd)
-            return x
-
-        for titration in self._data.titrations:
-            starting_concentration = select(titration.starting_concentration, titration.starting_concentration_flags)
-            buret_concentration = select(titration.buret_concentration, titration.buret_concentration_flags)
-            yield starting_concentration, buret_concentration
-        
-    def _calc_free_concs(self, initial=False, update=False) -> FArray:
-        if initial or self._freeconcentration is None:
-            _initial_guess = None
-        else:
-            _initial_guess = self._freeconcentration[:,:self._model.n_components]
-
-        equil = self._model.get_equildata(self._analytical_concentration())
-        equil.background_ions = self._background_ion_concentration
-        equil.log_beta[...] = self._beta()
-
-        try:
-            c, *_ = EqSolver(equil, initial_guess=_initial_guess)
-        except excepts.DivergedIonicStrengthWarning as divergwarn:
-            raise divergwarn
-        else:
-            if update:
-                self._freeconcentration = c
-        return c
 
     def _name_variables(self):
         if self._any_beta_refined:

@@ -7,13 +7,10 @@ import enum
 from typing import Final
 
 import numpy as np
-from numpy.typing import NDArray
 
-from libeq import excepts
 from .libmath import fit_sigma
-
-
-FArray = NDArray[float]
+from equilx.mytypes import FArray
+from equilx import excepts 
 
 
 class Exec(enum.IntEnum):
