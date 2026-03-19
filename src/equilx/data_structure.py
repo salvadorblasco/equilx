@@ -4,16 +4,14 @@ from functools import cached_property
 import itertools
 from enum import IntEnum, auto
 from typing import Optional
+from typing import Iterable
 from collections.abc import Iterator
 
 import numpy as np
-
-from .mytypes import BArray, FArray, IArray
-
 from numpy.typing import NDArray
 
+from equilx.mytypes import BArray, FArray, IArray
 from equilx.consts import Flags
-from equilx.solver import utils
 
 
 @dataclass
@@ -267,7 +265,7 @@ class _EquilCommon:
 
     @cached_property
     def species_names(self) -> list[str]:
-        return list(utils.species_names(self))
+        return list(_species_names(self))
 
     @cached_property
     def chargesx(self):
@@ -334,7 +332,25 @@ class ModelData(_EquilCommon):
         yield from map(lambda x: x == Flags.REFINE, self.log_beta_flags)
 
 
+# Utilities functions
+
+def _species_names(equil: _EquilCommon, replace_proton=True) -> Iterable[str]:
+    if equil.component_labels is None:
+        raise ValueError("component labels must be provided")
+    for stoich in equil.stoichiometry:
+        aux = []
+        for label, s in zip(equil.component_labels, stoich):
+            if label == 'H' and s < 0 and replace_proton:
+                aux.append(f'(OH){-s}')
+            elif s == 0:
+                continue
+            else:
+                aux.append(f'({label}){s}')
+        yield "".join(aux)
+
+
 # Assertions
+
 def _assert_dim(array: NDArray, dim:int):
     if array.ndim != dim:
         raise TypeError(f"Array must be {dim}-dimmensioned")
