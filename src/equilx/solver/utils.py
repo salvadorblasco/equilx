@@ -28,7 +28,42 @@ def unfreeze_concentration(original_equil: EquilibriumData, frozen_equil: Equili
 
 
 def freeze_concentration(equil: EquilibriumData, reference_component: int) -> EquilibriumData:
-    ...
+    r"""Convert one component to independent variable.
+
+    When solving the equilibrium, sometimes those concentrations are plotted
+    as function of the concentration of one of them, typically the pH. That
+    component, therefore, can be converted into an independent variable
+    and removed from the unknowns.
+
+    .. math::
+
+    c_{i+S} = \beta_ic_{\omega}^{p_{i\omega}}\prod_{j\ne\omega}^Sc_j^{p_{ij}}
+            = \beta_i'\prod_{j\ne\omega}^Sc_j^{p_{ij}}
+
+    Parameters
+    ----------
+    equil: EquilibriumData
+        The data containing equilibrium information
+    reference_component: int
+        The index of the reference component
+
+    Returns
+    -------
+    EquilibriumData
+        The new frozen equilibrium data.
+    """
+    new_x = equil.analytical_concentration[:, reference_component]
+    beta = 10**equil.log_beta
+    beta_prime = beta[np.newaxis, ...] * \
+        new_x[..., np.newaxis]**equil.stoichiometry[:, reference_component]
+    stoich_new = np.delete(equil.stoichiometry, reference_component, axis=1)
+    analc_new = np.delete(equil.analytical_concentration, reference_component, axis=1)
+    # TODO add solids as well.
+    frozen_equil = EquilibriumData(
+        log_beta=np.log10(beta_prime),
+        stoichiometry=stoich_new,
+        analytical_concentration=analc_new)
+    return frozen_equil
 
 
 def species_concentration(concentration, equil: EquilibriumData, full=False) -> FArray:
