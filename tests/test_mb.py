@@ -42,14 +42,6 @@ class TestMassBalance(unittest.TestCase):
             npt.assert_allclose(mb2, np.zeros_like(mb2))
 
 
-def _read_fixture(data) -> EquilibriumData:
-    return EquilibriumData(analytical_concentration=data.analyticalc,
-                           log_beta=data.log_beta,
-                           stoichiometry=data.stoichiometry,
-                           log_ks=data.log_ks,
-                           solid_stoichiometry=data.solid_stoichiometry)
-
-
 if __name__ == '__main__':
     unittest.main()
 

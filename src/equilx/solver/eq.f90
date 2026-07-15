@@ -1,90 +1,91 @@
 ! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
+! by Salvador Blasco <salvador.blasco@uv.es>
 !
-! Compile with $ f2py3 -llapack -c -m mfeq eq.f90
+! Compile with $ f2py3 -llapack -c -m solver cpluss.o pcf.o eq.f90
 !
 ! control codes
 ! 0 -> normal exit, no errors
-! 1 -> 
+! 1 -> unable to invert matrix
 
-subroutine newtonr1(C, T, B, P, CTRL, N, E, S, ES)
+subroutine solve1(C, T, B, P, CTRL, NPT, NEQ, NCP)
   ! Perform Newton-Raphson iterations per point when the beta matrix
   ! is 1D. The first initial value must be provided in the first row
   ! of C. The following points take as starting value the value of 
   ! the last iteration.
 
   implicit none
-  integer, intent(in) :: N, E, S, ES
-  ! N -> number of experimental points
-  ! E -> number of equilibria
-  ! S -> number of species
-  integer, intent(inout) :: CTRL
-  ! control value. 0 on no error, 1 otherwise
-  integer, dimension(E, S), intent(in) :: P
-  ! The stoichiometry array
-  double precision, dimension(N, ES), intent(inout) :: C
-  ! C -> (inout) initial estimates and refined values
-  double precision, dimension(N, S), intent(in) :: T
-  ! T -> The stoichiometry values
-  double precision, dimension(E), intent(in) :: B
-  integer i, ctrl2
+  integer, intent(in) :: NPT     ! number of titration points
+  integer, intent(in) :: NCP     ! number of components
+  integer, intent(in) :: NEQ     ! number of equilibria
+  integer, intent(inout) :: CTRL ! control value. 0 on no error, 1 otherwise
+  integer, dimension(NEQ, NCP), intent(in) :: P ! The stoichiometry array
+  double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C ! initial estimates (in) and refined values (out)
+  double precision, dimension(NPT, NCP), intent(in) :: T ! analytical concentration values
+  double precision, dimension(NEQ), intent(in) :: B  ! the equilibrium constants
+  !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
+  !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
+  !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
 
-  ctrl2 = ctrl
+  integer :: i
+  CTRL = 0
 
-  do i=1,N
+  do i=1,NPT
     if (i > 1) then
       C(i,:) = C(i-1,:)
     end if
     if (i == 1) then
-      call pcf(C(i,:), T(i,:), B, P, 1E-9, E, S)
+      call pcf(C(i,:), T(i,:), B, P, 1E-9, NCP, NEQ)
     else
-      call pcf(C(i,:), T(i,:), B, P, 0.25, E, S)
+      call pcf(C(i,:), T(i,:), B, P, 0.25, NCP, NEQ)
     end if
-    call nr(C(i,:), T(i,:), B, P, CTRL, E, S)
+    call nr(C(i,:), T(i,:), B, P, CTRL, NEQ, NCP)
   end do
-end subroutine newtonr1
+end subroutine solve1
 
+subroutine solve1_solids(C, CS, T, B, P, KS, Q, CTRL, NPT, NEQ, NCP)
+end subroutine solve1_solids
 
-subroutine newtonr2(C, T, B, P, CTRL, N, E, S, ES)
+subroutine solve2(C, T, B, P, CTRL, NPT, NEQ, NCP)
   ! Perform Newton-Raphson iterations per point when the beta matrix
   ! is 2D. The first initial value must be provided in the first row
   ! of C. The following points take as starting value the value of 
   ! the last iteration.
 
   implicit none
-  integer :: N, E, S, ES
-  !fpy intent(hide) :: N=shape(T,0), E=shape(P,0), S=shape(P,1)
-  ! N -> (in) number of experimental points
-  ! E -> (in) number of equilibria
-  ! S -> (in) number of species
-  integer, intent(inout) :: CTRL
-  ! CTRL -> (out) control value
-  integer, dimension(E, S), intent(in) :: P
-  double precision, dimension(N, S), intent(in) :: T
-  ! T -> The stoichiometry values
-  double precision, dimension(N, E), intent(in) :: B
-  ! C -> (inout) initial estimates
-  double precision, dimension(N, ES), intent(inout) :: C
-  integer i, ctrl2
-  ctrl2 = CTRL
+  integer, intent(in) :: NPT     ! number of titration points
+  integer, intent(in) :: NCP     ! number of components
+  integer, intent(in) :: NEQ     ! number of equilibria
+  integer, intent(inout) :: CTRL ! control value. 0 on no error, 1 otherwise
+  integer, dimension(NEQ, NCP), intent(in) :: P ! The stoichiometry array
+  double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C ! initial estimates (in) and refined values (out)
+  double precision, dimension(NPT, NCP), intent(in) :: T ! analytical concentration values
+  double precision, dimension(NPT, NEQ), intent(in) :: B  ! the equilibrium constants
 
-  !DEBUG! print *, "-----"
-  !DEBUG! print *, N, E, S
-  !DEBUG! print *, shape(C)
-  do i=1,N
+  !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
+  !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
+  !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
+
+  integer :: i
+
+  CTRL = 0
+
+  do i=1,NPT
     if (i > 1) then
       C(i,:) = C(i-1,:)
     end if
     if (i == 1) then
-      call pcf(C(i,:), T(i,:), B(i,:), P, 1E-9, E, S)
+      call pcf(C(i,:), T(i,:), B(i,:), P, 1E-9, NCP, NEQ)
     else
-      call pcf(C(i,:), T(i,:), B(i,:), P, 0.25, E, S)
+      call pcf(C(i,:), T(i,:), B(i,:), P, 0.25, NCP, NEQ)
     end if
-    call nr(C(i,:), T(i,:), B(i,:), P, CTRL, E, S)
+    call nr(C(i,:), T(i,:), B(i,:), P, CTRL, NEQ, NCP)
   end do
-end subroutine newtonr2
+end subroutine solve2
 
+subroutine solve2_solids(C, CS, T, B, P, KS, Q, CTRL, NPT, NEQ, NCP)
+end subroutine solve2_solids
 
-subroutine lsolve(A, b, x, n)
+subroutine lsolve(A, b, x, n, CTRL)
   ! Solve system of lineal equations using LAPACK
 
   implicit none
@@ -95,6 +96,7 @@ subroutine lsolve(A, b, x, n)
   ! the n array of independent terms
   double precision, dimension(n), intent(out) :: x
   ! the n array where the result is returned
+  integer, intent(inout) :: CTRL ! control value. 0 on no error, 1 otherwise
 
   integer, dimension(n) :: ipiv   ! pivot indices
   integer :: info, nrhs, lda, ldb
@@ -113,43 +115,10 @@ subroutine lsolve(A, b, x, n)
   call dgesv(n, nrhs, A, lda, ipiv, x, ldb, info)
 
   if (info /= 0) then
-     stop 'Linear system could not be solved!'
+      CTRL = 1
+      return
   end if
 end subroutine lsolve
-
-
-subroutine cplussn(C, B, P, N, E, S)
-  ! Compute the free concentrations for all the components.
-  integer N, E, S
-  double precision C(N, S+E)
-  integer P(E, S)
-  double precision B(E)
-  intent(in) N, E, S, B, P
-  intent(inout) C
-  integer i
-  DO i=1,N
-    call cpluss(C(i,:), B, P, E, S)
-  END DO
-END subroutine cplussn
-
-
-subroutine cpluss(C, B, P, E, S)
-  ! Compute the free concentrations for all the components.
-  integer, intent(in) :: E
-  integer, intent(in) :: S
-  double precision, dimension(S+E), intent(inout) :: C
-  integer, dimension(E, S), intent(in):: P
-  double precision, dimension(E) :: B
-  double precision AUX
-  integer i, j
-  do i=1,E
-    AUX = 1D0
-    do j=1,S
-      AUX = AUX*C(j)**P(i,j)
-    end do
-    C(i+S) = B(i)*AUX
-  end do
-end subroutine cpluss
 
 
 subroutine fobj(F, C, P, T, E, S)
@@ -195,27 +164,51 @@ subroutine jacobian(Jac, C, P, E, S)
 end subroutine jacobian
 
 
-subroutine nr(X, T, B, P, ctrl, E, S)
+subroutine amatrix(A, C, P, NCP, NEQ)
+  integer, intent(in) :: NCP    ! number of components
+  integer, intent(in) :: NEQ    ! numnber of equilibria
+  double precision, dimension(NCP+NEQ), intent(out) :: C   ! free concentrations
+  double precision, dimension(NCP,NCP), intent(inout) :: A ! output values
+  !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
+  !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
+
+  integer :: i, j
+  do i=1,NCP
+    do j=1,NCP
+      if (i .eq. j) then
+        A(i,j) = C(i)
+      else
+        A(i,j) = 0.0
+      end if
+      do k=1,NEQ
+        A(i,j) = A(i,j) + P(k,i)*P(k,j)*C(NCP+k)
+      end do
+    end do
+  end do
+end subroutine amatrix
+
+
+subroutine nr(X, T, B, P, ctrl, NEQ, NCP)
   ! Perform the actual Newton-Raphson iterations. The initial value is supplied
   ! in the X variable and it is replaced with the refined value upon exit.
   implicit none
-  integer, intent(in) :: E, S
+  integer, intent(in) :: NEQ, NCP
   integer, intent(inout) :: ctrl
   ! ctrl -> control value. 
   !         0 = normal exit
   !         2 = normal exit upon initial guess being a root
   !         99 = abnormal exit on MAXITS
-  integer, dimension(E, S), intent(in) :: P
-  double precision, dimension(S+E), intent(inout) :: X
-  double precision, dimension(S), intent(in) :: T
-  double precision, dimension(E), intent(in) ::  B
+  integer, dimension(NEQ, NCP), intent(in) :: P
+  double precision, dimension(NCP+NEQ), intent(inout) :: X
+  double precision, dimension(NCP), intent(in) :: T
+  double precision, dimension(NEQ), intent(in) ::  B
 
   integer its, i, j
-  double precision, dimension(S) :: fvec, jdiag
-  double precision, dimension(S, S) ::  jac
+  double precision, dimension(NCP) :: fvec, jdiag
+  double precision, dimension(NCP, NCP) ::  jac
   double precision :: f
-  double precision, dimension(S) :: xold
-  double precision, dimension(S) :: dx
+  double precision, dimension(NCP) :: xold
+  double precision, dimension(NCP) :: dx
   double precision test
   logical check
   integer MAXITS
@@ -223,15 +216,15 @@ subroutine nr(X, T, B, P, ctrl, E, S)
   parameter (MAXITS=100)
   
   f = 0.0
-  do i=1,S
+  do i=1,NCP
     xold(i) = X(i)
   end do
-  call cpluss(X, B, P, E, S)
-  call fobj(fvec, X, P, T, E, S)
+  call cpluss(X, B, P, NEQ, NCP)
+  call fobj(fvec, X, P, T, NEQ, NCP)
 
   ! Test for initial guess being a root. Use more stringent test than simply TOLF.
   test=0.
-  do i=1,S
+  do i=1,NCP
     if (abs(fvec(i)) .gt. test) test=abs(fvec(i))
     dx(i) = 0.0
   end do
@@ -243,37 +236,37 @@ subroutine nr(X, T, B, P, ctrl, E, S)
 
   ! Main loop
   do its=1,MAXITS
-    call jacobian(jac, X, P, E, S)
+    call jacobian(jac, X, P, NEQ, NCP)
 
     ! Scale
-    do i=1,S
+    do i=1,NCP
       jdiag(i) = jac(i,i)
     end do
-    do i=1,S
-      do j=1,S
+    do i=1,NCP
+      do j=1,NCP
         jac(i, j) = jac(i, j) / sqrt(jdiag(i)*jdiag(j))
       end do
       fvec(i) = fvec(i) / sqrt(jdiag(i))
     end do
 
     ! Solve linear system. Includes negation of fvec
-    call lsolve(jac, fvec, dx, S)
+    call lsolve(jac, fvec, dx, NCP)
 
     ! De-scale
-    do i=1,S
+    do i=1,NCP
       dx(i) = - dx(i) / sqrt(jdiag(i)) 
     end do
 
-    do i=1,S
+    do i=1,NCP
       relax = 1.0 / max(1.0, -2*dx(i)/x(i))
       x(i) = x(i) + relax*dx(i)
     end do
-    call cpluss(X, B, P, E, S)
-    call fobj(fvec, X, P, T, E, S)
+    call cpluss(X, B, P, NEQ, NCP)
+    call fobj(fvec, X, P, T, NEQ, NCP)
 
     ! test for convergence on relative values
     test = 0.
-    do i=1,S
+    do i=1,NCP
        if (T(i) .ne. 0.0) then
          test = test + (fvec(i) / T(i))**2
        end if

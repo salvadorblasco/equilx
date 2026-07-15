@@ -5,7 +5,7 @@
 !
 ! Compile with $ f2py3 -c -m mfeq pcf.f90
 
-subroutine pcf_tit(C, T, B, P, THRESH, NPT, NCP, NEQ)
+subroutine pcf_tit(C, T, B, P, NPT, NCP, NEQ)
   integer, intent(in) :: NPT    ! number of titration points
   integer, intent(in) :: NCP    ! number of components
   integer, intent(in) :: NEQ    ! numnber of equilibria
@@ -16,16 +16,23 @@ subroutine pcf_tit(C, T, B, P, THRESH, NPT, NCP, NEQ)
   ! ==================== f2py directives ====================
   !f2py intent(inout) :: c
   !f2py intent(in)    :: t, b, p, thresh
-  !f2py intent(hide), depend(t) :: npt = shape(t,0)
-  !f2py intent(hide), depend(p) :: ncp = shape(p,1)
-  !f2py intent(hide), depend(p) :: neq = shape(p,0)
+  !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
+  !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
+  !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
   !f2py depend(npt, ncp, neq) :: c
   !f2py depend(npt, ncp, neq) :: c
   ! =======================================================
+  integer :: n
+  real, parameter :: THRESH_FIST = 1e-9 
+  real, parameter :: THRESH = 0.25 
+
   do n = 1, NPT
-    call pcf(C(n,:), T(n,:), B, P, THRESH, NCP, NEQ)
-    ! TODO calc R and copy only if result is better
-    ! if (n < NPT) C(n+1,:) = C(n,:)
+    if (n .eq. 1) then
+      call pcf(C(n,:), T(n,:), B, P, THRESH_FIRST, NCP, NEQ)
+    else
+      call pcf(C(n,:), T(n,:), B, P, THRESH, NCP, NEQ)
+    end if
+    if (n < NPT) C(n+1,:) = C(n,:)
   end do
 end subroutine pcf_tit
 

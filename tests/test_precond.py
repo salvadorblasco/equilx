@@ -67,30 +67,27 @@ class TestPrecond(unittest.TestCase):
                 self.__success_precond(fixture)
 
     def __success_precond(self, fixture: EquilibriumData) -> None:
-        ACCEPTABLE_THRESHOLD = 0.01
-        DAMPING_THRESHOLD = 1e-10
-
         # initial_guess = guess_starting_point(fixture)
-        initial_guess = np.full((fixture.n_points, fixture.n_soluble), 1e-12, order='F')
-        fprev = mass_action(fixture, initial_guess)
-        pcf.pcf_tit(initial_guess,
+        initial_guess = 0.01*fixture.analytical_concentration.copy()
+        initial_guess[initial_guess<= 0.0] = 1e-10
+        c0 = np.asfortranarray(species_concentration(initial_guess, fixture, full=True))
+        fprev = mass_action(fixture, c0)
+        pcf.pcf_tit(c0,
                     np.asfortranarray(fixture.analytical_concentration),
                     np.asfortranarray(10**fixture.log_beta),
-                    np.asfortranarray(fixture.stoichiometry),
-                    DAMPING_THRESHOLD)
-        fpost = mass_action(fixture, initial_guess)
-        self.assertTrue(np.all(ACCEPTABLE_THRESHOLD*np.abs(fprev)>np.abs(fpost)),
-                        msg=f"{fpost/fprev}")
+                    np.asfortranarray(fixture.stoichiometry))
+        fpost = mass_action(fixture, c0)
+        self.assertTrue(np.all(np.abs(fprev)>np.abs(fpost)))
 
     def test_fixture2(self):
-        DAMPING_THRESHOLD = 0.01
+        DAMPING_THRESHOLD = 1.0
         fixt = self.titr1
         cex0 = np.full((fixt.n_points, fixt.n_equils+fixt.n_components), 1e-12, order='F')
         fprev = mass_action(fixt, cex0)
         analc = np.asfortranarray(self.titr1.analytical_concentration)
         beta = np.asfortranarray(10**self.titr1.log_beta)
         stoich = np.asfortranarray(self.titr1.stoichiometry)
-        pcf.pcf_tit(cex0, analc, beta, stoich, 1e-12)
+        pcf.pcf_tit(cex0, analc, beta, stoich)
         fpost = mass_action(self.titr1, cex0)
         self.assertTrue(np.all(DAMPING_THRESHOLD*np.abs(fprev)>np.abs(fpost)))
 

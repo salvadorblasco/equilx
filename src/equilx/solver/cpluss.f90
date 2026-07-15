@@ -1,8 +1,8 @@
 
-module cpluss_mod
-    implicit none
-contains 
-subroutine cplussn(C, B, P, N, E, S)
+! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
+! by Salvador Blasco
+
+subroutine cpluss_tit(C, B, P, N, E, S)
   ! Compute the free concentrations for all the components.
   integer N, E, S
   double precision C(N, S+E)
@@ -14,7 +14,7 @@ subroutine cplussn(C, B, P, N, E, S)
   DO i=1,N
     call cpluss(C(i,:), B, P, E, S)
   END DO
-END subroutine cplussn
+END subroutine cpluss_tit
 
 
 subroutine cpluss(C, B, P, E, S)
@@ -34,4 +34,3 @@ subroutine cpluss(C, B, P, E, S)
     C(i+S) = B(i)*AUX
   end do
 end subroutine cpluss
-end module cpluss_mod
