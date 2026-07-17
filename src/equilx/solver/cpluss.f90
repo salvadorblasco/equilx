@@ -1,36 +1,22 @@
-
 ! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
 ! by Salvador Blasco
 
-subroutine cpluss_tit(C, B, P, N, E, S)
+subroutine cpluss(C, B, P, NCP, NEQ)
   ! Compute the free concentrations for all the components.
-  integer N, E, S
-  double precision C(N, S+E)
-  integer P(E, S)
-  double precision B(E)
-  intent(in) N, E, S, B, P
-  intent(inout) C
-  integer i
-  DO i=1,N
-    call cpluss(C(i,:), B, P, E, S)
-  END DO
-END subroutine cpluss_tit
+  integer,          intent(in) :: NEQ    ! number of equilibria
+  integer,          intent(in) :: NCP    ! number of components
+  double precision, intent(inout), dimension(NCP+NEQ)  :: C  ! free concentrations
+  integer,          intent(in),    dimension(NEQ, NCP) :: P  ! stoichiometry
+  double precision, intent(in),    dimension(NEQ)      :: B  ! equilibrium constants
 
-
-subroutine cpluss(C, B, P, E, S)
-  ! Compute the free concentrations for all the components.
-  integer, intent(in) :: E
-  integer, intent(in) :: S
-  double precision, dimension(S+E), intent(inout) :: C
-  integer, dimension(E, S), intent(in):: P
-  double precision, dimension(E) :: B
   double precision AUX
   integer i, j
-  do i=1,E
+
+  do i=1,NEQ
     AUX = 1D0
-    do j=1,S
+    do j=1,NCP
       AUX = AUX*C(j)**P(i,j)
     end do
-    C(i+S) = B(i)*AUX
+    C(i+NCP) = B(i)*AUX
   end do
 end subroutine cpluss

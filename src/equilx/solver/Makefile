@@ -1,20 +1,18 @@
 SH=/bin/bash
 .PHONY=fortran
+FC = gfortran
+FFLAGS = -Wall -O2
 
+fsolver: pcf.o si.o cpluss.o mb.o nr.o
+	uv run f2py -llapack -c -m fsolver pcf.o si.o cpluss.o mb.o nr.o eq.f90
 
-fortran:
-	f2py3 -llapack -c -m mfeq mfeq.pyf eq.f90
+%.o: %.f90
+	$(FC) -c $< -o $@ $(FFLAGS)
 
-si:
-	uv run f2py -c -m si si.f90
+test: test.f90 cpluss.o mb.o si.o
+	$(FC) test.f90 cpluss.o mb.o si.o -o test
 
-pcf: cpluss.o
-	uv run f2py -c -m pcf cpluss.o pcf.f90
-
-mb:
-	uv run f2py -c -m mb mb.f90
-
-cpluss.o:
-	gfortran -c cpluss.f90
+clean:
+	rm *.o *.so
 
 # clibeq: gcc -Wall -shared eq.c
