@@ -19,7 +19,7 @@
 
 
 subroutine solve(C, T, B, P, CTRL, NPT, NEQ, NCP)
-  ! Solve equilibrium. The first initial value must be provided in the first row of C. The following 
+  ! Solvereal equilibrium. The first initial value must be provided in the first row of C. The following 
   ! points take as starting value the value of the last iteration.
   implicit none
   integer, intent(in) :: NPT     ! number of titration points
@@ -39,6 +39,7 @@ subroutine solve(C, T, B, P, CTRL, NPT, NEQ, NCP)
   do i=1,NPT
     if (i == 1) then
       call solve_point(C(i,:), T(i,:), B, P, CTRL, .true., NEQ, NCP)
+      return ! DEBUG
     else
       C(i,:) = C(i-1,:)
       call solve_point(C(i,:), T(i,:), B, P, CTRL, .false., NEQ, NCP)
@@ -268,12 +269,15 @@ subroutine solve_point(C, T, B, P, CTRL, is_first, NEQ, NCP)
   DOUBLE PRECISION, parameter :: PCF_TOLERANCE_FIRST = 1D-9
   CTRL = 0
 
+  print *, " DEBUG 1 > ", c
   if (is_first) then
     call pcf(C, T, B, P, PCF_TOLERANCE_FIRST, NCP, NEQ)
   else
     call pcf(C, T, B, P, PCF_TOLERANCE, NCP, NEQ)
   end if
+  print *, " DEBUG 2 > ", c
   call nr(C, T, B, P, CTRL, NEQ, NCP)
+  print *, " DEBUG 2 > ", c
 end subroutine solve_point
 
 

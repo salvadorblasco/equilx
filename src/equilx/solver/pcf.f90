@@ -9,89 +9,81 @@
 subroutine pcf(C, T, B, P, THRESH, NCP, NEQ)
   ! Implementation of the Positive Continuous Fraction (PCF) as described
   ! by Carrayrou (2017)
-  integer, intent(in) :: NCP, NEQ                             ! number of species, number of equilibria
-  double precision, dimension(NCP+NEQ), intent(inout) :: C
-  double precision, dimension(NCP), intent(in) :: T
-  double precision, dimension(NEQ), intent(in) :: B
-  integer, dimension(NEQ, NCP), intent(in):: P
-  real, intent(in) :: THRESH
-  !f2py intent(in)    :: ncp, neq, t, b, p, thresh
-  !f2py intent(inout) :: c
+  integer, intent(in) :: NCP                                ! number of species
+  integer, intent(in) :: NEQ                                ! number of equilibria
+  double precision, dimension(NCP+NEQ), intent(inout) :: C  ! the free concentrations
+  double precision, dimension(NCP), intent(in) :: T         ! the analytical concentration
+  double precision, dimension(NEQ), intent(in) :: B         ! equilibrium constants
+  integer, dimension(NEQ, NCP), intent(in):: P              ! stoichiometry matrix
+  double precision, intent(in) :: THRESH                                ! acceptable threshold
+  !f2py intent(in)       :: ncp, neq, t, b, p, thresh
+  !f2py intent(inout)    :: c
   !f2py depend(ncp, neq) :: c
   !f2py depend(ncp)      :: t
   !f2py depend(neq)      :: b
   !f2py depend(neq, ncp) :: p
 
   double precision, dimension(NCP) :: expn, convaux  !, DEBUG_F
-  integer, dimension(NEQ+NCP, NCP) :: morel
-  integer :: aux, i, j, guard
+  integer :: aux, i, j, iter
   logical :: converged
-  double precision :: theta, sump, sumr, backtrack
+  double precision, dimension(NCP) :: theta
+  double precision :: sump, sumr, aux_theta
+  double precision, parameter :: THETA_ALPHA = 0.9
+  double precision, parameter :: THETA_BETA = 0.8
+  integer, parameter :: MAXITS = 10
 
-  ! find exponents
-  aux = 1
-  do i=1,NCP
-    do j=1,NEQ
+  aux = 1                                           ! find the smallest strictly positive
+  do i=1,NCP                                        ! stoichiometric coefficient that
+    do j=1,NEQ                                      ! the jth component presents in Morel's Table.
       if ((P(j,i) < aux) .and. (P(j,i) > 0)) then
         aux = P(j,i)
       end if
     end do
-    expn(i) = 1/aux
-  end do
-
-  ! build Morel table. REMOVE IN THE FUTURE
-  do i=1,NCP
-    do j=1,NCP
-      if (i .eq. j )then
-        morel(i,j) = 1
-      else
-        morel(i,j) = 0
-      end if
-    end do
-    do j=1,NEQ
-      morel(j+NCP, i) = P(j, i)
-    end do
+    expn(i) = 1.0/aux
   end do
 
   ! main loop
   converged = .false.
-  guard = 0
-  backtrack = 1.0
+  iter = 0
   do while (.not. converged)
-    guard = guard + 1
-    call cpluss(C, B, P, NEQ, NCP)
+    iter = iter + 1
+    call cpluss(C, B, P, NCP, NEQ)
+    ! print *, iter, C
     ! calculate sump and sumr
     do i=1,NCP
       if (T(i) .ge. 0.0) then
         sump = T(i)
-        sumr = 0.0
+        sumr = C(i)
       else
-        sumr = -T(i)
         sump = 0.0
+        sumr = abs(T(i)) + C(i)
       end if
-      do j=1,NCP+NEQ
-        if (morel(j,i) > 0) then
-          sumr = sumr + morel(j,i) * C(j)
+      do j=1,NEQ
+        if (P(j,i) > 0) then
+          sumr = sumr + P(j,i) * C(i+NCP)
         else
-          sump = sump - morel(j,i) * C(j)
+          sump = sump - P(j,i) * C(i+NCP)
         end if
       end do
       if (sump < sumr) then
-        theta = backtrack * (0.9 - 0.8 * sump / sumr)
+        aux_theta = THETA_ALPHA - THETA_BETA * sump / sumr
       else
-        theta = backtrack * (0.9 - 0.8 * sumr / sump)
+        aux_theta = THETA_ALPHA - THETA_BETA * sumr / sump
+      end if
+      if (aux_theta > theta(i)) then
+          theta(i) = aux_theta
       end if
       ! update concentrations
-      C(i) = theta * C(i) * (sump/sumr)**expn(i) + (1-theta)*C(i)
+      C(i) = theta(i) * C(i) * (sump/sumr)**expn(i) + (1-theta(i))*C(i)
       ! check convergence
-      convaux(i) = abs(sump-sumr)/(sump + sump)
+      convaux(i) = abs(sump-sumr)
+      if ((sumr > 0.0 .and. sump > 0.0) .and. ((sumr + sump) > 0.0)) then   ! if one of the components is zero the division
+          convaux(i) = convaux(i)/(sumr+sump)                               ! will be 1 thus ruining the value of convergence testing
+      end if                                                                ! if the sum of both is zero, also problem
     end do
+    converged = (maxval(convaux) .lt. THRESH)
 
-    converged = maxval(convaux) .lt. THRESH
-    if (guard == 20 .or. guard == 40 .or. guard == 60) then
-        backtrack = backtrack * 0.5
-    end if
-    if (guard >100) then
+    if (iter > MAXITS) then     ! exit on max iterations
         converged = .true.
     end if
   end do
