@@ -2,6 +2,7 @@ MODNAME=fsolver
 SH=/bin/bash
 .PHONY=fortran
 FC = gfortran
+RM = rm
 FFLAGS = -Wall -O2
 LIBS = -llapack -lblas
 DEBUGFLAGFS = -g -O0 -fbacktrace -fbounds-check -ffpe-trap=zero,invalid,overflow,underflow -Wall
@@ -18,11 +19,4 @@ debug_test: test.f90 cpluss.f90 mb.f90 si.f90 nr.f90 eq.f90 pcf.f90
 	$(FC) $(DEBUGFLAGS) $^ $(LIBS) -o test
 
 clean:
-	rm *.o *.so test
-
-# clibeq: gcc -Wall -shared eq.c
-#
-# NCP
-# 1 0     ^
-# 0 1  NEQ+NCP
-# 1 1     v
+	$(RM) *.o *.so test *.mod

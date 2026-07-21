@@ -18,7 +18,7 @@
 ! ====================================================================================================
 
 
-subroutine solve(C, T, B, P, CTRL, NPT, NEQ, NCP)
+subroutine solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
   ! Solvereal equilibrium. The first initial value must be provided in the first row of C. The following 
   ! points take as starting value the value of the last iteration.
   implicit none
@@ -38,18 +38,17 @@ subroutine solve(C, T, B, P, CTRL, NPT, NEQ, NCP)
   CTRL = 0
   do i=1,NPT
     if (i == 1) then
-      call solve_point(C(i,:), T(i,:), B, P, CTRL, .true., NEQ, NCP)
-      return ! DEBUG
+      call solve_point(C(i,:), T(i,:), B, P, CTRL, .true., NCP, NEQ)
     else
       C(i,:) = C(i-1,:)
-      call solve_point(C(i,:), T(i,:), B, P, CTRL, .false., NEQ, NCP)
+      call solve_point(C(i,:), T(i,:), B, P, CTRL, .false., NCP, NEQ)
     end if
     if (CTRL > 50) exit  ! error unable to continue
   end do
 end subroutine solve
 
 
-subroutine solve_solids(C, CS, T, B, P, KS, Q, CTRL, NPT, NEQ, NCP, NSL)
+subroutine solve_solids(C, CS, T, B, P, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
   ! Solve equilibrium when solids are present. The first initial value must be provided
   ! in the first row of C. The following points take as starting value the value of 
   ! the last iteration.
@@ -247,7 +246,7 @@ subroutine freeze_component_solid(CR, Q, fQ, KS, fKS, REF, NPT, NCP, NSL)
 end subroutine freeze_component_solid
 
 
-subroutine solve_point(C, T, B, P, CTRL, is_first, NEQ, NCP)
+subroutine solve_point(C, T, B, P, CTRL, is_first, NCP, NEQ)
   ! Perform Newton-Raphson iterations per point when the beta matrix
   ! is 1D. The first initial value must be provided in the first row
   ! of C. The following points take as starting value the value of 
@@ -269,15 +268,12 @@ subroutine solve_point(C, T, B, P, CTRL, is_first, NEQ, NCP)
   DOUBLE PRECISION, parameter :: PCF_TOLERANCE_FIRST = 1D-9
   CTRL = 0
 
-  print *, " DEBUG 1 > ", c
   if (is_first) then
     call pcf(C, T, B, P, PCF_TOLERANCE_FIRST, NCP, NEQ)
   else
     call pcf(C, T, B, P, PCF_TOLERANCE, NCP, NEQ)
   end if
-  print *, " DEBUG 2 > ", c
-  call nr(C, T, B, P, CTRL, NEQ, NCP)
-  print *, " DEBUG 2 > ", c
+  call nr(C, T, B, P, CTRL, NCP, NEQ)
 end subroutine solve_point
 
 

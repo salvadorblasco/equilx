@@ -5,7 +5,7 @@
 !
 ! Compile with $ f2py3  -c -m mb mb.f90
 
-subroutine mb_soluble(F, C, P, T, NEQ, NCP)
+subroutine mb_soluble(F, C, P, T, NCP, NEQ)
   ! Compute the objective function not considering solids
   ! f_i = c_i + \sum_{j=1}^E { p_{ji}c_{j+S} } - T_i
   integer, intent(in) :: NEQ  ! number of equlibria
@@ -29,7 +29,7 @@ subroutine mb_soluble(F, C, P, T, NEQ, NCP)
 END subroutine mb_soluble
 
 
-subroutine mb_solids(F, C, P, T, Q, CS, NEQ, NCP, NSL)
+subroutine mb_solids(F, C, P, T, Q, CS, NCP, NEQ, NSL)
   ! Compute the objective function not considering solids
   ! f_i = c_i + \sum_{j=1}^E { p_{ji}c_{j+S} } - T_i + \sum_j^{solids} {q_{ij}S_j}
   integer, intent(in) :: NEQ  ! number of equlibria
@@ -47,7 +47,7 @@ subroutine mb_solids(F, C, P, T, Q, CS, NEQ, NCP, NSL)
   !f2py depend(neq, ncp) :: p
   !f2py integer, intent(hide), depend(q) :: nsl = shape(Q,1)
 
-  call mb_soluble(F, C, P, T, NEQ, NCP)
+  call mb_soluble(F, C, P, T, NCP, NEQ)
   do i=1,NCP
     do j=1,NSL
       F(i) = F(i) + CS(j)*Q(j,i)
