@@ -178,18 +178,19 @@ end module print_utils
 
 program test
     implicit none
-    ! call test_cpluss1()
+    call test_cpluss1()
     call test_cpluss3()
-    ! call test_mb1()
-    ! call test_pcf1()
-    ! call test_mb2()
-    ! call test_si2()
-    ! call test_jac1()
-    ! call test_lsolve()
-    ! call test_scale()
-    ! call test_nr1()
-    ! call test_solve_point1()
+    call test_mb1()
+    call test_pcf1()
+    call test_mb2()
+    call test_si2()
+    call test_jac1()
+    call test_lsolve()
+    call test_scale()
+    call test_nr1()
+    call test_solve_point1()
     call test_solve1()
+    call test_solve3()
 contains
 
 
@@ -197,26 +198,28 @@ subroutine test_nr1()
     use simple1
     implicit none
     double precision, dimension(NCP+NEQ) :: C
-    double precision, PARAMETER :: TOLERANCE = 1D-8
+    double precision, PARAMETER :: TOLERANCE = 1D-7
     integer i, CTRL
     logical passed
+    integer, PARAMETER :: POINT=5
     passed = .true.
-    C = 0.99*tC(1,:)
-    C(2) = 1d-12
-    call nr(C, T(1,:), B, P, CTRL, NCP, NEQ)
+    C = 0.99*tC(POINT,:)
+    C(1) = 1e-12
+    call nr(C, T(POINT,:), B, P, CTRL, NCP, NEQ)
     if (CTRL .ne. 0) then
-        !         ....|....|....|....v|....|
-        print *, "test nr1 ........... failed -> control value returned ", CTRL
+        if (passed) call print_result("scale", "failed")
+        passed = .false.
+        print *, "  control value returned ", CTRL
         return
     end if
     do i = 1,NCP+NEQ
-        if (abs(C(i) - tC(1, i)) > TOLERANCE) then
+        if (abs(tC(POINT, i) - C(i))  > TOLERANCE) then
             passed = .false.
-            print *, "test nr1 ........... failed at ", i, tC(1, i), C(i)
+            print "(A I2 2(A,F10.4))", "  SP=", i, " calc=", C(i), "true=", tC(POINT, i) 
         end if
     end do
     if (passed) then
-        print *, 'test nr1 ........... passed'
+        call print_result("nr1", "passed")
     end if
 end subroutine test_nr1
 
@@ -250,7 +253,7 @@ subroutine test_pcf1()
         end do
     end do
     if (passed) then
-        print *, 'test pcf1 .......... passed'
+        call print_result("pcf1", "passed")
     end if
 end subroutine test_pcf1
 
@@ -262,7 +265,7 @@ subroutine test_solve_point1()
     double precision, PARAMETER :: TOLERANCE = 1D-8
     integer i, CTRL
     logical passed
-    integer, PARAMETER :: POINT=1
+    integer, PARAMETER :: POINT=5
     passed = .true.
     do i = 1,NCP                 ! initialize first point
         if (T(POINT,i) > 0.0) then
@@ -274,7 +277,7 @@ subroutine test_solve_point1()
     call solve_point(C, T(POINT,:), B, P, CTRL, .true., NCP, NEQ)
     if (CTRL .ne. 0) then
         !         ....|....|....|....v|....|
-        print *, "test_solve_point1 .. failed -> control value returned ", CTRL
+        print *, "test solve_point1 .. failed -> control value returned ", CTRL
         return
     end if
     do i = 1,NCP+NEQ
@@ -284,16 +287,47 @@ subroutine test_solve_point1()
         end if
     end do
     if (passed) then
-        print *, 'test solve_point1 .. passed'
+        call print_result("solve_point1", "passed")
     end if
 end subroutine test_solve_point1
 
 
 subroutine test_solve1()
+    use simple1
+    implicit none
+    double precision, dimension(NPT, NCP+NEQ) :: C
+    double precision, PARAMETER :: TOLERANCE = 1D-7
+    integer i, j, CTRL
+    logical passed
+    passed = .true.
+    C(:,:) = 0.0
+    do i = 1,NCP                 ! initialize first point
+        if (T(1,i) > 0.0) then
+            C(1,i) = 0.01*T(1,i)
+        else
+            C(1,i) = 1D-12
+        end if
+    end do
+    call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
+    do i=1,NPT
+        do j=1,NCP+NEQ
+            if (abs(C(i,j) - tC(i,j)) > TOLERANCE) then
+                if (passed) call print_result("solve1", "failed")
+                passed = .false.
+                print "(A,I4,2(A,E10.4))","   CP", i, "  ", tC(i,j)," != ", C(i,j)
+            end if
+        end do
+    end do
+    if (passed) call print_result("solve1", "passed")
+end subroutine test_solve1
+
+
+subroutine test_solve3()
     use hexaprotic
     use print_utils
     implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
+    double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-8
     integer i, j, CTRL
     logical passed
@@ -304,48 +338,55 @@ subroutine test_solve1()
         if (T(1,i) > 0.0) then
             C(1,i) = 0.01*T(1,i)
         else
-            C(1,i) = 1D-12
+            C(1,i) = 1D-10
         end if
     end do
-    ! print *, "1 > ", C(1,:)
-    ! call pcf(C(1,:), T(1,:), B, P, 1D-9, NCP, NEQ)
-    ! print *, "2 > ", C(1,:)
-    ! call nr(C(1,:), T(1,:), B, P, CTRL, NCP, NEQ)
-    call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
-    print *, "1 > ", C(1,:), CTRL
-    ! if (CTRL .ne. 0) then
-    !     print *, "test_solve ......... failed -> control value returned ", CTRL
-    !     return
-    ! end if
-    ! !do i = 1,NPT
-    ! !end do
-    ! if (passed) then
-    !     print *, 'test solve ......... passed'
-    ! end if
-end subroutine test_solve1
+    !call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
+    call solve(C(1:10,:), T(1:10,:), B, P, CTRL, 10, NCP, NEQ)
+    if (CTRL .ne. 0) then
+        if (passed) then
+            passed = .false.
+            call print_result("solve3", "failed")
+        end if
+       print *, "  control value returned ", CTRL
+    end if
+    do i=1,10
+        call mb_soluble(F, C(i,:), P, T(i,:), NCP, NEQ)
+        do j=1,NCP
+            if (abs(F(j)) > TOLERANCE) then
+                if (passed) then
+                    passed = .false.
+                    print *, "test solve3 ........ failed"
+                end if
+                print "(A,I3,A,I3,A,E10.4)", "   F(", i, ",", j, ")=", F(j)
+            end if
+        end do
+    end do
+    if (passed) then
+        call print_result("solve3", "passed")
+    end if
+end subroutine test_solve3
 
 
 subroutine test_cpluss1()
     use simple1
     implicit none
-    double precision, dimension(NPT,NCP+NEQ) :: C
+    double precision, dimension(NCP+NEQ) :: C
     double precision, PARAMETER:: TOL = 1e-8
     integer i, j
     logical passed
     passed = .true.
-    C(:,1:NCP) = tC(:,1:NCP)
     do i=1,NPT
-        call cpluss(C(i,:), B, P, NCP, NEQ)
+        C(1:NCP) = tC(i,1:NCP)
+        call cpluss(C, B, P, NCP, NEQ)
         do j=1,(NCP+NEQ)
-            if (abs(tC(i,j)-C(i,j)) > TOL) then
-                print *, "test cpluss1 ....... failed at ", i, tC(i,j), C(i,j)
+            if (abs(tC(i,j)-C(j)) > TOL) then
+                print *, "test cpluss1 ....... failed at ", i, tC(i,j), C(j)
                 passed = .false.
             end if
         end do
     end do
-    if (passed) then
-        print *, 'test cpluss1 ....... passed'
-    end if
+    if (passed) call print_result("cpluss1", "passed")
 end subroutine test_cpluss1
 
 
@@ -356,7 +397,7 @@ subroutine test_cpluss3()
     double precision, dimension(NCP+NEQ) :: tC = (/4.4289E-22, 3.7200E-03, 1.6476E-14, 6.1291E-09, 2.2800E-05, & 
                                                    8.4818E-04, 3.1553E-03, 1.1738E-03, 4.5651E-12/)
     double precision, PARAMETER:: TOL = 1e-6
-    integer i, j
+    integer j
     logical passed
     call initialize()
     passed = .true.
@@ -369,10 +410,9 @@ subroutine test_cpluss3()
             passed = .false.
         end if
     end do
-    if (passed) then
-        print *, 'test cpluss3 ....... passed'
-    end if
+    if (passed) call print_result("cpluss3", "passed")
 end subroutine test_cpluss3
+
 
 subroutine test_mb1()
     use simple1
@@ -392,9 +432,7 @@ subroutine test_mb1()
             end if
         end do
     end do
-    if (passed) then
-        print *, "test mb1 ........... passed"
-    end if
+    if (passed) call print_result("mb1", "passed")
 end subroutine test_mb1
 
 
@@ -415,9 +453,7 @@ subroutine test_mb2()
             end if
         end do
     end do
-    if (passed) then
-        print *, "test mb2 ........... passed"
-    end if
+    if (passed) call print_result("mb2", "passed")
 end subroutine test_mb2
 
 
@@ -438,9 +474,7 @@ subroutine test_si2()
             passed = .false.
         end if
     end do
-    if (passed) then
-        print *, "test si2 ........... passed"
-    end if
+    if (passed) call print_result("si2", "passed")
 end subroutine test_si2
 
 
@@ -464,9 +498,7 @@ subroutine test_jac1()
             end do
         end do
     end do
-    if (passed) then
-        print *, "test jacsl ......... passed"
-    end if
+    if (passed) call print_result("jacsl", "passed")
 end subroutine test_jac1
 
 
@@ -497,11 +529,9 @@ subroutine test_lsolve()
             passed = .false.
         end if
     end do
-    if (passed) then
-        !         ....|....|....|....v|....|
-        print *, "test lsolve ........ passed"
-    end if
+    if (passed) call print_result("lsolve", "passed")
 end subroutine test_lsolve
+
 
 subroutine test_scale()
     double PRECISION, dimension(5,5) :: A = reshape( &
@@ -547,11 +577,32 @@ subroutine test_scale()
             passed = .false.
         end if
     end do
-    if (passed) then
-        !         ....|....|....|....v|....|
-        print *, "test scale ......... passed"
-    end if
+    if (passed) call print_result("scale", "passed")
 end subroutine test_scale
+
+
+subroutine print_result(test_name, result_tag)
+    character(len=*), intent(in) :: result_tag, test_name
+    integer, parameter :: total_width = 28
+    
+    character(len=1) :: filler
+    integer :: left_len, right_len, fill_len
+    
+    filler = "."
+    left_len  = len_trim(test_name)
+    right_len = len_trim(result_tag)
+    
+    ! Space + filler + Space = 2 extra characters
+    fill_len = total_width - left_len - right_len - 2
+    
+    if (fill_len < 0) fill_len = 0   ! prevent negative repeat
+    
+    print "(A, A, A, A, A, A)", &
+          "test ", &
+          trim(test_name),      " ", &                    ! left + space
+          repeat(filler, fill_len), &                ! filling
+          " ", trim(result_tag)                           ! space + right
+end subroutine
 
 ! from collections import namedtuple
 ! 

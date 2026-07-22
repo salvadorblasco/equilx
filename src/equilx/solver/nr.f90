@@ -143,7 +143,7 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
     return
   end if
 
-  ! Main loop
+  ! Main loopC(i) - 
   do its=1,MAXITS
     call jacobian_soluble(jac, C, P, NCP, NEQ)
 
@@ -168,7 +168,7 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
 
     call cpluss(C, B, P, NCP, NEQ)
     call mb_soluble(fvec, C, P, T, NCP, NEQ)
-    ! call debug(its, fvec, NCP)
+    !call debug(its, fvec, NCP)
     ! test for convergence on relative values
     call is_converged(fvec, T, NCP, converged)
     if (converged) then
