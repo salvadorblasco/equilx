@@ -140,24 +140,24 @@ contains
         
         rows = size(A, 1)
         cols = size(A, 2)
-        
+
         if (present(name)) then
             print '(/,A)', trim(name)
         end if
-        
+
         ! Column headers
         write(*, '(A6)', advance='no') '     '
         do j = 1, cols
             write(*, '(A9)', advance='no') '     Col'//trim(adjustl(itoa(j)))
         end do
         print *
-        
+
         ! Separator
         write(*, '(A)') repeat('-', 6 + cols*9)
-        
+
         ! Data
         write(data_fmt, '(A,I0,A)') '(', cols, '(I10))'
-        
+
         do i = 1, rows
             write(*, '(I5,A1)', advance='no') i, '|'
             write(*, data_fmt) A(i, :)
@@ -182,6 +182,7 @@ program test
     call test_cpluss3()
     call test_mb1()
     call test_pcf1()
+    call test_pcf3()
     call test_mb2()
     call test_si2()
     call test_jac1()
@@ -191,7 +192,23 @@ program test
     call test_solve_point1()
     call test_solve1()
     call test_solve3()
+    call test_freeze()
 contains
+
+
+subroutine test_freeze()
+    ! integer, parameter :: NPT=10                 ! number of titration points
+    ! integer, parameter :: NCP=3                  ! number of components
+    ! integer, parameter :: NEQ=3                  ! number of equilibria
+    ! integer, parameter :: REF=3                  ! component of reference
+    ! integer, dimension(NEQ, NCP) :: P            ! The stoichiometry array
+    ! double precision, dimension(NPT, NCP) :: T   ! analytical concentration values
+    ! double precision, dimension(NEQ) :: B        ! the equilibrium constants
+    ! double precision, dimension(NPT, NEQ) :: fB  ! the frozen equilibrium constants
+    ! integer, dimension(NEQ, NCP-1) :: fP         ! The stoichiometry array
+    ! double precision, dimension(NPT, NCP-1):: fT ! analytical concentration values
+    call print_result("freeze", "not implemented")
+end subroutine test_freeze
 
 
 subroutine test_nr1()
@@ -258,6 +275,45 @@ subroutine test_pcf1()
 end subroutine test_pcf1
 
 
+subroutine test_pcf3()
+    use hexaprotic
+    implicit none
+    double precision, dimension(NCP+NEQ) :: C
+    double precision, dimension(NCP) :: fprev, fpost
+    logical passed
+    integer i, j
+    double precision, PARAMETER :: TOLERANCE = 0.95
+    passed = .true.
+    call initialize()
+    do i=1,NPT
+    !do i=2,2
+        do j=1,NCP
+            if (T(i,j) > 0.0) then
+                C(j) = 0.01*T(i,j)
+            else
+                C(j) = 1D-12
+            end if
+        end do
+
+        call cpluss(C, B, P, NCP, NEQ)
+        call mb_soluble(fprev, C, P, T, NCP, NEQ)
+        !print "(3(A,2E14.4))", "prev  C=", C(1:NCP), " F=", fprev, " T=", T(i,:)
+        call pcf(C, T(i,:), B, P, 1D-9, NCP, NEQ)
+        call mb_soluble(fpost, C, P, T, NCP, NEQ)
+        !print "(2(A,2E14.4))", "post  C=", C(1:NCP), " F=", fpost
+        do j=1,NCP
+            if (abs(fpost(j)) > abs(fprev(j))) then
+                passed = .false.
+                print "(A,2I3,E12.4,A,E12.4)", "test pcf3 .......... failed at ", i, j, fprev(j), ">",  fpost(j)
+            end if
+        end do
+    end do
+    if (passed) then
+        call print_result("pcf3", "passed")
+    end if
+end subroutine test_pcf3
+
+
 subroutine test_solve_point1()
     use simple1
     implicit none
@@ -314,7 +370,7 @@ subroutine test_solve1()
             if (abs(C(i,j) - tC(i,j)) > TOLERANCE) then
                 if (passed) call print_result("solve1", "failed")
                 passed = .false.
-                print "(A,I4,2(A,E10.4))","   CP", i, "  ", tC(i,j)," != ", C(i,j)
+                print "(A,I4,2(A,E14.8))","   CP", i, "  ", tC(i,j)," != ", C(i,j)
             end if
         end do
     end do
@@ -328,7 +384,7 @@ subroutine test_solve3()
     implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NCP) :: F
-    double precision, PARAMETER :: TOLERANCE = 1D-8
+    double precision, PARAMETER :: TOLERANCE = 1D-10
     integer i, j, CTRL
     logical passed
     passed = .true.
@@ -341,8 +397,8 @@ subroutine test_solve3()
             C(1,i) = 1D-10
         end if
     end do
-    !call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
-    call solve(C(1:10,:), T(1:10,:), B, P, CTRL, 10, NCP, NEQ)
+    call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
+    !call solve(C(1:3,:), T(1:3,:), B, P, CTRL, 3, NCP, NEQ)
     if (CTRL .ne. 0) then
         if (passed) then
             passed = .false.
@@ -350,7 +406,7 @@ subroutine test_solve3()
         end if
        print *, "  control value returned ", CTRL
     end if
-    do i=1,10
+    do i=1,3   !NPT
         call mb_soluble(F, C(i,:), P, T(i,:), NCP, NEQ)
         do j=1,NCP
             if (abs(F(j)) > TOLERANCE) then

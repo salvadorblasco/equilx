@@ -3,17 +3,14 @@
 
 
 subroutine lsolve(A, b, x, n, CTRL)
-  ! Solve system of lineal equations using LAPACK
-
+  ! Solve system of lineal equations using LAPACK. This routine requires
+  ! the -llapack flag at compilation and, probably also -lblas in some systems.
   implicit none
   integer, intent(in) :: n
-  double precision, dimension(n,n), intent(in) :: A
-  ! The nxn array of coefficients
-  double precision, dimension(n), intent(in) :: b
-  ! the n array of independent terms
-  double precision, dimension(n), intent(out) :: x
-  ! the n array where the result is returned
-  integer, intent(inout) :: CTRL ! control value. 0 on no error, 1 otherwise
+  double precision, dimension(n,n), intent(in) :: A   ! The nxn array of coefficients
+  double precision, dimension(n),   intent(in) :: b   ! the n array of independent terms
+  double precision, dimension(n),   intent(out) :: x  ! the n array where the result is returned
+  integer, intent(inout) :: CTRL                      ! control value. 0 on no error.
 
   integer, dimension(n) :: ipiv   ! pivot indices
   integer :: info, nrhs, lda, ldb
@@ -39,11 +36,11 @@ end subroutine lsolve
 
 
 subroutine jacobian_soluble(J, C, P, NCP, NEQ)
-    ! calculate the jacobian df/dlogc of the mass balance not considering solids
+  ! calculate the jacobian df/dlogc of the mass balance not considering solids
   implicit none
-  double precision, INTENT(IN), dimension(NCP+NEQ) :: C       ! free concentrations
-  integer, INTENT(IN), dimension(NEQ, NCP) :: P               ! The soluble stoichiometry array
   double precision, INTENT(INOUT), dimension(NCP, NCP) ::  J  ! jacobian
+  double precision, INTENT(IN),    dimension(NCP+NEQ)  :: C   ! free concentrations
+  integer,          INTENT(IN),    dimension(NEQ, NCP) :: P   ! The soluble stoichiometry array
   integer, intent(in) :: NCP                                  ! number of components
   integer, intent(in) :: NEQ                                  ! number of equilibria
   J(:,:) = 0.0
@@ -53,14 +50,14 @@ end subroutine jacobian_soluble
 
 subroutine jacobian_solid(J, C, SI, P, Q, NCP, NEQ, NSL)
   implicit none
-  integer, intent(in) :: NCP                                        ! number of components
-  integer, intent(in) :: NEQ                                        ! number of equilibria
-  integer, intent(in) :: NSL                                        ! number of solids
-  integer, dimension(NEQ, NCP), intent(in) :: P                     ! The soluble stoichiometry array
-  integer, dimension(NSL, NCP), intent(in) :: Q                     ! The solids stoichiometry array
-  double precision, dimension(NEQ+NCP), intent(in) :: C             ! free concentation initial estimates (in) and refined values (out)
-  double precision, dimension(NSL), intent(in) :: SI                ! the solubility index
-  double precision, INTENT(INOUT), dimension(NCP+NSL, NCP+NSL) :: J ! jacobian
+  integer, intent(in) :: NCP                                         ! number of components
+  integer, intent(in) :: NEQ                                         ! number of equilibria
+  integer, intent(in) :: NSL                                         ! number of solids
+  integer,          intent(in),    dimension(NEQ, NCP)         :: P  ! The soluble stoichiometry array
+  integer,          intent(in),    dimension(NSL, NCP)         :: Q  ! The solids stoichiometry array
+  double precision, intent(in),    dimension(NEQ+NCP)          :: C  ! free concentation initial estimates (in) and refined values (out)
+  double precision, intent(in),    dimension(NSL)              :: SI ! the solubility index
+  double precision, INTENT(INOUT), dimension(NCP+NSL, NCP+NSL) :: J  ! jacobian
   !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
   !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
   !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
@@ -116,30 +113,24 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
   double precision, dimension(NEQ), intent(in) ::  B       ! the equilibrium constants
 
   integer its, i
-  double precision, dimension(NCP) :: X  ! natural log of free concentrations
-  double precision, dimension(NCP) :: fvec, jdiag
-  double precision, dimension(NCP, NCP) ::  jac
-  double precision, dimension(NCP) :: dx
+  double precision, dimension(NCP)      :: X               ! natural log of free concentrations
+  double precision, dimension(NCP)      :: fvec, jdiag
+  double precision, dimension(NCP, NCP) :: jac
+  double precision, dimension(NCP)      :: dx
   double precision test
   logical check, converged
   integer MAXITS
-  double precision relax
   parameter (MAXITS=100)
   
   X(:) = LOG(C(1:NCP))
 
   call cpluss(C, B, P, NCP, NEQ)
   call mb_soluble(fvec, C, P, T, NCP, NEQ)
+  dx(:) = 0.0
 
-  ! Test for initial guess being a root. Use more stringent test than simply TOLF.
-  test=0.
-  do i=1,NCP
-    if (abs(fvec(i)) .gt. test) test=abs(fvec(i))
-    dx(i) = 0.0
-  end do
-  if (test .lt. 1D-25) then
-    check=.false.
-    ctrl=2
+  call is_root(fvec, NCP, check)  ! check whether initial guess
+  if (check) then             ! is already a root
+    CTRL=1
     return
   end if
 
@@ -159,10 +150,8 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
       dx(i) = - dx(i) / sqrt(jdiag(i)) 
     end do
 
-    ! relax
     do i=1,NCP
-      relax = 1.0 / max(1.0, -2*dx(i)/C(i))
-      X(i) = X(i) + relax*dx(i)
+      X(i) = X(i) + dx(i)
       C(i) = EXP(X(i))
     end do
 
@@ -190,7 +179,7 @@ subroutine debug(i, f, n)
     do j=1,n
         s = s + f(j)**2
     end do
-    print *, i, s
+    print "(I4, E12.6)", i, s
 end subroutine debug
 
 
@@ -198,18 +187,18 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL)
   ! Perform the actual Newton-Raphson iterations. The initial value is supplied
   ! in the X variable and it is replaced with the refined value upon exit.
   implicit none
-  integer, intent(in) :: NCP                               ! number of components
-  integer, intent(in) :: NEQ                               ! number of equilibria
-  integer, intent(in) :: NSL                               ! number of solids
+  integer, intent(in)    :: NCP                            ! number of components
+  integer, intent(in)    :: NEQ                            ! number of equilibria
+  integer, intent(in)    :: NSL                            ! number of solids
   integer, intent(inout) :: ctrl                           ! control value
-  integer, dimension(NEQ, NCP), intent(in) :: P            ! stoichiometry array
-  double precision, dimension(NCP+NEQ), intent(inout) :: C ! initial estimates (in) and refined values (out)
-  double precision, dimension(NSL), intent(inout) :: CS    ! solid concentration initial estimates (in) and refined values (out)
-  double precision, dimension(NCP), intent(in) :: T        ! analytical concentration values
-  double precision, dimension(NEQ), intent(in) :: B        ! the equilibrium constants
-  integer, dimension(NSL, NCP), intent(in) :: Q            ! the equilibrium constants
-  double precision, dimension(NSL), intent(in) :: KS       ! the equilibrium constants
-  logical, dimension(NSL), intent(in) :: do_solids
+  integer,          intent(in),    dimension(NEQ, NCP) :: P         ! stoichiometry array
+  double precision, intent(inout), dimension(NCP+NEQ)  :: C         ! initial estimates (in) and refined values (out)
+  double precision, intent(inout), dimension(NSL)      :: CS        ! solid concentration initial estimates (in) and refined values (out)
+  double precision, intent(in),    dimension(NCP)      :: T         ! analytical concentration values
+  double precision, intent(in),    dimension(NEQ)      :: B         ! the equilibrium constants
+  integer,          intent(in),    dimension(NSL, NCP) :: Q         ! the equilibrium constants
+  double precision, intent(in),    dimension(NSL)      :: KS        ! the equilibrium constants
+  logical,          intent(inout), dimension(NSL)      :: do_solids ! which solids are in the model
   !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
   !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
   !f2py integer, intent(hide), depend(q) :: nsl = shape(q,0)
@@ -217,17 +206,16 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL)
   integer its, i
   double precision, dimension(NCP+NSL) :: X  ! 1:NCP -> free concentrations in log space
                                              ! NCP+1:NCP+NSL -> solid concentration in linear space
-  double precision, dimension(NCP) :: fvec, jdiag
-  double precision, dimension(NCP+NSL, NCP+NSL) ::  J
-  double precision, dimension(NCP) :: dx
-  double precision, dimension(NSL) :: SI
+  double precision, dimension(NCP)              :: fvec, jdiag
+  double precision, dimension(NCP+NSL, NCP+NSL) :: jac
+  double precision, dimension(NCP+NSL)          :: dx
+  double precision, dimension(NSL)              :: SI
   logical check, converged
   integer MAXITS
-  double precision relax
   parameter (MAXITS=100)
   
   X(1:NCP) = LOG(C(1:NCP))  ! initialise C in log space
-  X(NCP+1:NCP+NSL) = CS(:)  ! and CS in linear space
+  X(NCP+1:NCP+NSL) = CS     ! and CS in linear space
 
   call cpluss(C, B, P, NEQ, NCP)
   call mb_solids(fvec, C, P, T, Q, CS, NCP, NEQ, NSL)
@@ -244,14 +232,18 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL)
   do its=1,MAXITS
     call saturation_product(C, Q, NCP, NSL, SI)
     SI = SI / KS    ! convert saturation product to solubility index
-    call jacobian_solid(J, C, SI, P, Q, NCP, NEQ, NSL)
+    do i=1,NSL
+        if (SI(i) < 1.0) do_solids(i) = .False.
+        if (SI(i) > 1.0) do_solids(i) = .True.
+    end do
+    call jacobian_solid(jac, C, SI, P, Q, NCP, NEQ, NSL)
 
     ! Scale
-    call scale(J, fvec, jdiag, NCP)
+    call scale(jac, fvec, jdiag, NCP)
 
     ! Solve linear system. Includes negation of fvec
-    call lsolve(J, fvec, dx, NCP, CTRL)
-    if (CTRL == 1) return
+    call lsolve(jac, fvec, dx, NCP, CTRL)
+    if (CTRL == 99) return
 
     ! De-scale
     do i=1,NCP
@@ -259,9 +251,18 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL)
     end do
 
     do i=1,NCP
-      relax = 1.0 / max(1.0, -2*dx(i)/x(i))
-      x(i) = x(i) + relax*dx(i)
+      x(i) = x(i) + dx(i)
       C(i) = EXP(X(i))
+    end do
+    do i=1,NSL
+        if (do_solids(i)) then
+            x(i) = x(i) + dx(i)
+            if (X(NCP+i) > 0.0) then
+                CS(i) = X(i)
+            else
+                CS(i) = 0.0
+            end if
+        end if
     end do
     call cpluss(C, B, P, NEQ, NCP)
     call mb_solids(fvec, C, P, T, Q, CS, NCP, NEQ, NSL)
@@ -278,18 +279,15 @@ end subroutine nr_solids
 
 
 subroutine is_converged(fvec, T, fsize, retval)
-    !f2py intent(in) fvec, T
-    !f2py integer, depend(fvec), intent(hide) :: fsize=size(fvec)
-    !f2py intent(inout) retval
-    implicit none
     ! test for convergence on relative values
-    integer, INTENT(IN) :: fsize
-    DOUBLE PRECISION, INTENT(IN), DIMENSION(fsize) :: fvec, T
-    logical, INTENT(INOUT) :: retval
+    implicit none
+    integer,          intent(in)                   :: fsize
+    double precision, intent(in), dimension(fsize) :: fvec, T
+    logical,          intent(inout)                :: retval
 
-    DOUBLE PRECISION test
+    double precision test
     double precision, parameter :: TEST_TOLERANCE = 1e-16
-    double precision, parameter :: F_TOLERANCE = 1e-9
+    double precision, parameter :: F_TOLERANCE = 1e-10
     integer i
 
     retval = .false.

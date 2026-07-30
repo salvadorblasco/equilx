@@ -3,8 +3,9 @@
 
 subroutine cpluss(C, B, P, NCP, NEQ)
   ! Compute the free concentrations for all the components.
-  integer,          intent(in) :: NEQ    ! number of equilibria
-  integer,          intent(in) :: NCP    ! number of components
+  implicit none
+  integer,          intent(in) :: NEQ                        ! number of equilibria
+  integer,          intent(in) :: NCP                        ! number of components
   double precision, intent(inout), dimension(NCP+NEQ)  :: C  ! free concentrations
   integer,          intent(in),    dimension(NEQ, NCP) :: P  ! stoichiometry
   double precision, intent(in),    dimension(NEQ)      :: B  ! equilibrium constants

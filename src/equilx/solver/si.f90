@@ -1,19 +1,19 @@
 ! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
 ! by Salvador Blasco <salvador.blasco@uv.es>
 !
-! Compile with
-! $ uv run f2py -c -m si si.f90
-!  OR
-! $ make si
+! This file contains routines related to solubility
+
 
 subroutine saturation_product(C, Q, NCP, NSL, SI)
-  integer, intent(in) :: NCP, NSL                  ! number of components, number of solids
-  double precision, dimension(NCP), intent(in) :: C
-  integer, dimension(NSL, NCP), intent(in):: Q
-  double precision, DIMENSION(NSL), INTENT(INOUT) :: SI
-  !f2py integer, intent(hide), depend(Q) :: NCP=shape(Q,2), NSL=shape(Q,1)
+  ! Calculate the saturation product, defined as
+  ! SI_i = \prod_j^{NSL} c_j^{q_{ji}}
+  integer, intent(in) :: NCP                  ! number of components
+  integer, intent(in) :: NSL                  ! number of solids
+  double precision, dimension(NCP),      intent(in)  :: C  ! the free concentrations
+  integer,          dimension(NSL, NCP), intent(in)  :: Q  ! the solid stoichiometry array
+  double precision, dimension(NSL),      intent(out) :: SI ! the solubility product
 
-  double PRECISION :: aux
+  double precision :: aux
 
   SI(:) = 0.0
   do i=1,NSL
