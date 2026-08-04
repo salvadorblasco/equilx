@@ -61,7 +61,11 @@ subroutine pcf(C, T, B, P, THRESH, NCP, NEQ)
           sump = sump + abs(P(j,i)) * C(j+NCP)
         end if
       end do
-      calc_theta = THETA_ALPHA - THETA_BETA * min(sump/sumr, sumr/sump)
+      if (sumr > sump) then
+          calc_theta = THETA_ALPHA - THETA_BETA * sump/sumr
+      else
+          calc_theta = THETA_ALPHA - THETA_BETA * sumr/sump
+      end if
       ! check convergence
       convaux(i) = abs(sump-sumr)
       if ((sumr > 0.0 .and. sump > 0.0) .and. ((sumr + sump) > 0.0)) then   ! if one of the components is zero the division

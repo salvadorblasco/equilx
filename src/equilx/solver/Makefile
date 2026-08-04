@@ -12,10 +12,10 @@ fsolver: pcf.o si.o cpluss.o mb.o nr.f90
 %.o: %.f90
 	$(FC) -c $< -o $@ $(FFLAGS)
 
-test: test.f90 cpluss.o mb.o si.o nr.o eq.o pcf.o
+test: test.f90 cpluss.o mb.o si.o nr.o eq.o pcf.o test_cases.o
 	$(FC) $(FFLAGS) $^ $(LIBS) -o $@
 
-debug_test: test.f90 cpluss.f90 mb.f90 si.f90 nr.f90 eq.f90 pcf.f90
+debug: test.f90 cpluss.f90 mb.f90 si.f90 nr.f90 eq.f90 pcf.f90
 	$(FC) $(DEVFLAGS) $^ $(LIBS) -o test
 
 clean:

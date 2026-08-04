@@ -51,38 +51,23 @@ module simple2
     double precision, dimension(NPT,NSL) :: tCS = transpose(reshape( &
       (/0.000000000, 0.000000000, 0.033589838, 0.000000000, 0.000000000/), &
       (/NSL, NPT/)))
+    double precision, dimension(NPT, NCP+NSL, NCP+NSL) :: tJ = reshape( &
+      (/ 1.        , 0.        , 1., &
+         0.        , 0.        , 1., &
+         0.        ,-8.33333334, 0., &
+         0.7       , 0.11118056, 1., &
+         0.11118056, 0.3       , 1., &
+        -1.5734953 ,-4.9068287 , 0., &
+         0.46641016, 0.12      , 1., &
+         0.12      , 0.46641016, 1., &
+        -2.8867513 ,-2.8867513,  0., &
+         0.3       , 0.11118056, 1., &
+         0.11118056, 0.7       , 1., &
+        -4.9068287 ,-1.5734953 , 0., &
+         0.        , 0.        , 1., &
+         0.        , 1.        , 1., &
+        -8.33333334, 0.        , 0. /), (/ NPT, NCP+NSL, NCP+NSL /), order=[3,2,1])
 end module simple2
-
-
-module hexaprotic
-    implicit none
-
-    integer, PARAMETER :: NPT = 89
-    integer, PARAMETER :: NCP = 2
-    integer, PARAMETER :: NEQ = 7
-    double precision, dimension(NPT) :: V = (/  0.00 , 0.12 , 0.24 , 0.36 , 0.48 , 0.60 , 0.72 , 0.84 , 0.96 , 1.08 , 1.20 , 1.32, &
-    1.44 , 1.56 , 1.68 , 1.80 , 1.92 , 2.04 , 2.16 , 2.28 , 2.40 , 2.52 , 2.64 , 2.76 , 2.88 , 3.00 , 3.12 , 3.24 , 3.36 , 3.48, &
-    3.60 , 3.72 , 3.84 , 3.96 , 4.08 , 4.20 , 4.32 , 4.44 , 4.56 , 4.68 , 4.80 , 4.92 , 5.04 , 5.16 , 5.28 , 5.40 , 5.52 , 5.64, &
-    5.76 , 5.88 , 6.00 , 6.12 , 6.24 , 6.36 , 6.48 , 6.60 , 6.72 , 6.84 , 6.96 , 7.08 , 7.20 , 7.32 , 7.44 , 7.56 , 7.68 , 7.80, &
-    7.92 , 8.04 , 8.16 , 8.28 , 8.40 , 8.52 , 8.64 , 8.76 , 8.88 , 9.00 , 9.12 , 9.24 , 9.36 , 9.48 , 9.72 , 10.08, 10.32, 10.56,&
-    10.80, 10.92, 11.28, 11.64, 12.00 /)
-    double precision :: V0 = 25
-    double precision, dimension(NPT, NCP) :: T
-    DOUBLE PRECISION, DIMENSION(NEQ) :: B 
-    DOUBLE PRECISION, DIMENSION(NEQ) :: logB = (/ 10.0, 18.0, 24.0, 28.0, 31.0, 33.0, -13.77 /) 
-    integer, dimension(NEQ, NCP) :: P = reshape((/ 1,1,1,1,1,1,0, 1,2,3,4,5,6,-1 /), &
-                                                shape=(/ NEQ, NCP /))
-contains
-
-subroutine initialize()
-    integer i
-    do i=1,NPT
-        T(i,1) = 5.0E-3*V0 / (V(i) + V0)
-        T(i,2) = (30.0E-3*V0 - 0.1* V(i))/ (V(i) + V0)
-    end do
-    B = 10.0**logB
-end subroutine initialize
-end module hexaprotic
 
 
 module print_utils
@@ -179,36 +164,25 @@ end module print_utils
 program test
     implicit none
     call test_cpluss1()
+    call test_cpluss2()
     call test_cpluss3()
     call test_mb1()
-    call test_pcf1()
-    call test_pcf3()
     call test_mb2()
+    call test_pcf1()
+    call test_pcf2()
+    call test_pcf3()
     call test_si2()
     call test_jac1()
+    call test_jac2()
     call test_lsolve()
     call test_scale()
     call test_nr1()
+    call test_nr2()
     call test_solve_point1()
     call test_solve1()
     call test_solve3()
-    call test_freeze()
+    call test_case_molybdate()
 contains
-
-
-subroutine test_freeze()
-    ! integer, parameter :: NPT=10                 ! number of titration points
-    ! integer, parameter :: NCP=3                  ! number of components
-    ! integer, parameter :: NEQ=3                  ! number of equilibria
-    ! integer, parameter :: REF=3                  ! component of reference
-    ! integer, dimension(NEQ, NCP) :: P            ! The stoichiometry array
-    ! double precision, dimension(NPT, NCP) :: T   ! analytical concentration values
-    ! double precision, dimension(NEQ) :: B        ! the equilibrium constants
-    ! double precision, dimension(NPT, NEQ) :: fB  ! the frozen equilibrium constants
-    ! integer, dimension(NEQ, NCP-1) :: fP         ! The stoichiometry array
-    ! double precision, dimension(NPT, NCP-1):: fT ! analytical concentration values
-    call print_result("freeze", "not implemented")
-end subroutine test_freeze
 
 
 subroutine test_nr1()
@@ -224,13 +198,14 @@ subroutine test_nr1()
     C(1) = 1e-12
     call nr(C, T(POINT,:), B, P, CTRL, NCP, NEQ)
     if (CTRL .ne. 0) then
-        if (passed) call print_result("scale", "failed")
+        if (passed) call print_result("nr1", "failed")
         passed = .false.
         print *, "  control value returned ", CTRL
         return
     end if
     do i = 1,NCP+NEQ
         if (abs(tC(POINT, i) - C(i))  > TOLERANCE) then
+            if (passed) call print_result("nr1", "failed")
             passed = .false.
             print "(A I2 2(A,F10.4))", "  SP=", i, " calc=", C(i), "true=", tC(POINT, i) 
         end if
@@ -239,6 +214,47 @@ subroutine test_nr1()
         call print_result("nr1", "passed")
     end if
 end subroutine test_nr1
+
+
+subroutine test_nr2()
+    use simple2
+    implicit none
+    double precision, dimension(NCP+NEQ) :: C
+    double precision, dimension(NSL)     :: CS
+    double precision, PARAMETER :: TOLERANCE = 1D-6
+    integer i, CTRL
+    logical passed
+    logical, dimension(NSL) :: do_solids
+    integer, PARAMETER :: POINT=3
+    passed = .true.
+    C = 0.9*tC(POINT,:)
+    CS = .9*tCS(POINT,:)
+    CTRL=0
+    call nr_solids(C, CS, T(POINT,:), B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL)
+    if (CTRL .ne. 0) then
+        if (passed) call print_result("nr2", "failed")
+        passed = .false.
+        print *, "  control value returned ", CTRL
+        return
+    end if
+    do i = 1,NCP+NEQ
+        if (abs(tC(POINT, i) - C(i))  > TOLERANCE) then
+            if (passed) call print_result("nr2", "failed")
+            passed = .false.
+            print "(A,I2,2(A,E12.6))", "  SP=", i, " calc=", C(i), "true=", tC(POINT, i) 
+        end if
+    end do
+    do i = 1,NSL
+        if (abs(tCS(POINT, i) - CS(i))  > TOLERANCE) then
+            if (passed) call print_result("nr2", "failed")
+            passed = .false.
+            print "(A,I2,2(A,E12.6))", "  SL=", i, " calc=", CS(i), "true=", tCS(POINT, i) 
+        end if
+    end do
+    if (passed) then
+        call print_result("nr2", "passed")
+    end if
+end subroutine test_nr2
 
 
 subroutine test_pcf1()
@@ -264,8 +280,9 @@ subroutine test_pcf1()
                 test = abs(C(j) - tC(i,j))
             end if
             if (test > TOLERANCE) then
+                if (passed) call print_result("pcf1", "failed")
                 passed = .false.
-                print *, "test pcf1 .......... failed at ", i, j, tC(i, j), C(j), test
+                print "(A,2I3, 3E12.4)", "  ", i, j, tC(i, j), C(j), test
             end if
         end do
     end do
@@ -273,6 +290,41 @@ subroutine test_pcf1()
         call print_result("pcf1", "passed")
     end if
 end subroutine test_pcf1
+
+
+subroutine test_pcf2()
+    use simple1
+    double precision, dimension(NCP+NEQ) :: C
+    logical passed
+    integer i, j
+    double precision :: test
+    double precision, PARAMETER :: TOLERANCE = 0.95
+    passed = .true.
+    do i=1,NPT
+        do j=1,NCP
+            if (T(i,j) > 0.0) then
+                C(j) = 0.01*T(i,j)
+            else
+                C(j) = 1D-12
+            end if
+        end do
+        call pcf(C, T(i,:), B, P, 1D-9, NCP, NEQ)
+        do j=1,NCP
+            test = abs(C(j) - tC(i,j))/(C(j) + tC(i,j))
+            if (test == 1.0) then
+                test = abs(C(j) - tC(i,j))
+            end if
+            if (test > TOLERANCE) then
+                if (passed) call print_result("pcf2", "failed")
+                passed = .false.
+                print "(A,2I3, 3E12.4)", "  ", i, j, tC(i, j), C(j), test
+            end if
+        end do
+    end do
+    if (passed) then
+        call print_result("pcf2", "passed")
+    end if
+end subroutine test_pcf2
 
 
 subroutine test_pcf3()
@@ -297,14 +349,13 @@ subroutine test_pcf3()
 
         call cpluss(C, B, P, NCP, NEQ)
         call mb_soluble(fprev, C, P, T, NCP, NEQ)
-        !print "(3(A,2E14.4))", "prev  C=", C(1:NCP), " F=", fprev, " T=", T(i,:)
         call pcf(C, T(i,:), B, P, 1D-9, NCP, NEQ)
         call mb_soluble(fpost, C, P, T, NCP, NEQ)
-        !print "(2(A,2E14.4))", "post  C=", C(1:NCP), " F=", fpost
         do j=1,NCP
             if (abs(fpost(j)) > abs(fprev(j))) then
+                if (passed) call print_result("pcf3", "failed")
                 passed = .false.
-                print "(A,2I3,E12.4,A,E12.4)", "test pcf3 .......... failed at ", i, j, fprev(j), ">",  fpost(j)
+                print "(A,2I3,E12.4,A,E12.4)", "  ", i, j, fprev(j), ">",  fpost(j)
             end if
         end do
     end do
@@ -332,14 +383,16 @@ subroutine test_solve_point1()
     end do
     call solve_point(C, T(POINT,:), B, P, CTRL, .true., NCP, NEQ)
     if (CTRL .ne. 0) then
-        !         ....|....|....|....v|....|
-        print *, "test solve_point1 .. failed -> control value returned ", CTRL
+        if (passed) call print_result("solve_point1", "failed")
+        passed = .false.
+        print "(A, I3)", "  control value returned ", CTRL
         return
     end if
     do i = 1,NCP+NEQ
         if (abs(C(i) - tC(POINT, i)) > TOLERANCE) then
+            if (passed) call print_result("solve_point1", "failed")
             passed = .false.
-            print *, "test solve_point1 .. failed at ", i, tC(POINT, i), C(i)
+            print "(A,I3, 2E12.6)", "  ", i, tC(POINT, i), C(i)
         end if
     end do
     if (passed) then
@@ -410,10 +463,8 @@ subroutine test_solve3()
         call mb_soluble(F, C(i,:), P, T(i,:), NCP, NEQ)
         do j=1,NCP
             if (abs(F(j)) > TOLERANCE) then
-                if (passed) then
-                    passed = .false.
-                    print *, "test solve3 ........ failed"
-                end if
+                if (passed) call print_result("solve3", "failed")
+                passed = .false.
                 print "(A,I3,A,I3,A,E10.4)", "   F(", i, ",", j, ")=", F(j)
             end if
         end do
@@ -422,6 +473,51 @@ subroutine test_solve3()
         call print_result("solve3", "passed")
     end if
 end subroutine test_solve3
+
+
+subroutine test_case_molybdate()
+    use molybdate
+    implicit none
+    double precision, dimension(NPT, NCP+NEQ) :: C
+    double precision, dimension(NCP) :: F
+    double precision, PARAMETER :: TOLERANCE = 1D-10
+    integer i, j, CTRL
+    logical passed
+    character(len=*), parameter :: test_name = "case molybdate"
+
+    passed = .true.
+    call initialize()
+
+    C(:,:) = 0.0
+    do i = 1,NCP                 ! initialize first point
+        if (T(1,i) > 0.0) then
+            C(1,i) = 0.01*T(1,i)
+        else
+            C(1,i) = 1D-10
+        end if
+    end do
+    call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
+    if (CTRL .ne. 0) then
+        if (passed) then
+            passed = .false.
+            call print_result(test_name, "failed")
+        end if
+       print *, "  control value returned ", CTRL
+    end if
+    do i=1,3   !NPT
+        call mb_soluble(F, C(i,:), P, T(i,:), NCP, NEQ)
+        do j=1,NCP
+            if (abs(F(j)) > TOLERANCE) then
+                if (passed) call print_result(test_name, "failed")
+                passed = .false.
+                print "(A,I3,A,I3,A,E10.4)", "   F(", i, ",", j, ")=", F(j)
+            end if
+        end do
+    end do
+    if (passed) then
+        call print_result(test_name, "passed")
+    end if
+end subroutine test_case_molybdate
 
 
 subroutine test_cpluss1()
@@ -437,13 +533,36 @@ subroutine test_cpluss1()
         call cpluss(C, B, P, NCP, NEQ)
         do j=1,(NCP+NEQ)
             if (abs(tC(i,j)-C(j)) > TOL) then
-                print *, "test cpluss1 ....... failed at ", i, tC(i,j), C(j)
+                if (passed) call print_result("cpluss1", "failed")
                 passed = .false.
+                print "(A,I3,2E12.6)", "  it", i, tC(i,j), C(j)
             end if
         end do
     end do
     if (passed) call print_result("cpluss1", "passed")
 end subroutine test_cpluss1
+
+
+subroutine test_cpluss2()
+    use simple2
+    implicit none
+    double precision, dimension(NCP+NEQ) :: C
+    double precision, PARAMETER:: TOL = 1e-8
+    integer i, j
+    logical passed
+    passed = .true.
+    do i=1,NPT
+        C(1:NCP) = tC(i,1:NCP)
+        call cpluss(C, B, P, NCP, NEQ)
+        do j=1,(NCP+NEQ)
+            if (abs(tC(i,j)-C(j)) > TOL) then
+                print *, "test cpluss2 ....... failed at ", i, tC(i,j), C(j)
+                passed = .false.
+            end if
+        end do
+    end do
+    if (passed) call print_result("cpluss2", "passed")
+end subroutine test_cpluss2
 
 
 subroutine test_cpluss3()
@@ -548,14 +667,40 @@ subroutine test_jac1()
             do k=1,NCP
                 !print *, i,j,k, tJ(i,j,k)
                 if (abs(Jac(j,k)-tJ(i,j,k)) > TOL) then
-                    print *, "test jac1 .......... failed at ", i, j, k, Jac(j,k), tJ(i,j,k)
+                    if (passed) call print_result("jac1", "failed")
                     passed = .false.
+                    print "(A,3I4, 2E12.4)", "  ", i, j, k, Jac(j,k), tJ(i,j,k)
                 end if
             end do
         end do
     end do
-    if (passed) call print_result("jacsl", "passed")
+    if (passed) call print_result("jac1", "passed")
 end subroutine test_jac1
+
+
+subroutine test_jac2()
+    use simple2
+    implicit none
+    DOUBLE PRECISION, DIMENSION(NCP+NSL, NCP+NSL) :: Jac
+    logical passed
+    integer i, j, k, nx
+    double precision, PARAMETER:: TOL = 1D-6
+    logical, dimension(NSL) :: do_solids = (/.true./)
+    passed = .true.
+    do i=1,NPT
+        call jacobian_solid(Jac, tC(i,:), KS, P, Q, NCP, NEQ, NSL, do_solids, nx)
+        do j=1,NCP+NSL
+            do k=1,NCP+NSL
+                if (abs(Jac(j,k)-tJ(i,j,k)) > TOL) then
+                    if (passed) call print_result("jac2", "failed")
+                    passed = .false.
+                    print "(A,3I4,2(A,E12.4))", "  ", i, j, k, " Jcalc=",Jac(j,k), " should be ", tJ(i,j,k)
+                end if
+            end do
+        end do
+    end do
+    if (passed) call print_result("jac2", "passed")
+end subroutine test_jac2
 
 
 subroutine test_lsolve()
@@ -660,72 +805,5 @@ subroutine print_result(test_name, result_tag)
           " ", trim(result_tag)                           ! space + right
 end subroutine
 
-! from collections import namedtuple
-! 
-! import numpy as np
-! 
-! 
-! data = namedtuple('data', ['analyticalc', 'stoichiometry', 'log_beta',
-!                            'solid_stoichiometry', 'log_ks',
-!                            'real_freec', 'real_jac', 'gfun'])
-! 
-! def synthetic_simple1_wsld():
-!     analyticalc = np.array([[1.0, 0.0],[0.7, 0.3], [0.5, 0.5],[0.3,0.7],[0.0,1.0]])
-!     stoichiometry = np.array([[1,1]], dtype=int)
-!     log_beta = np.log10(np.array([1.0]))
-!     solid_stoichiometry = np.array([[1,1]], dtype=int)
-!     log_ks =   np.log10(np.array([0.12]))
-!     #                       c1           c2           c3           s1
-!     real_freec = np.array([[1.000000000, 0.000000000, 0.000000000, 0.000000000],
-!                            [0.588819442, 0.188819442, 0.111180558, 0.000000000],
-!                            [0.346410162, 0.346410162, 0.120000000, 0.033589838],
-!                            [0.188819442, 0.588819442, 0.111180558, 0.000000000],
-!                            [0.000000000, 1.000000000, 0.000000000, 0.000000000]])
-!     real_jac = np.array([[[1.        , 0.        , 0.],
-!                          [0.        , 0.        , 0.],
-!                          [0.        , 0.        , 0.]],
-!                         [[0.7       , 0.11118056, 0.],
-!                          [0.11118056, 0.3       , 0.],
-!                          [0.        , 0.        , 0.]],
-!                         [[0.46641016, 0.12      , 1.],
-!                          [0.12      , 0.46641016, 1.],
-!                          [-2.80722e-09,-2.80722e-09,0.]],
-!                         [[0.3       , 0.11118056, 0.],
-!                          [0.11118056, 0.7       , 0.],
-!                          [0.        , 0.        , 0.]],
-!                         [[0.        , 0.        , 0.],
-!                          [0.        , 1.        , 0.],
-!                          [0.        , 0.        , 0.]]])
-!     gfun = np.array([[0.0, 0.0, 2.80722e-9, 0.0, 0.0]]).T
-!     return data(analyticalc, stoichiometry, log_beta, solid_stoichiometry, log_ks,
-!                 real_freec, real_jac, gfun)
-! 
-! 
-! def synthetic_simple1_wosld():
-!     analyticalc = np.array([[1.0, 0.0],[0.7, 0.3], [0.5, 0.5],[0.3,0.7],[0.0,1.0]])
-!     stoichiometry = np.array([[1,1]], dtype=int)
-!     log_beta = np.log10(np.array([1.0]))
-!     solid_stoichiometry = np.array([[]], dtype=int)
-!     log_ks = np.array([])
-!     #                       c1           c2           c3         
-!     real_freec = np.array([[1.000000000, 0.000000000, 0.000000000],
-!                            [0.588819442, 0.188819442, 0.111180558],
-!                            [0.366025404, 0.366025404, 0.133974596],
-!                            [0.188819442, 0.588819442, 0.111180558],
-!                            [0.000000000, 1.000000000, 0.000000000]])
-!     real_jac = np.array([[[1.        , 0.        ],
-!                          [0.        , 0.        ]],
-!                         [[0.7       , 0.11118056],
-!                          [0.11118056, 0.3       ]],
-!                         [[0.5       , 0.1339746 ],
-!                          [0.1339746 , 0.5       ]],
-!                         [[0.3       , 0.11118056],
-!                          [0.11118056, 0.7       ]],
-!                         [[0.        , 0.        ],
-!                          [0.        , 1.        ]]])
-!     gfun = np.array([[]]).T
-!     return data(analyticalc, stoichiometry, log_beta, solid_stoichiometry, log_ks,
-!                 real_freec, real_jac, gfun)
-! 
 end program test
 
