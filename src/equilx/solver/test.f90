@@ -1,75 +1,3 @@
-module simple1
-    implicit none
-
-    integer, PARAMETER :: NPT = 5
-    integer, PARAMETER :: NCP = 2
-    integer, PARAMETER :: NEQ = 1
-    double precision, dimension(NPT, NCP) :: T = transpose(reshape( &
-        (/1.0, 0.0, 0.7, 0.3, 0.5, 0.5,0.3,0.7,0.0,1.0/), &
-        (/NCP, NPT/)))
-    integer, dimension(NEQ, NCP) :: P = reshape((/1,1/), (/NEQ, NCP/))
-    DOUBLE PRECISION, DIMENSION(NEQ) :: B = 1.0
-    double precision, dimension(NPT,NCP+NEQ) :: tC = transpose(reshape( &
-        (/1.000000000, 0.000000000, 0.000000000, &
-          0.588819442, 0.188819442, 0.111180558, &
-          0.366025404, 0.366025404, 0.133974596, &
-          0.188819442, 0.588819442, 0.111180558, &
-          0.000000000, 1.000000000, 0.000000000/), (/NCP+NEQ,NPT/)))
-    double precision, dimension(NPT, NCP, NCP) :: tJ = reshape( &
-         (/ 1.        ,0.        , &
-            0.        ,0.        , &
-            0.7       ,0.11118056, &
-            0.11118056,0.3       , &
-            0.5       ,0.1339746 , &
-            0.1339746 ,0.5       , &
-            0.3       ,0.11118056, &
-            0.11118056,0.7       , &
-            0.        ,0.        , &
-            0.        ,1. /), (/ NPT, NCP, NCP /), order=[3,2,1])
-end module simple1
-
-module simple2
-    implicit none
-
-    integer, PARAMETER :: NPT = 5
-    integer, PARAMETER :: NCP = 2
-    integer, PARAMETER :: NEQ = 1
-    integer, PARAMETER :: NSL = 1
-    double precision, dimension(NPT, NCP) :: T = transpose(reshape( &
-        (/1.0, 0.0, 0.7, 0.3, 0.5, 0.5,0.3,0.7,0.0,1.0/), &
-        (/NCP, NPT/)))
-    integer, dimension(NEQ, NCP) :: P = reshape((/1,1/), (/NEQ, NCP/))
-    integer, dimension(NSL, NCP) :: Q = reshape((/1,1/), (/NSL, NCP/))
-    DOUBLE PRECISION, DIMENSION(NEQ) :: B = 1.0
-    DOUBLE PRECISION, DIMENSION(NSL) :: KS = 0.12
-    double precision, dimension(NPT,NCP+NEQ) :: tC = transpose(reshape( &
-     (/1.000000000, 0.000000000, 0.000000000, & 
-       0.588819442, 0.188819442, 0.111180558, &
-       0.346410162, 0.346410162, 0.120000000, &
-       0.188819442, 0.588819442, 0.111180558, &
-       0.000000000, 1.000000000, 0.000000000/), (/NCP+NEQ,NPT/)))
-    double precision, dimension(NPT,NSL) :: tCS = transpose(reshape( &
-      (/0.000000000, 0.000000000, 0.033589838, 0.000000000, 0.000000000/), &
-      (/NSL, NPT/)))
-    double precision, dimension(NPT, NCP+NSL, NCP+NSL) :: tJ = reshape( &
-      (/ 1.        , 0.        , 1., &
-         0.        , 0.        , 1., &
-         0.        ,-8.33333334, 0., &
-         0.7       , 0.11118056, 1., &
-         0.11118056, 0.3       , 1., &
-        -1.5734953 ,-4.9068287 , 0., &
-         0.46641016, 0.12      , 1., &
-         0.12      , 0.46641016, 1., &
-        -2.8867513 ,-2.8867513,  0., &
-         0.3       , 0.11118056, 1., &
-         0.11118056, 0.7       , 1., &
-        -4.9068287 ,-1.5734953 , 0., &
-         0.        , 0.        , 1., &
-         0.        , 1.        , 1., &
-        -8.33333334, 0.        , 0. /), (/ NPT, NCP+NSL, NCP+NSL /), order=[3,2,1])
-end module simple2
-
-
 module print_utils
     implicit none
     private
@@ -163,25 +91,27 @@ end module print_utils
 
 program test
     implicit none
-    call test_cpluss1()
-    call test_cpluss2()
-    call test_cpluss3()
-    call test_mb1()
-    call test_mb2()
-    call test_pcf1()
-    call test_pcf2()
-    call test_pcf3()
-    call test_si2()
-    call test_jac1()
-    call test_jac2()
-    call test_lsolve()
-    call test_scale()
-    call test_nr1()
-    call test_nr2()
-    call test_solve_point1()
-    call test_solve1()
-    call test_solve3()
-    call test_case_molybdate()
+    !call test_cpluss2()
+    !call test_cpluss2()
+    !call test_cpluss3()
+    !call test_mb1()
+    !call test_mb2()
+    !call test_pcf1()
+    !call test_pcf2()
+    !call test_pcf3()
+    !call test_si2()
+    !call test_jac1()
+    !call test_jac2()
+    !call test_lsolve()
+    !call test_scale()
+    !call test_nr1()
+    !call test_nr2()
+    !call test_solve_point1()
+    !call test_solve1()
+    !call test_case_hexaprotic()
+    !call test_case_phosphoric()
+    !call test_case_molybdate()
+    call test_case_aluminium()
 contains
 
 
@@ -409,14 +339,7 @@ subroutine test_solve1()
     integer i, j, CTRL
     logical passed
     passed = .true.
-    C(:,:) = 0.0
-    do i = 1,NCP                 ! initialize first point
-        if (T(1,i) > 0.0) then
-            C(1,i) = 0.01*T(1,i)
-        else
-            C(1,i) = 1D-12
-        end if
-    end do
+    call initial_guess(C, T, NPT, NCP, NEQ)
     call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
     do i=1,NPT
         do j=1,NCP+NEQ
@@ -431,9 +354,8 @@ subroutine test_solve1()
 end subroutine test_solve1
 
 
-subroutine test_solve3()
+subroutine test_case_hexaprotic()
     use hexaprotic
-    use print_utils
     implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NCP) :: F
@@ -442,16 +364,8 @@ subroutine test_solve3()
     logical passed
     passed = .true.
     call initialize()
-    C(:,:) = 0.0
-    do i = 1,NCP                 ! initialize first point
-        if (T(1,i) > 0.0) then
-            C(1,i) = 0.01*T(1,i)
-        else
-            C(1,i) = 1D-10
-        end if
-    end do
+    call initial_guess(C, T, NPT, NCP, NEQ)
     call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
-    !call solve(C(1:3,:), T(1:3,:), B, P, CTRL, 3, NCP, NEQ)
     if (CTRL .ne. 0) then
         if (passed) then
             passed = .false.
@@ -459,7 +373,7 @@ subroutine test_solve3()
         end if
        print *, "  control value returned ", CTRL
     end if
-    do i=1,3   !NPT
+    do i=1,NPT
         call mb_soluble(F, C(i,:), P, T(i,:), NCP, NEQ)
         do j=1,NCP
             if (abs(F(j)) > TOLERANCE) then
@@ -472,7 +386,43 @@ subroutine test_solve3()
     if (passed) then
         call print_result("solve3", "passed")
     end if
-end subroutine test_solve3
+end subroutine test_case_hexaprotic
+
+subroutine test_case_phosphoric()
+    use phosphoric
+    implicit none
+    double precision, dimension(NPT, NCP+NEQ) :: C
+    double precision, dimension(NCP) :: F
+    double precision, PARAMETER :: TOLERANCE = 1D-10
+    integer i, j, CTRL
+    logical passed
+    character(len=*), parameter :: test_name = "case phosphoric"
+
+    passed = .true.
+    call initialize()
+    call initial_guess(C, T, NPT, NCP, NEQ)
+    call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
+    if (CTRL .ne. 0) then
+        if (passed) then
+            passed = .false.
+            call print_result(test_name, "failed")
+        end if
+       print *, "  control value returned ", CTRL
+    end if
+    do i=1,NPT
+        call mb_soluble(F, C(i,:), P, T(i,:), NCP, NEQ)
+        do j=1,NCP
+            if (abs(F(j)) > TOLERANCE) then
+                if (passed) call print_result(test_name, "failed")
+                passed = .false.
+                print "(A,I3,A,I3,A,E10.4)", "   F(", i, ",", j, ")=", F(j)
+            end if
+        end do
+    end do
+    if (passed) then
+        call print_result(test_name, "passed")
+    end if
+end subroutine test_case_phosphoric
 
 
 subroutine test_case_molybdate()
@@ -487,15 +437,8 @@ subroutine test_case_molybdate()
 
     passed = .true.
     call initialize()
+    call initial_guess(C, T, NPT, NCP, NEQ)
 
-    C(:,:) = 0.0
-    do i = 1,NCP                 ! initialize first point
-        if (T(1,i) > 0.0) then
-            C(1,i) = 0.01*T(1,i)
-        else
-            C(1,i) = 1D-10
-        end if
-    end do
     call solve_vis(C, T, B, Iref, Iback, P, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
     if (CTRL .ne. 0) then
         if (passed) then
@@ -518,6 +461,51 @@ subroutine test_case_molybdate()
         call print_result(test_name, "passed")
     end if
 end subroutine test_case_molybdate
+
+
+subroutine test_case_aluminium()
+    use aluminium
+    implicit none
+    double precision, dimension(NPT, NCP+NEQ) :: C
+    double precision, dimension(NPT,NSL)     :: CS
+    double precision, dimension(NCP) :: F
+    double precision, PARAMETER :: TOLERANCE = 1D-10
+    integer i, j, CTRL
+    logical passed
+    character(len=*), parameter :: test_name = "case aluminium"
+  double PRECISION, dimension(NSL) :: si
+
+    passed = .true.
+    call initialize()
+    CS(:,:) = 0.0
+    C = 0.0
+    C(1,1) = 1e-8
+
+    call solve_distribution_solids(C, CS, T, B, P, KS, Q, CTRL, 2, NPT, NEQ, NCP, NSL)
+
+    if (CTRL .ne. 0) then
+        if (passed) then
+            passed = .false.
+            call print_result(test_name, "failed")
+        end if
+       print *, "  control value returned ", CTRL
+    end if
+    do i=1,NPT
+        call mb_solids(F, C(i,:), P, T(i,:), Q, CS(i,:), NCP, NEQ, NSL)
+        do j=1,NCP
+            if (abs(F(j)) > TOLERANCE) then
+                if (passed) call print_result(test_name, "failed")
+                passed = .false.
+                print "(A,I3,A,I3,A,E10.4)", "   F(", i, ",", j, ")=", F(j)
+            end if
+        end do
+        call saturation_product(C(i,:), Q, NCP, NSL, si)
+        print "(I3, F14.6, E14.6)", i, si/KS, CS(i,1)
+    end do
+    if (passed) then
+        call print_result(test_name, "passed")
+    end if
+end subroutine test_case_aluminium
 
 
 subroutine test_cpluss1()
@@ -804,6 +792,24 @@ subroutine print_result(test_name, result_tag)
           repeat(filler, fill_len), &                ! filling
           " ", trim(result_tag)                           ! space + right
 end subroutine
+
+
+subroutine initial_guess(C, T, NPT, NCP, NEQ)
+    integer, intent(in) :: NPT
+    integer, intent(in) :: NCP
+    integer, intent(in) :: NEQ
+    double precision, intent(out), dimension(NPT, NCP+NEQ) :: C
+    double precision, intent(in),  dimension(NPT, NCP) :: T
+    integer i
+    C(:,:) = 0.0
+    do i = 1,NCP                 ! initialize first point
+        if (T(1,i) > 0.0) then
+            C(1,i) = 0.01*T(1,i)
+        else
+            C(1,i) = 1D-10
+        end if
+    end do
+end subroutine initial_guess
 
 end program test
 
