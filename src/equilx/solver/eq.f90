@@ -8,6 +8,7 @@
 ! 1  -> normal exit upon initial guess being a root
 ! 2  -> abnormal exit on MAXITS
 ! 3  -> too many iterations on solids
+! 4  -> outer point routine exited on MAXITS
 ! 99 -> unable to invert matrix
 ! 98 -> solids could not be solved
 ! 97 -> invalid reference component for simulation was provided
@@ -44,6 +45,46 @@ subroutine solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
         if (CTRL > 50) exit  ! error unable to continue
   end do
 end subroutine solve
+
+
+subroutine solve_vis(C, T, Bref, Iref, Iback, P, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
+    implicit none
+    integer,          intent(in)    :: NPT                               ! number of titration points
+    integer,          intent(in)    :: NCP                               ! number of components
+    integer,          intent(in)    :: NEQ                               ! number of equilibria
+    integer,          intent(inout) :: CTRL                              ! control value. See return values in header of this file.
+    double precision, intent(inout), dimension(NPT, NEQ+NCP) :: C        ! initial estimates (in) and refined values (out)
+    double precision, intent(in),    dimension(NPT, NCP)     :: T        ! analytical concentration values
+    double precision, intent(in),    dimension(NEQ)          :: Bref     ! the equilibrium constants
+    DOUBLE PRECISION, INTENT(IN)                             :: Iref     ! reference ionic strength
+    DOUBLE PRECISION, INTENT(IN), dimension(NPT)             :: Iback    ! background ionic strength
+    integer,          intent(in), dimension(NEQ, NCP)        :: P        ! The stoichiometry array
+    integer,          INTENT(IN), DIMENSION(NCP+NEQ)         :: charge   ! charge for every species
+    DOUBLE PRECISION, INTENT(IN)                             :: DHA, DHB ! Debye-Huckel parameters A and B
+    double precision, intent(in), dimension(NEQ,3)           :: DHP      ! per-species DH parameters C, D and E
+  
+    integer i
+    DOUBLE PRECISION, dimension(NEQ) :: corr
+    integer, dimension(NEQ) :: zstar        ! z* = sum p_i z_i^2 - z_s^2 
+  
+    do i=1,NEQ
+        zstar(i) = -charge(NCP+i)**2 + sum(P(i,:)*charge(1:NCP)**2)
+    end do
+    corr = 0.0 
+    CTRL = 0
+    do i=1,NPT
+        if (i .eq. 1) then
+            call solve_point(C(1,:), T(1,:), Bref+corr, P, CTRL, .true., NCP, NEQ)
+        else
+            C(i,:) = C(i-1,:)
+            call solve_point(C(i,:), T(i,:), Bref+corr, P, CTRL, .false., NCP, NEQ)
+        end if
+        if (CTRL > 50) exit  ! error unable to continue
+        call outer(corr, C(i,:), charge, Bref, Iref, Iback(i), zstar, DHA, DHB, DHP, T(1,:), P, CTRL, NCP, NEQ)
+        if (CTRL > 50) exit  ! error unable to continue
+        call nr(C(i,:), T(i,:), Bref+corr, P, ctrl, NCP, NEQ)
+    end do
+end subroutine solve_vis
 
 
 subroutine solve_solids(C, CS, T, B, P, KS, Q, CTRL, NPT, NCP, NEQ, NSL)

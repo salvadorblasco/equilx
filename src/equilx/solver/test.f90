@@ -496,7 +496,7 @@ subroutine test_case_molybdate()
             C(1,i) = 1D-10
         end if
     end do
-    call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
+    call solve_vis(C, T, B, Iref, Iback, P, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
     if (CTRL .ne. 0) then
         if (passed) then
             passed = .false.
@@ -504,7 +504,7 @@ subroutine test_case_molybdate()
         end if
        print *, "  control value returned ", CTRL
     end if
-    do i=1,3   !NPT
+    do i=1,NPT
         call mb_soluble(F, C(i,:), P, T(i,:), NCP, NEQ)
         do j=1,NCP
             if (abs(F(j)) > TOLERANCE) then

@@ -14,8 +14,6 @@ subroutine mb_soluble(F, C, P, T, NCP, NEQ)
   double precision, dimension(NCP),      intent(in)  :: T  ! the analytical concentration
   double precision, dimension(NCP+NEQ),  intent(in)  :: C  ! the free concentrations
   integer,          dimension(NEQ, NCP), intent(in)  :: P  ! the soluble stoichiometry
-  !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
-  !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
 
   double precision AUX
   integer i, j
@@ -43,12 +41,6 @@ subroutine mb_solids(F, C, P, T, Q, CS, NCP, NEQ, NSL)
   integer,          dimension(NSL, NCP), intent(in)  :: Q  ! the solid stoichiometry
   double precision, dimension(NCP+NEQ),  intent(in)  :: C  ! the free concentrations
   double precision, dimension(NSL),      intent(in)  :: CS ! the solids "concentrations"
-  !f2py depend(ncp, neq) :: c
-  !f2py double precision, depend(nsl)  :: cs
-  !f2py depend(ncp)      :: t
-  !f2py depend(neq)      :: b
-  !f2py depend(neq, ncp) :: p
-  !f2py integer, intent(hide), depend(q) :: nsl = shape(Q,1)
 
   integer i, j
 
