@@ -91,7 +91,7 @@ end module print_utils
 
 program test
     implicit none
-    !call test_cpluss2()
+    !call test_cpluss1()
     !call test_cpluss2()
     !call test_cpluss3()
     !call test_mb1()
@@ -111,7 +111,8 @@ program test
     !call test_case_hexaprotic()
     !call test_case_phosphoric()
     !call test_case_molybdate()
-    call test_case_aluminium()
+    !call test_case_aluminium()
+    call test_case_aluminium_pt()
 contains
 
 
@@ -391,7 +392,6 @@ end subroutine test_case_hexaprotic
 subroutine test_case_phosphoric()
     use phosphoric
     implicit none
-    double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-10
     integer i, j, CTRL
@@ -400,8 +400,8 @@ subroutine test_case_phosphoric()
 
     passed = .true.
     call initialize()
-    call initial_guess(C, T, NPT, NCP, NEQ)
-    call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
+    C(1,1) = 1e-10
+    call solve_distribution(C, T, B, P, CTRL, 2, NPT, NCP, NEQ)
     if (CTRL .ne. 0) then
         if (passed) then
             passed = .false.
@@ -463,6 +463,30 @@ subroutine test_case_molybdate()
 end subroutine test_case_molybdate
 
 
+subroutine test_case_aluminium_pt()
+    use aluminium
+    implicit none
+    double precision, dimension(NCP+NEQ) :: C
+    double precision, dimension(NSL)     :: CS
+    double precision, dimension(NCP)     :: Tx  ! analytical concentration values
+    integer, PARAMETER :: POINT=25
+    integer CTRL
+    integer i
+    call initialize()
+    CS = 0.0
+    C = 0.0
+    Tx(1) = tC(POINT,1) + sum(tC(POINT,3:6)) + tCS(POINT,1)
+    Tx(2) = tC(POINT,2) - tC(POINT,3) - 2*tC(POINT,4) -3*tC(POINT,5)-4*tC(POINT,6) &
+           - tC(POINT,7) - 3*tCS(POINT,1)
+    C(1:2) = 0.01*Tx
+    call solve_point_solid(C, CS, Tx, B, P, KS, Q, CTRL, .true., NEQ, NCP, NSL)
+    print *, C
+    print *, tC(POINT,:)
+    print *, CS
+    print *, tCS(POINT,:)
+end subroutine test_case_aluminium_pt
+
+
 subroutine test_case_aluminium()
     use aluminium
     implicit none
@@ -473,7 +497,7 @@ subroutine test_case_aluminium()
     integer i, j, CTRL
     logical passed
     character(len=*), parameter :: test_name = "case aluminium"
-  double PRECISION, dimension(NSL) :: si
+    double PRECISION, dimension(NSL) :: si
 
     passed = .true.
     call initialize()
@@ -482,7 +506,7 @@ subroutine test_case_aluminium()
     C(1,1) = 1e-8
 
     call solve_distribution_solids(C, CS, T, B, P, KS, Q, CTRL, 2, NPT, NEQ, NCP, NSL)
-
+    print *, CS
     if (CTRL .ne. 0) then
         if (passed) then
             passed = .false.
@@ -491,16 +515,23 @@ subroutine test_case_aluminium()
        print *, "  control value returned ", CTRL
     end if
     do i=1,NPT
-        call mb_solids(F, C(i,:), P, T(i,:), Q, CS(i,:), NCP, NEQ, NSL)
-        do j=1,NCP
-            if (abs(F(j)) > TOLERANCE) then
+        !call mb_solids(F, C(i,:), P, T(i,:), Q, CS(i,:), NCP, NEQ, NSL)
+        do j=1,NCP+NEQ
+            if (abs(C(i,j)-tC(i,j)) > TOLERANCE) then
                 if (passed) call print_result(test_name, "failed")
                 passed = .false.
-                print "(A,I3,A,I3,A,E10.4)", "   F(", i, ",", j, ")=", F(j)
+                print "(2(A,I3),2(A,E10.4))", "   C(", i, ",", j, ")=", C(i,j), " should be ", tC(i,j)
             end if
         end do
-        call saturation_product(C(i,:), Q, NCP, NSL, si)
-        print "(I3, F14.6, E14.6)", i, si/KS, CS(i,1)
+        do j=1,NSL
+            if (abs(CS(i,j)-tCS(i,j)) > TOLERANCE) then
+                if (passed) call print_result(test_name, "failed")
+                passed = .false.
+                print "(2(A,I3),2(A,E10.4))", "  CS(", i, ",", j, ")=", CS(i,j), " should be ", tCS(i,j)
+            end if
+        end do
+        !call saturation_product(C(i,:), Q, NCP, NSL, si)
+        !print "(I3, F14.6, E14.6)", i, si/KS, CS(i,:)
     end do
     if (passed) then
         call print_result(test_name, "passed")

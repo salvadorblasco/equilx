@@ -212,7 +212,7 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL)
   double precision, dimension(NSL)              :: SI
   logical check, converged
   integer MAXITS
-  parameter (MAXITS=100)
+  parameter (MAXITS=200)
   
   X(1:NCP) = LOG(C(1:NCP))  ! initialise C in log space
   X(NCP+1:NCP+NSL) = CS     ! and CS in linear space

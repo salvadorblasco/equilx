@@ -2,8 +2,6 @@
 ! ROUTINE FOR POSITIVE CONTINUOUS FRACTION
 !
 ! by Salvador Blasco <salvador.blasco@uv.es>
-!
-! Compile with $ f2py3 -c -m mfeq pcf.f90
 
 
 subroutine pcf(C, T, B, P, THRESH, NCP, NEQ)
@@ -66,6 +64,7 @@ subroutine pcf(C, T, B, P, THRESH, NCP, NEQ)
       else
           calc_theta = THETA_ALPHA - THETA_BETA * sumr/sump
       end if
+
       ! check convergence
       convaux(i) = abs(sump-sumr)
       if ((sumr > 0.0 .and. sump > 0.0) .and. ((sumr + sump) > 0.0)) then   ! if one of the components is zero the division
@@ -73,21 +72,13 @@ subroutine pcf(C, T, B, P, THRESH, NCP, NEQ)
       end if                                                                ! if the sum of both is zero, also problem
       if (convaux(i) < convbest(i)) then
           convbest(i) = convaux(i)
-          !theta(i) = max(calc_theta, theta(i))
           theta(i) = calc_theta
-        !else
-        !  theta(i) = min(calc_theta, theta(i))
     else
         theta(i) = theta(i)/5.0
       end if
       ! update concentrations
       C(i) = theta(i) * C(i) * (sump/sumr)**expn(i) + (1-theta(i))*C(i)
-      !print "(2I5,2E14.6)", iter,i, sumr, sump
     end do
-    !if (mod(iter,10) .eq. 0) then
-    !print "(A,I5,2(A,2E12.4),A,2F10.4)", "it=", iter, ", C=", C(1:NCP), ", conv=", convaux, ", theta=", theta
-    !print "(A,I5,A,9E12.4,A,2E12.4,A,2F10.4)", "it=", iter, ", C=", C, ", conv=", convaux, ", theta=", theta
-    !end if
     converged = (maxval(convaux) .lt. THRESH)
 
     if (iter > MAXITS) then     ! exit on max iterations
