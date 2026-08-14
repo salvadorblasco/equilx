@@ -21,7 +21,8 @@
 
 
 subroutine solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
-    ! Solve equilibrium titration. The first initial value must be provided in C(1,1:NCP). The following 
+    ! Solve equilibrium titration when no solids are present and ionic strengh is constant.
+    ! The first initial value must be provided in C(1,1:NCP). The following 
     ! points take as starting value the value of the last iteration.
     implicit none
     integer, intent(in) :: NPT                                    ! number of titration points
@@ -39,16 +40,22 @@ subroutine solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
     integer i
   
     CTRL = 0
-    call solve_point(C(1,:), T(1,:), B, P, CTRL, .true., NCP, NEQ)
-    do i=2,NPT
-        C(i,:) = C(i-1,:)
-        call solve_point(C(i,:), T(i,:), B, P, CTRL, .false., NCP, NEQ)
+    do i=1,NPT
+        if (i .eq. 1) then
+            call solve_point(C(1,:), T(1,:), B, P, CTRL, .true., NCP, NEQ)
+        else
+            C(i,:) = C(i-1,:)
+            call solve_point(C(i,:), T(i,:), B, P, CTRL, .false., NCP, NEQ)
+        end if
         if (CTRL > 50) exit  ! error unable to continue
     end do
 end subroutine solve
 
 
 subroutine solve_vis(C, T, Bref, Iref, Iback, P, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
+    ! Solve equilibrium titration when no solids are present and ionic strengh is variable.
+    ! The first initial value must be provided in C(1,1:NCP). The following 
+    ! points take as starting value the value of the last iteration.
     implicit none
     integer,          intent(in)    :: NPT                               ! number of titration points
     integer,          intent(in)    :: NCP                               ! number of components
@@ -58,19 +65,20 @@ subroutine solve_vis(C, T, Bref, Iref, Iback, P, charge, DHA, DHB, DHP, CTRL, NP
     double precision, intent(in),    dimension(NPT, NCP)     :: T        ! analytical concentration values
     double precision, intent(in),    dimension(NEQ)          :: Bref     ! the equilibrium constants
     DOUBLE PRECISION, INTENT(IN)                             :: Iref     ! reference ionic strength
-    DOUBLE PRECISION, INTENT(IN), dimension(NPT)             :: Iback    ! background ionic strength
-    integer,          intent(in), dimension(NEQ, NCP)        :: P        ! The stoichiometry array
-    integer,          INTENT(IN), DIMENSION(NCP+NEQ)         :: charge   ! charge for every species
+    DOUBLE PRECISION, INTENT(IN),    dimension(NPT)          :: Iback    ! background ionic strength
+    integer,          intent(in),    dimension(NEQ, NCP)     :: P        ! The stoichiometry array
+    integer,          INTENT(IN),    DIMENSION(NCP+NEQ)      :: charge   ! charge for every species
     DOUBLE PRECISION, INTENT(IN)                             :: DHA, DHB ! Debye-Huckel parameters A and B
-    double precision, intent(in), dimension(NEQ,3)           :: DHP      ! per-species DH parameters C, D and E
+    double precision, intent(in),    dimension(NEQ,3)        :: DHP      ! per-species DH parameters C, D and E
   
     integer i
-    DOUBLE PRECISION, dimension(NEQ) :: corr
-    integer, dimension(NEQ) :: zstar        ! z* = sum p_i z_i^2 - z_s^2 
+    DOUBLE PRECISION, dimension(NEQ) :: corr   ! the activity correction to the equilibrium constant
+    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2 
   
     do i=1,NEQ
         zstar(i) = -charge(NCP+i)**2 + sum(P(i,:)*charge(1:NCP)**2)
     end do
+
     corr = 0.0 
     CTRL = 0
     do i=1,NPT
@@ -81,7 +89,7 @@ subroutine solve_vis(C, T, Bref, Iref, Iback, P, charge, DHA, DHB, DHP, CTRL, NP
             call solve_point(C(i,:), T(i,:), Bref+corr, P, CTRL, .false., NCP, NEQ)
         end if
         if (CTRL > 50) exit  ! error unable to continue
-        call outer(corr, C(i,:), charge, Bref, Iref, Iback(i), zstar, DHA, DHB, DHP, T(1,:), P, CTRL, NCP, NEQ)
+        call outer(corr, C(i,:), charge, Bref, Iref, Iback(i), zstar, DHA, DHB, DHP, T(i,:), P, CTRL, NCP, NEQ)
         if (CTRL > 50) exit  ! error unable to continue
         call nr(C(i,:), T(i,:), Bref+corr, P, ctrl, NCP, NEQ)
     end do
@@ -194,13 +202,14 @@ subroutine solve_distribution_solids(C, CS, T, B, P, KS, Q, CTRL, REF, NPT, NEQ,
     integer, dimension(NSL, NCP), intent(in) :: Q                 ! The solids stoichiometry array
     double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C ! free concentation initial estimates (in) and refined values (out)
     double precision, dimension(NPT, NSL), intent(inout) :: CS    ! solid concentration initial estimates (in) and refined values (out)
-    double precision, dimension(NPT, NCP), intent(in) :: T        ! analytical concentration values
+    double precision, dimension(NPT, NCP), intent(inout) :: T     ! analytical concentration values
     double precision, dimension(NEQ), intent(in) :: B             ! the equilibrium constants
     double precision, dimension(NSL), intent(in) :: KS            ! the solubility constant
     !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
     !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
     !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
   
+    double precision :: Cref
     double precision, dimension(NEQ)        :: fB  ! the frozen equilibrium constants
     double precision, dimension(NSL)        :: fKS ! the frozen equilibrium constants
     integer,          dimension(NSL, NCP-1) :: fQ  ! the frozen equilibrium constants
@@ -215,9 +224,10 @@ subroutine solve_distribution_solids(C, CS, T, B, P, KS, Q, CTRL, REF, NPT, NEQ,
   
     ! solve point-wise
     do i=1,NPT
+        Cref = C(i,REF)
         ! Freeze component
-        call freeze_component(T(i,REF), B, fB, T(i,:), fT, P, REF, NCP, NEQ)
-        call freeze_component_solid(T(i,REF), Q, KS, fKS, REF, NCP, NSL)
+        call freeze_component(Cref, B, fB, T(i,:), fT, P, REF, NCP, NEQ)
+        call freeze_component_solid(Cref, Q, KS, fKS, REF, NCP, NSL)
   
         if (i == 1) then
             do j=1,NCP     ! copy first point to frozenC
@@ -228,14 +238,17 @@ subroutine solve_distribution_solids(C, CS, T, B, P, KS, Q, CTRL, REF, NPT, NEQ,
       else
           ! No need, vvvvvvv
           !fC(i,:) = fC(i-1,:)
+          CS(i,:) = CS(i-1,:)
           call solve_point_solid(fC, CS(i,:), fT, fB, fP, fKS, fQ, CTRL, .false., NEQ, NCP-1, NSL)
       end if
       if (CTRL > 50) exit  ! error unable to continue
       do j=1,NCP+NEQ
         if (j < REF) C(i,j) = fC(j)
         if (j > REF) C(i,j) = fC(j-1)
-        if (j == REF) C(i,REF) = T(i,REF)
+        !if (j == REF) C(i,REF) = T(i,REF)
       end do
+      T(i,REF) = Cref + sum(P(:,REF)*C(i,NCP+1:NCP+NEQ)) + sum(Q(:,REF)*CS(i,:))
+      !print "(I3, 8E14.6)", i, C, CS(i,:)
     end do
 end subroutine solve_distribution_solids
 
@@ -295,7 +308,7 @@ subroutine freeze_component_solid(CR, Q, KS, fKS, REF, NCP, NSL)
     INTEGER j
 
     do j=1,NSL
-        fKS(j) = KS(j)*CR**Q(j, REF)
+        fKS(j) = KS(j)/(CR**Q(j, REF))
     end do
 end subroutine freeze_component_solid
 
@@ -351,26 +364,49 @@ subroutine solve_point_solid(C, CS, T, B, P, KS, Q, CTRL, is_first, NEQ, NCP, NS
 
   DOUBLE PRECISION, PARAMETER :: si_tolerance = 1e-6
   double PRECISION, dimension(NSL) :: si
+  double PRECISION, dimension(NCP+NSL) :: F
   logical, dimension(NSL) :: do_solid
-  integer :: i, its
+  integer :: i, its, NX
+  DOUBLE PRECISION, parameter :: PCF_TOLERANCE = 0.25
+  DOUBLE PRECISION, parameter :: PCF_TOLERANCE_FIRST = 1D-9
   integer, PARAMETER :: MAXITS=100
   do_solid(:) = .true.
-  call solve_point(C, T, B, P, CTRL, is_first, NCP, NEQ)
+  !call solve_point(C, T, B, P, CTRL, is_first, NCP, NEQ)
+  if (is_first) then
+      call pcf_solids(C, CS, T, B, KS, P, Q, PCF_TOLERANCE_FIRST, NCP, NEQ, NSL)
+  else
+      call pcf_solids(C, CS, T, B, KS, P, Q, PCF_TOLERANCE, NCP, NEQ, NSL)
+  end if
+  !print *, "A ", C(1:2), CS
+  !print *,"T ", T
+  !print *, " it   C(1)          C(2)           SI             CS            F" 
   do its=1,MAXITS
     call saturation_product(C, Q, NCP, NSL, si)
     SI = SI/KS
     do i=1,NSL
-      if (si(i) < 1.0 - si_tolerance) then
+      if (si(i) < 1.0 + si_tolerance) then
+          if (.not. do_solid(i)) then
+              CS(i) = 0.0     ! if there is no solid, make CS=0.0
+            end if
         do_solid(i) = .false.  ! remove from model
+        F(NCP+i) = 0.0
         cycle
       end if
       if (si(i) > 1.0 + si_tolerance) then
         do_solid(i) = .true.
+        if (CS(i) .eq. 0.0) then
+            CS(i) = 1e-8
+        end if
+        F(NCP+i) = 1-SI(i)
         cycle
       end if
     end do
-    call nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solid, NCP, NEQ, NSL)
-    print *, its, SI, CS
-    if (.not. any(do_solid)) exit    ! no solids to do
+    NX = NCP + count(do_solid)
+    call nr_solids_log(C, CS, T, B, P, KS, Q, ctrl, do_solid, NCP, NEQ, NSL, NX)
+    !if (mod(its, 1000) .eq. 0) 
+    call mb_solids(F, C, P, T, Q, CS, NCP, NEQ, NSL)
+    !print "(I4,7E14.5,L3)", its, C(1:2), SI, CS, F, do_solid
+    if (.not. any(do_solid) .and. maxval(abs(F)) < 1e-20) exit    ! no solids to do
   end do
+  !print "(I4,7E14.5)", its, C(1:2), SI, CS, F
 end subroutine solve_point_solid

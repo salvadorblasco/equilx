@@ -21,4 +21,4 @@ debug: $(FILES)
 	$(FC) $(DEVFLAGS) $^ $(LIBS) -o test
 
 clean:
-	$(RM) *.o *.so test *.mod
+	$(RM) *.o test *.mod

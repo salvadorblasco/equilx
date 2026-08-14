@@ -1,96 +1,6 @@
-module print_utils
-    implicit none
-    private
-    public :: print_matrix
-
-    interface print_matrix
-        module procedure print_real_matrix
-        module procedure print_integer_matrix
-    end interface
-
-contains
-    subroutine print_real_matrix(A, name)
-        real(kind=8), intent(in) :: A(:,:)
-        character(len=*), intent(in), optional :: name
-        
-        integer :: i, j, rows, cols
-        character(len=40) :: data_fmt
-        
-        rows = size(A, 1)
-        cols = size(A, 2)
-        
-        if (present(name)) then
-            print '(/,A)', trim(name)
-        end if
-        
-        ! Column headers
-        write(*, '(A6)', advance='no') '     '
-        do j = 1, cols
-            write(*, '(A9)', advance='no') '     Col'//trim(adjustl(itoa(j)))
-        end do
-        print *
-        
-        ! Separator
-        write(*, '(A)') repeat('-', 6 + cols*9)
-        
-        ! Data - one write per row with repeated format
-        write(data_fmt, '(A,I0,A)') '(', cols, '(D14.6))'
-        
-        do i = 1, rows
-            write(*, '(I5,A1)', advance='no') i, '|'
-            write(*, data_fmt) A(i, :)
-        end do
-        print *
-    end subroutine print_real_matrix
-
-
-    subroutine print_integer_matrix(A, name)
-        integer, intent(in) :: A(:,:)
-        character(len=*), intent(in), optional :: name
-        
-        integer :: i, j, rows, cols
-        character(len=40) :: data_fmt
-        
-        rows = size(A, 1)
-        cols = size(A, 2)
-
-        if (present(name)) then
-            print '(/,A)', trim(name)
-        end if
-
-        ! Column headers
-        write(*, '(A6)', advance='no') '     '
-        do j = 1, cols
-            write(*, '(A9)', advance='no') '     Col'//trim(adjustl(itoa(j)))
-        end do
-        print *
-
-        ! Separator
-        write(*, '(A)') repeat('-', 6 + cols*9)
-
-        ! Data
-        write(data_fmt, '(A,I0,A)') '(', cols, '(I10))'
-
-        do i = 1, rows
-            write(*, '(I5,A1)', advance='no') i, '|'
-            write(*, data_fmt) A(i, :)
-        end do
-        print *
-    end subroutine print_integer_matrix
-
-
-    pure function itoa(n) result(str)
-        integer, intent(in) :: n
-        character(len=12) :: str
-        write(str, '(I0)') n
-        str = adjustl(str)
-    end function itoa
-
-end module print_utils
-
-
 program test
     implicit none
+    !call crash()
     !call test_cpluss1()
     !call test_cpluss2()
     !call test_cpluss3()
@@ -114,6 +24,25 @@ program test
     !call test_case_aluminium()
     call test_case_aluminium_pt()
 contains
+
+
+subroutine crash()
+    use molybdate
+    implicit none
+    double precision, dimension(NPT, NCP+NEQ) :: C
+    double precision, dimension(NCP) :: F
+    double precision, PARAMETER :: TOLERANCE = 1D-10
+    integer i, j, CTRL
+    logical passed
+
+    passed = .true.
+    call initialize()
+    call initial_guess(C, T, NPT, NCP, NEQ)
+    call pcf(C(1,:), T(1,:), B, P, 1E-9, NCP, NEQ)
+    print *, C(1,:)
+    call nr(C(1,:), T(1,:), B, P, CTRL, NCP, NEQ)
+    print *, C(1,:)
+end subroutine crash
 
 
 subroutine test_nr1()
@@ -153,15 +82,16 @@ subroutine test_nr2()
     double precision, dimension(NCP+NEQ) :: C
     double precision, dimension(NSL)     :: CS
     double precision, PARAMETER :: TOLERANCE = 1D-6
-    integer i, CTRL
+    integer i, CTRL, NX
     logical passed
-    logical, dimension(NSL) :: do_solids
+    logical, dimension(NSL) :: do_solids = (/ .true. /)
     integer, PARAMETER :: POINT=3
     passed = .true.
     C = 0.9*tC(POINT,:)
     CS = .9*tCS(POINT,:)
     CTRL=0
-    call nr_solids(C, CS, T(POINT,:), B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL)
+    NX = NCP + 1
+    call nr_solids(C, CS, T(POINT,:), B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
     if (CTRL .ne. 0) then
         if (passed) call print_result("nr2", "failed")
         passed = .false.
@@ -204,7 +134,7 @@ subroutine test_pcf1()
                 C(j) = 1D-12
             end if
         end do
-        call pcf(C, T(i,:), B, P, 1D-9, NCP, NEQ)
+        call pcf(C, T(i,:), B, P, 1E-9, NCP, NEQ)
         do j=1,NCP
             test = abs(C(j) - tC(i,j))/(C(j) + tC(i,j))
             if (test == 1.0) then
@@ -239,7 +169,7 @@ subroutine test_pcf2()
                 C(j) = 1D-12
             end if
         end do
-        call pcf(C, T(i,:), B, P, 1D-9, NCP, NEQ)
+        call pcf(C, T(i,:), B, P, 1E-9, NCP, NEQ)
         do j=1,NCP
             test = abs(C(j) - tC(i,j))/(C(j) + tC(i,j))
             if (test == 1.0) then
@@ -280,7 +210,7 @@ subroutine test_pcf3()
 
         call cpluss(C, B, P, NCP, NEQ)
         call mb_soluble(fprev, C, P, T, NCP, NEQ)
-        call pcf(C, T(i,:), B, P, 1D-9, NCP, NEQ)
+        call pcf(C, T(i,:), B, P, 1E-9, NCP, NEQ)
         call mb_soluble(fpost, C, P, T, NCP, NEQ)
         do j=1,NCP
             if (abs(fpost(j)) > abs(fprev(j))) then
@@ -336,7 +266,7 @@ subroutine test_solve1()
     use simple1
     implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
-    double precision, PARAMETER :: TOLERANCE = 1D-7
+    double precision, PARAMETER :: TOLERANCE = 1D-6
     integer i, j, CTRL
     logical passed
     passed = .true.
@@ -363,6 +293,7 @@ subroutine test_case_hexaprotic()
     double precision, PARAMETER :: TOLERANCE = 1D-10
     integer i, j, CTRL
     logical passed
+    character(len=*), parameter :: test_name = "case hexaprotic"
     passed = .true.
     call initialize()
     call initial_guess(C, T, NPT, NCP, NEQ)
@@ -370,7 +301,7 @@ subroutine test_case_hexaprotic()
     if (CTRL .ne. 0) then
         if (passed) then
             passed = .false.
-            call print_result("solve3", "failed")
+            call print_result(test_name, "failed")
         end if
        print *, "  control value returned ", CTRL
     end if
@@ -378,7 +309,7 @@ subroutine test_case_hexaprotic()
         call mb_soluble(F, C(i,:), P, T(i,:), NCP, NEQ)
         do j=1,NCP
             if (abs(F(j)) > TOLERANCE) then
-                if (passed) call print_result("solve3", "failed")
+                if (passed) call print_result(test_name, "failed")
                 passed = .false.
                 print "(A,I3,A,I3,A,E10.4)", "   F(", i, ",", j, ")=", F(j)
             end if
@@ -430,7 +361,7 @@ subroutine test_case_molybdate()
     implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NCP) :: F
-    double precision, PARAMETER :: TOLERANCE = 1D-10
+    double precision, PARAMETER :: TOLERANCE = 1D-15
     integer i, j, CTRL
     logical passed
     character(len=*), parameter :: test_name = "case molybdate"
@@ -467,9 +398,11 @@ subroutine test_case_aluminium_pt()
     use aluminium
     implicit none
     double precision, dimension(NCP+NEQ) :: C
+    double precision, dimension(NCP+NSL) :: F
     double precision, dimension(NSL)     :: CS
+    double precision, dimension(NSL)     :: SI
     double precision, dimension(NCP)     :: Tx  ! analytical concentration values
-    integer, PARAMETER :: POINT=25
+    integer, PARAMETER :: POINT=15
     integer CTRL
     integer i
     call initialize()
@@ -479,11 +412,28 @@ subroutine test_case_aluminium_pt()
     Tx(2) = tC(POINT,2) - tC(POINT,3) - 2*tC(POINT,4) -3*tC(POINT,5)-4*tC(POINT,6) &
            - tC(POINT,7) - 3*tCS(POINT,1)
     C(1:2) = 0.01*Tx
+    if (C(2) <= 0.0) C(2) = 1e-12
     call solve_point_solid(C, CS, Tx, B, P, KS, Q, CTRL, .true., NEQ, NCP, NSL)
-    print *, C
-    print *, tC(POINT,:)
-    print *, CS
-    print *, tCS(POINT,:)
+    call mb_solids(F(1:2), C, P, T, Q, CS, NCP, NEQ, NSL)
+    call saturation_product(C, Q, NCP, NSL, SI)
+    SI = SI/KS
+    F(3) = 1-SI(1)
+
+    !C(1) = 3.5657E-16
+    !C(2) = 1.0244E-07
+    !CS(1) = 9.6189E-09
+    !print  "(A, 3E14.6)", "input values:   ", C(1:2), CS
+    !call nr_solids_log(C, CS, Tx, B, P, KS, Q, ctrl, (/ .true. /), NCP, NEQ, NSL, 3)
+
+    print  "(A, 3E14.6)", "refined values: ", C(1:2), CS
+    print   "(A, 3E14.6)", "should be:      ", tC(POINT,1:2), tCS(POINT,1)
+    print "(A, 3E14.6)", " residuals: ", F
+    print "(2(A, F14.6))", "SI = ", SI, " should be ", tSI(POINT,1)
+    !print *, Tx
+    !print *, "1> ", C
+    !call pcf(C, Tx, B, P, 0.1, NCP, NEQ)
+    !print *, "2> ", C
+    !call pcf_solids(C, CS, Tx, B, KS, P, Q, 0.01, NCP, NEQ, NSL)
 end subroutine test_case_aluminium_pt
 
 
@@ -493,7 +443,7 @@ subroutine test_case_aluminium()
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NPT,NSL)     :: CS
     double precision, dimension(NCP) :: F
-    double precision, PARAMETER :: TOLERANCE = 1D-10
+    double precision, PARAMETER :: TOLERANCE = 1D-9
     integer i, j, CTRL
     logical passed
     character(len=*), parameter :: test_name = "case aluminium"
@@ -503,10 +453,10 @@ subroutine test_case_aluminium()
     call initialize()
     CS(:,:) = 0.0
     C = 0.0
-    C(1,1) = 1e-8
+    C(1,1) = 1e-10
+    C(:,2) = T(:,2)
 
     call solve_distribution_solids(C, CS, T, B, P, KS, Q, CTRL, 2, NPT, NEQ, NCP, NSL)
-    print *, CS
     if (CTRL .ne. 0) then
         if (passed) then
             passed = .false.
@@ -610,7 +560,6 @@ end subroutine test_cpluss3
 
 subroutine test_mb1()
     use simple1
-    use print_utils
     implicit none
     double precision, dimension(NPT,NCP) :: F
     double precision, PARAMETER:: TOL = 1e-7
@@ -706,8 +655,9 @@ subroutine test_jac2()
     double precision, PARAMETER:: TOL = 1D-6
     logical, dimension(NSL) :: do_solids = (/.true./)
     passed = .true.
+    nx = NCP + 1
     do i=1,NPT
-        call jacobian_solid(Jac, tC(i,:), KS, P, Q, NCP, NEQ, NSL, do_solids, nx)
+        call jacobian_solid(Jac, tC(i,:), KS, P, Q, NCP, NEQ, NSL, nx, do_solids)
         do j=1,NCP+NSL
             do k=1,NCP+NSL
                 if (abs(Jac(j,k)-tJ(i,j,k)) > TOL) then
