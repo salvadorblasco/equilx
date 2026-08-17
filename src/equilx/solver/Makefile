@@ -1,3 +1,6 @@
+# EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
+# by Salvador Blasco <salvador.blasco@uv.es>
+
 MODNAME=fsolver
 SH=/bin/bash
 .PHONY=fortran

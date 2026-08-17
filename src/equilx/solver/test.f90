@@ -1,3 +1,6 @@
+! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
+! by Salvador Blasco <salvador.blasco@uv.es>
+
 program test
     implicit none
     call test_cpluss1()

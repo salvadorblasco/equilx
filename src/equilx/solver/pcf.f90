@@ -1,5 +1,4 @@
 ! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
-! ROUTINE FOR POSITIVE CONTINUOUS FRACTION
 !
 ! by Salvador Blasco <salvador.blasco@uv.es>
 
@@ -88,8 +87,6 @@ subroutine pcf_solids(C, CS, T, B, KS, P, Q, THRESH, NCP, NEQ, NSL)
             current_solid = -1         ! no current solid
             comp_control = -1          ! no component controlling
         end if
-        
-        !print *, iter, C(1), C(2), CS, SI
 
         call cpluss(C, B, P, NCP, NEQ)
         ! calculate sump and sumr
@@ -98,7 +95,6 @@ subroutine pcf_solids(C, CS, T, B, KS, P, Q, THRESH, NCP, NEQ, NSL)
                 sump = 1.0
                 sumr = SI(current_solid)**(1.0/Q(current_solid, comp_control))
             else   
-                !call calc_sum(i, T, C, P, sump, sumr, NCP, NEQ)
                 call calc_sum_solids(i, T, C, CS, P, Q, sump, sumr, NCP, NEQ, NSL)
             end if
             convaux(i) = check_convergence(sumr, sump)
@@ -116,12 +112,8 @@ subroutine pcf_solids(C, CS, T, B, KS, P, Q, THRESH, NCP, NEQ, NSL)
             end if
             C(i) = theta * C(i) * (sump/sumr)**expn(i) + (1-theta)*C(i)
         end do
-        !print *, iter, SI, CS, current_solid, comp_control, convaux
         if (maxval(convaux) .lt. THRESH) exit  ! converged
     end do
-    !print *, "END"
-    !print "(A, 3E14.6)", "refined values: ", C(1:2), CS
-    !print *, "should be      : 1.258925E-15	1.584893E-07  9.638620E-09"
 end subroutine pcf_solids
 
 
@@ -208,6 +200,7 @@ subroutine calc_sum_solids(comp, T, C, CS, P, Q, sump, sumr, NCP, NEQ, NSL)
       end if
   end do
 end subroutine calc_sum_solids
+
 
 function calc_theta(sumr, sump) result(theta)
     double precision, intent(in)       :: sump, sumr
