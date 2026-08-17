@@ -24,8 +24,44 @@ program test
     call test_case_phosphoric()
     call test_case_molybdate()
     call test_case_aluminium()
+    call test_case_large()
 contains
 
+subroutine test_case_large()
+    use large_fixture
+    implicit none
+    double precision, dimension(NPT, NCP+NEQ) :: C
+    double precision, dimension(NCP) :: F
+    double precision, PARAMETER :: TOLERANCE = 1D-10
+    integer i, j, CTRL
+    logical passed
+    character(len=*), parameter :: test_name = "case p53/Cu/Zn/Im"
+    passed = .true.
+    call initialize()
+    call initial_guess(C, T, NPT, NCP, NEQ)
+    call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
+    if (CTRL .ne. 0) then
+        if (passed) then
+            passed = .false.
+            call print_result(test_name, "failed")
+        end if
+       print *, "  control value returned ", CTRL
+    end if
+    do i=1,NPT
+        call mb_soluble(F, C(i,:), P, T(i,:), NCP, NEQ)
+        do j=1,NCP
+            if (abs(F(j)) > TOLERANCE) then
+                if (passed) call print_result(test_name, "failed")
+                passed = .false.
+                print "(A,I3,A,I3,A,E10.4)", "   F(", i, ",", j, ")=", F(j)
+            end if
+        end do
+    end do
+    if (passed) then
+        call print_result(test_name, "passed")
+    end if
+
+end subroutine test_case_large
 
 subroutine test_nr1()
     use simple1
