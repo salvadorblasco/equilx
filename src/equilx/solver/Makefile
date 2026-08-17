@@ -5,7 +5,7 @@ FC = gfortran
 RM = rm
 FFLAGS = -Wall -O2
 LIBS = -llapack -lblas
-DEVFLAGS = -g -O0 -fbacktrace -fbounds-check -ffpe-trap=zero,invalid,overflow,underflow -Wall
+DEVFLAGS = -g -O0 -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
 FILES=test.f90 cpluss.f90 mb.f90 si.f90 nr.f90 eq.f90 pcf.f90 outer.o test_cases.o
 
 fsolver: pcf.o si.o cpluss.o mb.o nr.f90

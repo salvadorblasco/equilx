@@ -211,7 +211,6 @@ end subroutine nr
 subroutine debug(i, f, n)
     integer, INTENT(IN) :: i, n
     DOUBLE PRECISION, INTENT(IN), DIMENSION(n) :: f
-    integer j
     DOUBLE PRECISION s
     !s = 0.0
     !do j=1,n
@@ -353,21 +352,26 @@ subroutine nr_solids_log(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, 
     ! Solve linear system.
     call lsolve(jac, fvec, dx, nx, CTRL)
     if (CTRL == 99) return
-    !print *, its, dx
 
     x = x - dx
     C(1:NCP) = EXP(X(1:NCP))
     CS = unpack(EXP(X(NCP+1:NX)), do_solids, CS)
 
     call cpluss(C, B, P, NCP, NEQ)
+
+    ! if one of the solids concentrations goes 0 we cannot continue because the jacobian
+    ! would be singular in the next iteration. Best option is to finish iteration and
+    ! let the caller function to change the do_solids flags.
+    if (any((CS .eq. 0.0) .and. do_solids)) then
+        CTRL = 6
+        return
+    end if
+
     call mb_solids(full_fvec, C, P, T, Q, CS, NCP, NEQ, NSL)
     call saturation_product(C, Q, NCP, NSL, SI)
     full_fvec(NCP+1:NCP+NSL) = 1.0 - SI/KS
     fvec(1:NCP) = full_fvec(1:NCP)
     fvec(NCP+1:NX) = pack(full_fvec(NCP+1:NCP+NSL), do_solids)
-    !print *, its, full_fvec
-
-    !call debug(its, fvec, NCP+NSL)
 
     ! test for convergence on relative values
     call is_converged(dx, fvec, NX, converged)

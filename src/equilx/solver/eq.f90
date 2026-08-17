@@ -10,6 +10,7 @@
 ! 3  -> too many iterations on solids
 ! 4  -> outer point routine exited on MAXITS
 ! 5  -> solid solver exited on MAXITS
+! 6  -> the solid solver found a concentratino equal to zero (caller must remove solid and recall)
 ! 99 -> unable to invert matrix
 ! 98 -> solids could not be solved
 ! 97 -> invalid reference component for simulation was provided
@@ -223,33 +224,33 @@ subroutine solve_distribution_solids(C, CS, T, B, P, KS, Q, CTRL, REF, NPT, NEQ,
     call freeze_stoich(Q, fQ, REF, NCP, NSL)
   
     ! solve point-wise
-    do i=1,NPT
+    point_loop: do i=1,NPT
         Cref = C(i,REF)
         ! Freeze component
         call freeze_component(Cref, B, fB, T(i,:), fT, P, REF, NCP, NEQ)
         call freeze_component_solid(Cref, Q, KS, fKS, REF, NCP, NSL)
   
+        ! Solve point
         if (i == 1) then
             do j=1,NCP     ! copy first point to frozenC
-                if (j < REF) fC(j) = C(i,j)
-                if (j > REF) fC(j-1) = C(i,j)
+                if (j < REF) fC(j) = C(1,j)
+                if (j > REF) fC(j-1) = C(1,j)
             end do
-          call solve_point_solid(fC, CS(i,:), fT, fB, fP, fKS, fQ, CTRL, .true., NEQ, NCP-1, NSL)
-      else
-          ! No need, vvvvvvv
-          !fC(i,:) = fC(i-1,:)
-          CS(i,:) = CS(i-1,:)
-          call solve_point_solid(fC, CS(i,:), fT, fB, fP, fKS, fQ, CTRL, .false., NEQ, NCP-1, NSL)
-      end if
-      if (CTRL > 50) exit  ! error unable to continue
-      do j=1,NCP+NEQ
-        if (j < REF) C(i,j) = fC(j)
-        if (j > REF) C(i,j) = fC(j-1)
-        !if (j == REF) C(i,REF) = T(i,REF)
-      end do
-      T(i,REF) = Cref + sum(P(:,REF)*C(i,NCP+1:NCP+NEQ)) + sum(Q(:,REF)*CS(i,:))
-      !print "(I3, 8E14.6)", i, C, CS(i,:)
-    end do
+            call solve_point_solid(fC, CS(1,:), fT, fB, fP, fKS, fQ, CTRL, .true., NEQ, NCP-1, NSL)
+        else
+            ! No need, vvvvvvv
+            !fC(i,:) = fC(i-1,:)
+            CS(i,:) = CS(i-1,:)
+            call solve_point_solid(fC, CS(i,:), fT, fB, fP, fKS, fQ, CTRL, .false., NEQ, NCP-1, NSL)
+        end if
+        if (CTRL > 50) exit point_loop ! error unable to continue
+        do j=1,NCP+NEQ
+          if (j < REF) C(i,j) = fC(j)
+          if (j > REF) C(i,j) = fC(j-1)
+        end do
+        T(i,REF) = Cref + sum(P(:,REF)*C(i,NCP+1:NCP+NEQ)) + sum(Q(:,REF)*CS(i,:))
+        !print "(I3, 8E14.6)", i, C, CS(i,:)
+    end do point_loop
 end subroutine solve_distribution_solids
 
 ! ====================================================================================================

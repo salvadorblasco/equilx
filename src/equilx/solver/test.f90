@@ -1,48 +1,27 @@
 program test
     implicit none
-    !call crash()
-    !call test_cpluss1()
-    !call test_cpluss2()
-    !call test_cpluss3()
-    !call test_mb1()
-    !call test_mb2()
-    !call test_pcf1()
-    !call test_pcf2()
-    !call test_pcf3()
-    !call test_si2()
-    !call test_jac1()
-    !call test_jac2()
-    !call test_lsolve()
-    !call test_scale()
-    !call test_nr1()
-    !call test_nr2()
-    !call test_solve_point1()
-    !call test_solve1()
-    !call test_case_hexaprotic()
-    !call test_case_phosphoric()
-    !call test_case_molybdate()
-    !call test_case_aluminium()
-    call test_case_aluminium_pt()
+    call test_cpluss1()
+    call test_cpluss2()
+    call test_cpluss3()
+    call test_mb1()
+    call test_mb2()
+    call test_pcf1()
+    call test_pcf2()
+    call test_pcf3()
+    call test_si2()
+    call test_jac1()
+    call test_jac2()
+    call test_lsolve()
+    call test_scale()
+    call test_nr1()
+    call test_nr2()
+    call test_solve_point1()
+    call test_solve1()
+    call test_case_hexaprotic()
+    call test_case_phosphoric()
+    call test_case_molybdate()
+    call test_case_aluminium()
 contains
-
-
-subroutine crash()
-    use molybdate
-    implicit none
-    double precision, dimension(NPT, NCP+NEQ) :: C
-    double precision, dimension(NCP) :: F
-    double precision, PARAMETER :: TOLERANCE = 1D-10
-    integer i, j, CTRL
-    logical passed
-
-    passed = .true.
-    call initialize()
-    call initial_guess(C, T, NPT, NCP, NEQ)
-    call pcf(C(1,:), T(1,:), B, P, 1E-9, NCP, NEQ)
-    print *, C(1,:)
-    call nr(C(1,:), T(1,:), B, P, CTRL, NCP, NEQ)
-    print *, C(1,:)
-end subroutine crash
 
 
 subroutine test_nr1()
@@ -394,60 +373,15 @@ subroutine test_case_molybdate()
 end subroutine test_case_molybdate
 
 
-subroutine test_case_aluminium_pt()
-    use aluminium
-    implicit none
-    double precision, dimension(NCP+NEQ) :: C
-    double precision, dimension(NCP+NSL) :: F
-    double precision, dimension(NSL)     :: CS
-    double precision, dimension(NSL)     :: SI
-    double precision, dimension(NCP)     :: Tx  ! analytical concentration values
-    integer, PARAMETER :: POINT=15
-    integer CTRL
-    integer i
-    call initialize()
-    CS = 0.0
-    C = 0.0
-    Tx(1) = tC(POINT,1) + sum(tC(POINT,3:6)) + tCS(POINT,1)
-    Tx(2) = tC(POINT,2) - tC(POINT,3) - 2*tC(POINT,4) -3*tC(POINT,5)-4*tC(POINT,6) &
-           - tC(POINT,7) - 3*tCS(POINT,1)
-    C(1:2) = 0.01*Tx
-    if (C(2) <= 0.0) C(2) = 1e-12
-    call solve_point_solid(C, CS, Tx, B, P, KS, Q, CTRL, .true., NEQ, NCP, NSL)
-    call mb_solids(F(1:2), C, P, T, Q, CS, NCP, NEQ, NSL)
-    call saturation_product(C, Q, NCP, NSL, SI)
-    SI = SI/KS
-    F(3) = 1-SI(1)
-
-    !C(1) = 3.5657E-16
-    !C(2) = 1.0244E-07
-    !CS(1) = 9.6189E-09
-    !print  "(A, 3E14.6)", "input values:   ", C(1:2), CS
-    !call nr_solids_log(C, CS, Tx, B, P, KS, Q, ctrl, (/ .true. /), NCP, NEQ, NSL, 3)
-
-    print  "(A, 3E14.6)", "refined values: ", C(1:2), CS
-    print   "(A, 3E14.6)", "should be:      ", tC(POINT,1:2), tCS(POINT,1)
-    print "(A, 3E14.6)", " residuals: ", F
-    print "(2(A, F14.6))", "SI = ", SI, " should be ", tSI(POINT,1)
-    !print *, Tx
-    !print *, "1> ", C
-    !call pcf(C, Tx, B, P, 0.1, NCP, NEQ)
-    !print *, "2> ", C
-    !call pcf_solids(C, CS, Tx, B, KS, P, Q, 0.01, NCP, NEQ, NSL)
-end subroutine test_case_aluminium_pt
-
-
 subroutine test_case_aluminium()
     use aluminium
     implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NPT,NSL)     :: CS
-    double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-9
     integer i, j, CTRL
     logical passed
     character(len=*), parameter :: test_name = "case aluminium"
-    double PRECISION, dimension(NSL) :: si
 
     passed = .true.
     call initialize()
@@ -461,7 +395,7 @@ subroutine test_case_aluminium()
         if (passed) then
             passed = .false.
             call print_result(test_name, "failed")
-        end if
+       end if
        print *, "  control value returned ", CTRL
     end if
     do i=1,NPT
@@ -480,8 +414,6 @@ subroutine test_case_aluminium()
                 print "(2(A,I3),2(A,E10.4))", "  CS(", i, ",", j, ")=", CS(i,j), " should be ", tCS(i,j)
             end if
         end do
-        !call saturation_product(C(i,:), Q, NCP, NSL, si)
-        !print "(I3, F14.6, E14.6)", i, si/KS, CS(i,:)
     end do
     if (passed) then
         call print_result(test_name, "passed")
