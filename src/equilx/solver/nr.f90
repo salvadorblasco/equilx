@@ -3,6 +3,17 @@
 
 
 subroutine lsolve(A, b, x, n, CTRL)
+  implicit none
+  integer, intent(in) :: n
+  double precision, dimension(n,n), intent(in)  :: A   ! The nxn array of coefficients
+  double precision, dimension(n),   intent(in)  :: b   ! the n array of independent terms
+  double precision, dimension(n),   intent(out) :: x   ! the n array where the result is returned
+  integer, intent(inout) :: CTRL                       ! control value. 0 on no error.
+  call sysolve(A, b, x, n, CTRL)
+end subroutine lsolve
+
+
+subroutine lesolve(A, b, x, n, CTRL)
   ! Solve system of lineal equations using LAPACK. This routine requires
   ! the -llapack flag at compilation and, probably also -lblas in some systems.
   implicit none
@@ -32,7 +43,46 @@ subroutine lsolve(A, b, x, n, CTRL)
       CTRL = 99    ! unable to invert matrix
       return
   end if
-end subroutine lsolve
+end subroutine lesolve
+
+
+subroutine sysolve(A, b, x, n, CTRL)
+    ! Solve lineal equations using LAPACK. This routine requires
+    ! the -llapack flag at compilation and, probably also -lblas in some systems.
+    implicit none
+    integer, intent(in) :: n
+    double precision, dimension(n,n), intent(in) :: A   ! The nxn array of coefficients
+    double precision, dimension(n),   intent(in) :: b   ! the n array of independent terms
+    double precision, dimension(n),   intent(out) :: x  ! the n array where the result is returned
+    integer, intent(inout) :: CTRL                      ! control value. 0 on no error.
+  
+    ! For DGELSY 
+    integer, dimension(n) :: ipiv   ! pivot indices
+    integer :: nrhs, lda, ldb, lwork, info
+    double precision, allocatable, dimension(:) :: work
+    double precision, dimension(n,n) :: AA
+
+    nrhs = 1
+    lda = n; ldb = n
+    lwork = -1              ! workspace query first
+    x = b                   ! b is input and overwritten with the value of x
+    AA = A
+
+    lwork = -1
+    allocate(work(1))
+    call dsysv("U", n, 1, AA, n, ipiv, x, n, work, lwork, info)
+    lwork = nint(work(1))
+    deallocate(work)
+
+    allocate(work(lwork))
+    call dsysv("U", n, 1, AA, n, ipiv, x, n, work, lwork, info)
+    deallocate(work)
+
+    if (info /= 0) then
+        CTRL = 99    ! unable to invert matrix
+        return
+    end if
+end subroutine sysolve
 
 
 subroutine jacobian_soluble(J, C, P, NCP, NEQ)
@@ -159,7 +209,7 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
   double precision, dimension(NCP), intent(in) :: T        ! analytical concentration values
   double precision, dimension(NEQ), intent(in) ::  B       ! the equilibrium constants
 
-  integer its, i
+  integer its
   double precision, dimension(NCP)      :: X               ! natural log of free concentrations
   double precision, dimension(NCP)      :: fvec
   double precision, dimension(NCP, NCP) :: jac
@@ -185,17 +235,15 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
     call jacobian_soluble(jac, C, P, NCP, NEQ)
 
     ! Solve linear system.
-    call lsolve(jac, fvec, dx, NCP, CTRL)
+    call sysolve(jac, fvec, dx, NCP, CTRL)
     if (CTRL == 99) return   ! matrix could not be inverted
+    call limit_step(dx, NCP)
 
-    do i=1,NCP
-      X(i) = X(i) - dx(i)    ! dx comes sign inverted from lsolve
-      C(i) = EXP(X(i))
-    end do
+    x = x - dx               ! dx comes sign inverted from lsolve
+    C(1:NCP) = EXP(X(1:NCP))
 
     call cpluss(C, B, P, NCP, NEQ)
     call mb_soluble(fvec, C, P, T, NCP, NEQ)
-    !call debug(its, fvec, NCP)
 
     ! test for convergence on relative values
     call is_converged(dx, fvec, NCP, converged)
@@ -272,7 +320,7 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
     call jacobian_solid(jac, C, KS, P, Q, NCP, NEQ, NSL, NX, do_solids)
 
     ! Solve linear system.
-    call lsolve(jac, fvec, dx, nx, CTRL)
+    call lesolve(jac, fvec, dx, nx, CTRL)
     if (CTRL == 99) return
 
     x = x - dx
@@ -350,8 +398,10 @@ subroutine nr_solids_log(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, 
     call jacobian_solid_log(jac, C, CS, KS, P, Q, NCP, NEQ, NSL, NX, do_solids)
 
     ! Solve linear system.
-    call lsolve(jac, fvec, dx, nx, CTRL)
+    call lesolve(jac, fvec, dx, nx, CTRL)
     if (CTRL == 99) return
+
+    call limit_step(dx, nx)
 
     x = x - dx
     C(1:NCP) = EXP(X(1:NCP))
@@ -393,8 +443,8 @@ subroutine is_converged(dx, fvec, fsize, retval)
     logical,          intent(inout)                :: retval
 
     double precision test, max_step
-    double precision, parameter :: STEP_TOLERANCE = 1e-16
-    double precision, parameter :: FVEC_TOLERANCE = 1e-20
+    double precision, parameter :: STEP_TOLERANCE = 1.0D-16
+    double precision, parameter :: FVEC_TOLERANCE = 1.0D-20
 
     integer i
 
@@ -467,7 +517,7 @@ subroutine update_solids(do_solids, si, NSL)
     double precision, intent(in),    dimension(NSL) :: si         ! the solubility index
     logical,          intent(inout), dimension(NSL) :: do_solids  ! the solids to be included
     integer,          intent(in) :: NSL                           ! the number of solids
-    double precision, parameter :: SOLUBILITY_TOLERANCE = 1E-6
+    double precision, parameter :: SOLUBILITY_TOLERANCE = 1.0E-6
 
     integer idx
 
@@ -486,3 +536,16 @@ subroutine update_solids(do_solids, si, NSL)
     end if
 end subroutine update_solids
 
+
+subroutine limit_step(incrx, n)
+    ! Limit the increment vector to a maximum value. If the largest component is smaller
+    ! than the max step, nothing is done. If it is, the vector is scaled so that the
+    ! largest step is the max step allowed and the rest are scaled accordingly.
+    integer, intent(in) :: n   ! the size of the vector
+    DOUBLE PRECISION, intent(inout), dimension(n) :: incrx  ! the vector to be scaled
+    double precision, parameter :: MAX_STEP = 10.0
+
+    if (any(abs(incrx) > MAX_STEP)) then
+        incrx = incrx * MAX_STEP / MAXVAL(abs(incrx))
+    end if
+end subroutine limit_step

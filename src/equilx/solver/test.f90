@@ -1,8 +1,15 @@
 ! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
 ! by Salvador Blasco <salvador.blasco@uv.es>
 
+! testing for the library
+
 program test
+
     implicit none
+    real t_start, t_stop
+
+    call CPU_TIME(t_start)
+
     call test_cpluss1()
     call test_cpluss2()
     call test_cpluss3()
@@ -15,6 +22,7 @@ program test
     call test_jac1()
     call test_jac2()
     call test_lsolve()
+    call test_sysolve()
     call test_scale()
     call test_nr1()
     call test_nr2()
@@ -25,12 +33,163 @@ program test
     call test_case_molybdate()
     call test_case_aluminium()
     call test_case_large()
+    call test_case_gallic()
+    call test_case_coedta()
+    call test_case_caco3()
+
+    call CPU_TIME(t_stop)
+    print "(A,F10.6,A)", "done in ", (t_stop-t_start), "s"
 contains
+
+
+subroutine test_case_caco3()
+    use calcium_carbonate
+    implicit none
+    double precision, dimension(NPT, NCP+NEQ) :: C
+    double precision, dimension(NCP+NSL) :: F
+    double precision, dimension(NSL) :: SI
+    double precision, dimension(NPT,NSL)     :: CS
+    double precision, PARAMETER :: TOLERANCE = 1D-12
+    integer i, j, CTRL
+    logical passed
+    character(len=*), parameter :: test_name = "case Ca carbonate"
+
+    passed = .true.
+    call initialize()
+    CS(:,:) = 0.0
+    C = 0.0
+    call initial_guess(C, T, NPT, NCP, NEQ)
+
+    call solve_solids(C, CS, T, B, P, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
+
+    if (CTRL .ne. 0) then
+        if (passed) then
+            passed = .false.
+            call print_result(test_name, "failed")
+       end if
+       print *, "  control value returned ", CTRL
+    end if
+    do i=1,NPT
+        call mb_solids(F(1:NCP), C(i,:), P, T(i,:), Q, CS(i,:), NCP, NEQ, NSL)
+        call saturation_product(C(i,:), Q, NCP, NSL, SI)
+        SI = SI / KS
+        do j=1,NSL
+            if (SI(j)>1.0) then
+                F(NCP+j) = 1.0-SI(j)
+            else
+                F(NCP+j) = 0.0
+            end if
+        end do
+        if (any(F > TOLERANCE)) then
+            if (passed) call print_result(test_name, "failed")
+            passed = .false.
+            print "(A,E10.4)", "   max F =", maxval(F)
+        end if
+    end do
+    if (passed) call print_result(test_name, "passed")
+end subroutine test_case_caco3
+
+
+subroutine test_case_coedta()
+    use cobalt_edta
+    implicit none
+    double precision, dimension(NPT, NCP+NEQ) :: C
+    double precision, dimension(NCP+NSL) :: F
+    double precision, dimension(NSL) :: SI
+    double precision, dimension(NPT,NSL)     :: CS
+    double precision, PARAMETER :: TOLERANCE = 1D-12
+    integer i, j, CTRL
+    logical passed
+    character(len=*), parameter :: test_name = "case cobalt/edta"
+
+    passed = .true.
+    call initialize()
+    CS(:,:) = 0.0
+    C = 0.0
+    call initial_guess(C, T, NPT, NCP, NEQ)
+
+    call solve_solids(C, CS, T, B, P, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
+
+    if (CTRL .ne. 0) then
+        if (passed) then
+            passed = .false.
+            call print_result(test_name, "failed")
+       end if
+       print *, "  control value returned ", CTRL
+    end if
+    do i=1,NPT
+        call mb_solids(F(1:NCP), C(i,:), P, T(i,:), Q, CS(i,:), NCP, NEQ, NSL)
+        call saturation_product(C(i,:), Q, NCP, NSL, SI)
+        SI = SI / KS
+        do j=1,NSL
+            if (SI(j)>1.0) then
+                F(NCP+j) = 1.0-SI(j)
+            else
+                F(NCP+j) = 0.0
+            end if
+        end do
+        if (any(F > TOLERANCE)) then
+            if (passed) call print_result(test_name, "failed")
+            passed = .false.
+            print "(A,E10.4)", "   max F =", maxval(F)
+        end if
+    end do
+    if (passed) call print_result(test_name, "passed")
+end subroutine test_case_coedta
+
+
+subroutine test_case_gallic()
+    use gallic
+    double precision, dimension(NCP+NEQ) :: C
+    double precision, dimension(NEQ)        :: fB  ! the frozen equilibrium constants
+    integer,          dimension(NEQ, NCP-1) :: fP  ! The frozen stoichiometry array
+    double precision, dimension(NEQ+NCP-1)  :: fC  ! frozen initial estimates (in) and refined values (out)
+    double precision, dimension(NCP-1)      :: fT  ! frozen analytical concentration values
+    double precision :: Cref
+    integer, parameter :: REF=1
+    integer j, CTRL
+    logical passed
+    double precision, dimension(NCP) :: F
+    double precision, PARAMETER :: TOLERANCE = 1D-14
+    character(len=*), parameter :: test_name = "case gallic"
+    passed = .true.
+
+    call initialize()
+
+    Cref = tC(1)
+
+    call freeze_stoich(P, fP, REF, NCP, NEQ)
+    call freeze_component(Cref, B, fB, T, fT, P, REF, NCP, NEQ)
+
+    fC(1) = 1e-5
+    fC(2) = 1e-5
+
+    call solve_point(fC, fT, fB, fP, CTRL, .true., NCP-1, NEQ)
+    do j=1,NCP+NEQ
+        if (j < REF) C(j) = fC(j)
+        if (j > REF) C(j) = fC(j-1)
+    end do
+    C(REF) = Cref
+    T(REF) = Cref + sum(P(:,REF)*C(NCP+1:NCP+NEQ))
+
+    call mb_soluble(F, C, P, T, NCP, NEQ)
+    do j=1,NCP
+        if (abs(F(j)) > TOLERANCE) then
+            if (passed) call print_result(test_name, "failed")
+            passed = .false.
+            print "(A,I3,A,E10.4)", "   F(",  j, ")=", F(j)
+        end if
+    end do
+
+    if (passed) call print_result(test_name, "passed")
+end subroutine test_case_gallic
+
 
 subroutine test_case_large()
     use large_fixture
     implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
+    !!double precision, dimension(NCP+NEQ) :: C
     double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-10
     integer i, j, CTRL
@@ -38,6 +197,10 @@ subroutine test_case_large()
     character(len=*), parameter :: test_name = "case p53/Cu/Zn/Im"
     passed = .true.
     call initialize()
+    C = 0.0
+    !C(1:4) = (/ 1.3372024240083939e-22, 4.8139229216387732e-07, 2.1914186611768873e-06, 3.1268176522999525e-06 /)
+    !call nr(C, T(9,:), B, P, ctrl, NCP, NEQ)
+
     call initial_guess(C, T, NPT, NCP, NEQ)
     call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
     if (CTRL .ne. 0) then
@@ -337,6 +500,7 @@ subroutine test_case_hexaprotic()
         call print_result("solve3", "passed")
     end if
 end subroutine test_case_hexaprotic
+
 
 subroutine test_case_phosphoric()
     use phosphoric
@@ -644,34 +808,73 @@ end subroutine test_jac2
 
 
 subroutine test_lsolve()
-    double PRECISION, dimension(5,5) :: A = reshape( &
+    character(len=*), parameter :: test_name = "lesolve"
+    integer, parameter :: N=5
+    double PRECISION, dimension(N,N) :: A = reshape( &
      (/0.05877024, 0.28411459, 0.40437397, 0.06793575, 0.03309539, &
        0.5086304 , 0.16324818, 0.41410313, 0.92346009, 0.22741105, &
        0.19705674, 0.08176619, 0.95449347, 0.14038565, 0.51148029, &
        0.43147132, 0.07351833, 0.67603311, 0.53159246, 0.1574564 , &
-       0.50511729, 0.63200965, 0.53917495, 0.35968986, 0.79263917/), (/5,5/), order=[2,1])
-    double PRECISION, dimension(5) :: b = (/0.20798025, 0.47081858, 0.30973142, 0.46441424, 0.38044028/)
-    double PRECISION, dimension(5) :: truex = (/0.45757758,  0.17643674,  0.31928777,  0.1409372 , -0.23345483/)
-    double PRECISION, dimension(5) :: calcx
+       0.50511729, 0.63200965, 0.53917495, 0.35968986, 0.79263917/), (/N,N/), order=[2,1])
+    double PRECISION, dimension(N) :: b = (/0.20798025, 0.47081858, 0.30973142, 0.46441424, 0.38044028/)
+    double PRECISION, dimension(N) :: truex = (/0.45757758,  0.17643674,  0.31928777,  0.1409372 , -0.23345483/)
+    double PRECISION, dimension(N) :: calcx
     integer CTRL, i
     logical passed
     double precision, PARAMETER:: TOL = 1D-7
     passed = .true.
     CTRL = 0
 
-    call lsolve(A, b, calcx, 5, CTRL)
+    call lesolve(A, b, calcx, N, CTRL)
     if (CTRL .ne. 0) then
-        print *, "test lsolve ........ failed -> CTRL must be 0 (is ", CTRL, ")"
+        call print_result(test_name, "failed")
+        print *, "  CTRL must be 0 (is ", CTRL, ")"
         passed = .false.
     end if
-    do i=1,5
+    do i=1,N
         if (abs(calcx(i)-truex(i)) > TOL) then
-            print *, "test lsolve ........ failed at ", i, calcx(i), truex(i)
+        call print_result(test_name, "failed")
+            print "(A,I3,2F10.4)", "  ", i, calcx(i), truex(i)
             passed = .false.
         end if
     end do
-    if (passed) call print_result("lsolve", "passed")
+    if (passed) call print_result(test_name, "passed")
 end subroutine test_lsolve
+
+
+subroutine test_sysolve()
+    implicit none
+    integer, parameter :: N=4
+    double PRECISION, dimension(N,N) :: A = reshape( &
+      (/ 1.08099127E-03, 1.08098930E-03, 1.07835948E-03, 1.08281530E-03, &
+         1.08098930E-03, 1.08098953E-03, 1.07835948E-03, 1.08280751E-03, &
+         1.07835948E-03, 1.07835948E-03, 1.07923939E-03, 1.07877450E-03, &
+         1.08281530E-03, 1.08280751E-03, 1.07877450E-03, 1.08745856E-03 /), (/N,N/), order=[2,1])
+    double PRECISION, dimension(N) :: b = (/ 8.09912257E-05, 8.09893566E-05, 7.92393462E-05, 2.93463972E-04 /)
+    double PRECISION, dimension(N) :: calcx
+    integer CTRL, i
+    logical passed
+    double precision, PARAMETER:: TOL = 1D-11
+    character(len=*), parameter :: test_name = "sysolve"
+    passed = .true.
+    CTRL = 0
+
+    call sysolve(A, b, calcx, 4, CTRL)
+
+    if (CTRL .ne. 0) then
+        if (passed) call print_result(test_name, "failed")
+        print *, "  CTRL must be 0 (is ", CTRL, ")"
+        passed = .false.
+    end if
+    do i=1,N
+        if (any(abs(matmul(A,calcx) - b) > TOL)) then
+            if (passed) call print_result(test_name, "failed")
+            print *, "  ", (matmul(A,calcx) - b)
+            passed = .false.
+        end if
+    end do
+    if (passed) call print_result(test_name, "passed")
+end subroutine test_sysolve
 
 
 subroutine test_scale()
@@ -724,7 +927,7 @@ end subroutine test_scale
 
 subroutine print_result(test_name, result_tag)
     character(len=*), intent(in) :: result_tag, test_name
-    integer, parameter :: total_width = 28
+    integer, parameter :: total_width = 30
     
     character(len=1) :: filler
     integer :: left_len, right_len, fill_len

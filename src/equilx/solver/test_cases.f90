@@ -330,50 +330,123 @@ subroutine initialize()
 end subroutine initialize
 end module large_fixture
 
-!def case_cobalt_edta():
-!    analc = make_titration(initial_conc=np.array([1.3e-3, 1e-3, 4e-3]),
-!                           buret_conc=np.array([0.0, 0.0, -0.1]),
-!                           starting_vol=10.0,
-!                           titre=np.linspace(0.0, 1.25, 25))
-!    stoich = np.array([[0, 0,-1],
-!                       [1, 0,-1],
-!                       [1, 0,-2],
-!                       [1, 0,-3],
-!                       [1, 1, 0],
-!                       [1, 1, 1],
-!                       [0, 1, 1],
-!                       [0, 1, 2],
-!                       [0, 1, 3],
-!                       [0, 1, 4]], dtype=int)
-!    log_beta = np.array([-14.0, -12.2, -19.5, -31.7, 15.9, 3.1, 11.0, 17.3, 19.8, 21.7])
-!    sstoich = np.array([[1, 0, -2]], dtype=int)
-!    log_ks = np.array([12.65])
-!    charges = np.array([2, -4, 1], dtype=int)
-!    eq = EquilibriumData(
-!        analytical_concentration=analc,
-!        log_beta=log_beta,
-!        stoichiometry=stoich,
-!        log_ks=log_ks,
-!        solid_stoichiometry=sstoich,
-!        charges=charges)
-!    return eq
-!
-!
-!
-!
-!def case_calcium_carbonate():
-!    analc = make_titration(initial_conc=np.array([0.05, 0.1, 0.2]),
-!                           buret_conc=np.array([0.0, 0.0, -1.0]),
-!                           starting_vol=10.0,
-!                           titre=np.linspace(0.0, 3.8, 20))
-!    eq = EquilibriumData(analytical_concentration=analc,
-!                         stoichiometry=np.array([[1,0,1],
-!                                            [1,0,2],
-!                                            [1,1,0],
-!                                            [0,0,-1]], dtype=int),
-!                         log_beta=np.array([16.33, 22.68, -12.06, -14.0]),
-!                         solid_stoichiometry=np.array([[0,1,-2],
-!                                                       [1,1,0]], dtype=int),
-!                         log_ks=np.array([23.0, -8.4]),
-!                         charges=np.array([-3, 2, 1], dtype=int),
-!                         component_labels=['CO3', 'Ca', 'H'])
+
+module gallic
+    ! case for aluminium with gallic acid. Values taken from Carrayrou (2004)
+    implicit none
+    integer, PARAMETER :: NCP = 3
+    integer, PARAMETER :: NEQ = 14
+    double precision, dimension(NCP) :: T = [1.58e-6, 1e-3, 1e-3]
+    DOUBLE PRECISION, DIMENSION(NEQ) :: B 
+    DOUBLE PRECISION, DIMENSION(NEQ) :: logB = (/ -14.0, -4.15, -12.59, -23.67, &
+                                                  -4.93, -9.43, -21.98, -37.69, &
+                                                  -22.65, -27.81, -32.87, -39.56, &
+                                                  -20.25, -12.52 /) 
+    integer, dimension(NEQ, NCP) :: P = reshape((/ -1, 0, 0, &
+                                                   -1, 0, 1, &
+                                                   -2, 0, 1, &
+                                                   -3, 0, 1, &
+                                                   -2, 1, 1, &
+                                                   -3, 1, 1, &
+                                                   -6, 1, 2, &
+                                                   -9, 1, 3, &
+                                                   -8, 2, 3, &
+                                                   -9, 2, 3, &
+                                                  -10, 2, 3, &
+                                                  -11, 2, 3, &
+                                                   -9, 4, 3, &
+                                                   -5, 3, 1  /), &
+                                                shape=(/ NEQ, NCP /), order=[2,1])
+    double precision, dimension(NCP+NEQ) :: tC
+
+contains
+
+subroutine initialize()
+    B = 10.0**logB
+    tC(1) = 1.58e-6
+    tC(2) = 2.03e-5
+    tC(3) = 2.59e-7
+end subroutine initialize
+
+end module gallic
+
+
+module cobalt_edta
+    implicit none
+    integer, PARAMETER :: NPT = 25
+    integer, PARAMETER :: NCP = 3
+    integer, PARAMETER :: NEQ = 10
+    integer, PARAMETER :: NSL = 1
+    double precision, parameter :: V0 = 10.0
+    double precision, parameter :: final_titre = 1.25
+    double precision, dimension(NPT) :: V
+    double precision, dimension(NPT, NCP) :: T
+    DOUBLE PRECISION, DIMENSION(NEQ) :: B 
+    DOUBLE PRECISION, DIMENSION(NEQ) :: logB = [ -14.0, -12.2, -19.5, -31.7, 15.9, 3.1, 11.0, 17.3, 19.8, 21.7]
+    integer, dimension(NEQ, NCP) :: P = reshape([ 0, 0,-1, & 
+                                                  1, 0,-1, &
+                                                  1, 0,-2, &
+                                                  1, 0,-3, &
+                                                  1, 1, 0, &
+                                                  1, 1, 1, &
+                                                  0, 1, 1, &
+                                                  0, 1, 2, &
+                                                  0, 1, 3, &
+                                                  0, 1, 4 ], shape=[NEQ, NCP], order=[2,1])
+    integer, dimension(NSL, NCP) :: Q = reshape([1,0,-2], [NSL, NCP])
+    DOUBLE PRECISION, DIMENSION(NSL) :: KS = (/ 10.0**12.65 /)
+contains
+subroutine initialize()
+    integer i
+    double precision, parameter :: initial_co = 1.3e-3
+    double precision, parameter :: initial_edta = 1.0e-3
+    double precision, parameter :: initial_H= 4.0e-3
+    double precision, parameter :: buret_H= -0.1
+    do i=1,NPT
+        V(i) = final_titre*(i-1)/(NPT-1)
+        T(i,1) = initial_co/(V(i)+V0)
+        T(i,3) = (initial_H+buret_H*V(i))/(V(i)+V0)
+        T(i,2) = initial_edta/(V(i)+V0)
+    end do
+    B = 10.0**logB
+end subroutine initialize
+end module cobalt_edta
+
+
+module calcium_carbonate
+    implicit none
+    integer, PARAMETER :: NPT = 20
+    integer, PARAMETER :: NCP = 3
+    integer, PARAMETER :: NEQ = 4
+    integer, PARAMETER :: NSL = 2
+    double precision, dimension(NPT) :: V
+    double precision, dimension(NPT, NCP) :: T
+    DOUBLE PRECISION, DIMENSION(NEQ) :: B 
+    DOUBLE PRECISION, DIMENSION(NEQ) :: logB = [16.33, 22.68, -12.06, -14.0]
+    integer, dimension(NEQ, NCP) :: P = reshape([ 1, 0, 1, & 
+                                                  1, 0, 2, &
+                                                  1, 1, 0, &
+                                                  0, 0,-1 ], shape=[NEQ, NCP], order=[2,1])
+    integer, dimension(NSL, NCP) :: Q = reshape([0, 1,-2, &
+                                                 1, 1, 0], [NSL, NCP], order=[2, 1])
+    DOUBLE PRECISION, DIMENSION(NSL) :: KS = [ 10.0**23.0, 10**(-8.4) ]
+    ! charges=np.array([-3, 2, 1], dtype=int),
+    ! component_labels=['CO3', 'Ca', 'H'])
+contains
+subroutine initialize()
+    integer i
+    double precision, parameter :: V0 = 10.0
+    double precision, parameter :: final_titre = 3.8
+    double precision, parameter :: initial_carb = 0.05
+    double precision, parameter :: initial_ca = 0.1
+    double precision, parameter :: initial_H= 0.2
+    double precision, parameter :: buret_H= -0.1
+    do i=1,NPT
+        V(i) = final_titre*(i-1)/(NPT-1)
+        T(i,1) = initial_carb/(V(i)+V0)
+        T(i,2) = initial_ca/(V(i)+V0)
+        T(i,3) = (initial_H+buret_H*V(i))/(V(i)+V0)
+    end do
+    B = 10.0**logB
+end subroutine initialize
+end module calcium_carbonate
