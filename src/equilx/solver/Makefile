@@ -32,4 +32,7 @@ debug: $(OBJS) test_cases.f90 test.f90
 
 
 clean:
-	$(RM) *.o test *.mod $(MODNAME)*.so
+	$(RM) *.o test *.mod
+
+deepclean: clean
+	$(RM) $(MODNAME)*.so

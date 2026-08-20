@@ -2,17 +2,6 @@
 ! by Salvador Blasco <salvador.blasco@uv.es>
 
 
-subroutine lsolve(A, b, x, n, CTRL)
-  implicit none
-  integer, intent(in) :: n
-  double precision, dimension(n,n), intent(in)  :: A   ! The nxn array of coefficients
-  double precision, dimension(n),   intent(in)  :: b   ! the n array of independent terms
-  double precision, dimension(n),   intent(out) :: x   ! the n array where the result is returned
-  integer, intent(inout) :: CTRL                       ! control value. 0 on no error.
-  call sysolve(A, b, x, n, CTRL)
-end subroutine lsolve
-
-
 subroutine lesolve(A, b, x, n, CTRL)
   ! Solve system of lineal equations using LAPACK. This routine requires
   ! the -llapack flag at compilation and, probably also -lblas in some systems.
@@ -47,7 +36,8 @@ end subroutine lesolve
 
 
 subroutine sysolve(A, b, x, n, CTRL)
-    ! Solve lineal equations using LAPACK. This routine requires
+    ! Solve lineal equations using LAPACK when A is symmetric. This is always the case when
+    ! solids are not present. This routine requires
     ! the -llapack flag at compilation and, probably also -lblas in some systems.
     implicit none
     integer, intent(in) :: n
@@ -61,6 +51,9 @@ subroutine sysolve(A, b, x, n, CTRL)
     integer :: nrhs, lda, ldb, lwork, info
     double precision, allocatable, dimension(:) :: work
     double precision, dimension(n,n) :: AA
+
+    ! External procedures defined in LAPACK
+    external dsysv
 
     nrhs = 1
     lda = n; ldb = n
@@ -103,7 +96,7 @@ subroutine jacobian_solid(JC, C, KS, P, Q, NCP, NEQ, NSL, NX, do_solids)
   integer, intent(in) :: NCP                                       ! number of components
   integer, intent(in) :: NEQ                                       ! number of equilibria
   integer, intent(in) :: NSL                                       ! number of solids
-  integer, intent(IN) ::  NX
+  integer, intent(IN) ::  NX                                       ! number of variables
   integer,          intent(in),  dimension(NEQ, NCP)         :: P  ! The soluble stoichiometry array
   integer,          intent(in),  dimension(NSL, NCP)         :: Q  ! The solids stoichiometry array
   double precision, intent(in),  dimension(NEQ+NCP)          :: C  ! free concentation initial estimates (in) and refined values (out)
@@ -159,14 +152,10 @@ subroutine jacobian_solid_log(JC, C, CS, KS, P, Q, NCP, NEQ, NSL, NX, do_solids)
     L = L + 1
     do j=1,NCP
       JC(j,NCP+L) = Q(L,j)*CS(L)
-      aux = -Q(L,j)
-      do k=1,NCP
-        !if (j .eq. k) then
-        !    aux = aux * C(k)**(Q(L,k)-1)
-        !else
-            aux = aux * C(k)**Q(L,k)
-        !end if
-      end do
+      aux = -Q(L,j) * product(C(1:NCP)**Q(L,:))
+      !do k=1,NCP
+      !  aux = aux * C(k)**Q(L,k)
+      !end do
       JC(NCP+L,j) = aux/KS(L)
     end do
   end do

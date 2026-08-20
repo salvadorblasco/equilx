@@ -1,35 +1,60 @@
+"Module for solving equilibrium problems."
+
+from typing import Optional
+
 import numpy as np
 
-from ..mytypes import FArray
-from ..data_structure import EquilibriumData, DebyeHuckelParameters
-from .precond import precondition
-from .outer_fixed_point import outer_fixed_point
-from .nr import newton_raphson
+from equilx.mytypes import FArray
+from equilx.data_structure import EquilibriumData, DebyeHuckelParameters
+
+from equilx.solver import fsolver
 
 
-def EqSolver(equil: EquilibriumData, **kwargs) -> FArray:
+def Eq(equil: EquilibriumData,
+       initial_guess: Optional[FArray],
+       debye_params: Optional[DebyeHuckelParameters],
+       freeze: Optional[int], **kwargs) -> dict:
+    "Main function for equilibrium solving."
+
+    retdict = {}
+    control = 0
+
     # Extract parameters
-    if 'initial_guess' in kwargs:
-        initial_guess = kwargs['initial_guess']
-    else:
+    if not initial_guess:
         strategy = kwargs.get('initial_guess_strategy', 4)
         initial_guess = guess_starting_point(equil, strategy)
 
-    # precondition
-    if kwargs.get('precondition', True):
-        initial_guess[...], _ = precondition(equil, initial_guess)
+    free_conc = np.asfortranarray(initial_guess)
+    anal_conc = np.asfortranarray(equil.analytical_concentration)
+    beta = np.asfortranarray(10**equil.log_beta)
+    stoichiometry = np.asfortranarray(equil.stoichiometry)
 
-    # add solids
-    initial_guess = np.concatenate((initial_guess, np.full((equil.n_points, equil.n_solids), 1e-10, dtype=float)), axis=1)
+    with_solids = equil.any_solid()
+    if with_solids:
+        solid_stoichiometry = np.asfortranarray(equil.solid_stoichiometry)
+        ks = np.asfortranarray(10**equil.log_ks)
+        solid_conc = np.zeros((equil.n_points, equil.n_solids), order='F')
 
-    # outer point loop if necessary
-    if 'dbh_pars' in kwargs:
-        dbh_pars = kwargs['dbh_pars']
-        assert isinstance(dbh_pars, DebyeHuckelParameters)
-        res = outer_fixed_point(initial_guess, equil, dbh_pars)
-    else:
-        res = newton_raphson(initial_guess, equil, **kwargs)
-    return res
+    variable_ionic = (debye_params is not None)
+    if variable_ionic:
+        ...
+
+    # option 1: simple titration, no solids, no variable ionic strength
+    if not with_solids and not variable_ionic:
+        # call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
+        fsolver.solve(free_conc, anal_conc, beta, stoichiometry, control)
+    elif with_solids and not variable_ionic:
+        # call solve_solids
+        fsolver.solve_solids(free_conc, solid_conc, anal_conc, beta, stoichiometry,
+                             ks, solid_stoichiometry, control)
+    elif not with_solids and variable_ionic:
+        # call solve_vis
+        fsolver.solve_vis(free_conc, anal_conc, beta, stoichiometry, control)
+    elif with_solids and variable_ionic:
+        # call solve_solids_vis
+        fsolver.solve_solids_vis(free_conc, anal_conc, beta, stoichiometry, control)
+
+    return retdict
 
 
 def guess_starting_point(equil: EquilibriumData, strategy: int=4) -> FArray:

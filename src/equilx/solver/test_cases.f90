@@ -1,5 +1,7 @@
 ! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
 ! by Salvador Blasco <salvador.blasco@uv.es>
+!
+! This file contains data for the unit tests
 
 module simple1
     implicit none
