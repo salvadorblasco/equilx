@@ -8,6 +8,8 @@ from equilx.mytypes import FArray
 from equilx.data_structure import EquilibriumData, DebyeHuckelParameters
 
 from equilx.solver import fsolver
+from equilx.solver import utils
+
 
 
 def Eq(equil: EquilibriumData,
@@ -58,23 +60,21 @@ def Eq(equil: EquilibriumData,
         args.append(np.zeros((equil.n_equils, 3), order='F'))
 
     args.append(control)
-    #args.append(equil.n_points)
-    #args.append(equil.n_components)
-    #args.append(equil.n_equils)
-    print("NPT=", equil.n_points)     
-    print("NCP=", equil.n_components) 
-    print("NEQ=", equil.n_equils)     
 
     # solve           (C, T, B,    P,                                                CTRL, NPT, NCP, NEQ)
     # solve_vis       (C, T, Bref, P,            Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
     # solve_solids    (C, T, B,    P, CS, KS, Q,                                     CTRL, NPT, NCP, NEQ, NSL)
     # solve_solids_vis(C, T, Bref, P, CS, KS, Q, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ, NSL)
-    
+
     caller = funcs[(with_solids, variable_ionic)]
     caller(*args)
 
     retdict['free concentration'] = args[0]
-    print(args[0])
+
+    if with_solids:
+        retdict['solid concentration'] = args[4]
+        retdict['saturation'] = utils.calc_saturation(args[0], equil)
+
     return retdict
 
 

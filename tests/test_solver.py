@@ -2,8 +2,8 @@
 
 import unittest
 
-#import numpy as np
-#import numpy.testing as npt
+import numpy as np
+import numpy.testing as npt
 
 from equilx.solver import Eq
 from equilx.solver.utils import calc_saturation, make_titration, mass_action, species_concentration, unpack_eqsolve
@@ -13,13 +13,14 @@ from fixtures2 import all_fixtures
 
 class TestSolver(unittest.TestCase):
     def test_cases(self):
-        #for case, equil in self.fixtures.items():
-        #    with self.subTest(case):
-        equil = self.fixtures['phosphoric']
-        crude_conc = Eq(equil)
-        #d = unpack_eqsolve(crude_conc, equil)
-        #y = mass_action(equil, d['concentration full'])
-        #npt.assert_allclose(y, np.zeros_like(y), atol=1e-10)
+        for case, equil in self.fixtures.items():
+            with self.subTest(case):
+                equil = self.fixtures['phosphoric']
+                result = Eq(equil)
+                y = mass_action(equil,
+                                result['free concentration'],
+                                result.get('solid concentration', None))
+                npt.assert_allclose(y, np.zeros_like(y), atol=1e-10)
 
     def setUp(self) -> None:
         self.fixtures = all_fixtures
