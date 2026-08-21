@@ -15,22 +15,29 @@ from equilx.solver import utils
 def Eq(equil: EquilibriumData,
        initial_guess: Optional[FArray] = None,
        debye_params: Optional[DebyeHuckelParameters] = None,
-       freeze: Optional[int] = -1, **kwargs) -> dict:
+       freeze: Optional[int] = None, **kwargs) -> dict:
     "Main function for equilibrium solving."
 
     retdict = {}
     control = 0
 
     funcs = {
-         (False, False): fsolver.solve,
-         (True,  False): fsolver.solve_solids,
-         (False, True):  fsolver.solve_vis,
-         (True,  True):  fsolver.solve_solids_vis
+         (False, False, False): fsolver.eq_000,
+         (False, True,  False): fsolver.eq_0s0,
+         (False, False, True):  fsolver.eq_00i,
+         (False, True,  True):  fsolver.eq_0si,
+         (True,  False, False): fsolver.eq_f00,
+         (True,  True,  False): fsolver.eq_fs0,
+         (True,  False, True):  fsolver.eq_f0i,
+         (True,  True,  True):  fsolver.eq_fsi
     }
     args = []
 
     with_solids = equil.any_solid()
-    variable_ionic = (debye_params is not None)
+    variable_ionic = debye_params is not None
+    with_frozen = freeze is not None
+    if with_frozen and (freeze < 1 or freeze > equil.n_components):
+        raise ValueError("component index out of range")
 
     # Extract parameters
     if not initial_guess:
@@ -66,7 +73,7 @@ def Eq(equil: EquilibriumData,
     # solve_solids    (C, T, B,    P, CS, KS, Q,                                     CTRL, NPT, NCP, NEQ, NSL)
     # solve_solids_vis(C, T, Bref, P, CS, KS, Q, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ, NSL)
 
-    caller = funcs[(with_solids, variable_ionic)]
+    caller = funcs[(with_frozen, with_solids, variable_ionic)]
     caller(*args)
 
     retdict['free concentration'] = args[0]
