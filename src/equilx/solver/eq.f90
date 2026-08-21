@@ -310,6 +310,153 @@ subroutine eq_fs0(C, T, B, P, CS, KS, Q, REF, CTRL, NPT, NEQ, NCP, NSL)
     end do point_loop
 end subroutine eq_fs0
 
+
+subroutine eq_f0i(C, T, B, P, Iref, Iback, charge, DHA, DHB, DHP, REF, CTRL, NPT, NCP, NEQ)
+    ! Solve the equilibrium when one of the components has a fixed concentration, therefore said
+    ! concentration is a given, not an unknown. The index of the fixed component is given in the
+    ! variable REF, and the concentration is in C(:,REF). The contents of T(:,REF) is replaced
+    ! with the corresponding value.
+    implicit none
+    integer, intent(in) :: NPT                                     ! number of titration points
+    integer, intent(in) :: NCP                                     ! number of components
+    integer, intent(in) :: NEQ                                     ! number of equilibria
+    integer, intent(in) :: REF                                     ! component of reference
+    integer, intent(inout) :: CTRL                                 ! control value. 0 on no error, 1 otherwise
+    integer, dimension(NEQ, NCP), intent(in) :: P                  ! The stoichiometry array
+    double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C  ! initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NCP), intent(inout) :: T      ! analytical concentration values
+    double precision, dimension(NEQ), intent(in) :: B              ! the equilibrium constants
+    DOUBLE PRECISION, INTENT(IN)                             :: Iref     ! reference ionic strength
+    DOUBLE PRECISION, INTENT(IN),    dimension(NPT)          :: Iback    ! background ionic strength
+    integer,          INTENT(IN),    DIMENSION(NCP+NEQ)      :: charge   ! charge for every species
+    DOUBLE PRECISION, INTENT(IN)                             :: DHA, DHB ! Debye-Huckel parameters A and B
+    double precision, intent(in),    dimension(NEQ,3)        :: DHP      ! per-species DH parameters C, D and E
+    !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
+    !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
+    !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
+  
+    double precision :: Cref
+    double precision, dimension(NEQ)        :: fB  ! the frozen equilibrium constants
+    integer,          dimension(NEQ, NCP-1) :: fP  ! The frozen stoichiometry array
+    double precision, dimension(NEQ+NCP-1)  :: fC  ! frozen initial estimates (in) and refined values (out)
+    double precision, dimension(NCP-1)      :: fT  ! frozen analytical concentration values
+    integer i, j
+    DOUBLE PRECISION, dimension(NEQ) :: corr   ! the activity correction to the equilibrium constant
+    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2 
+
+    CTRL = 0
+    corr = 0.0 
+
+    do i=1,NEQ
+        zstar(i) = -charge(NCP+i)**2 + sum(P(i,:)*charge(1:NCP)**2)
+    end do
+  
+    call freeze_stoich(P, fP, REF, NCP, NEQ)
+
+    do i=1,NPT
+        Cref = C(i,REF)
+        call freeze_component(Cref, B, fB, T(i,:), fT, P, REF, NCP, NEQ)
+        if (i .eq. 1) then     ! first point
+            do j=1,NCP         ! copy initial guess to frozenC
+                if (j < REF) fC(j) = C(1,j)
+                if (j > REF) fC(j-1) = C(1,j)
+            end do
+            call solve_point(fC, fT, fB, fP, CTRL, .true., NCP-1, NEQ)
+        else
+            call solve_point(fC, fT, fB, fP, CTRL, .false., NCP-1, NEQ)
+        end if
+        if (CTRL > 50) exit  ! error unable to continue
+        call outer(corr, C(i,:), charge, B, Iref, Iback(i), zstar, DHA, DHB, DHP, T(i,:), P, CTRL, NCP, NEQ)
+        if (CTRL > 50) exit  ! error unable to continue
+        do j=1,NCP+NEQ
+            if (j < REF) C(i,j) = fC(j)
+            if (j > REF) C(i,j) = fC(j-1)
+        end do
+        T(i,REF) = Cref + sum(P(:,REF)*C(i,NCP+1:NCP+NEQ))
+    end do
+end subroutine eq_f0i
+
+
+subroutine eq_fsi(C, T, B, P, CS, KS, Q, Iref, Iback, charge, DHA, DHB, DHP, REF, CTRL, NPT, NEQ, NCP, NSL)
+    ! Perform Newton-Raphson iterations per point when the beta matrix
+    ! is 1D and solids are present. The first initial value must be provided
+    ! in the first row of C. The following points take as starting value the value of 
+    ! the last iteration.
+
+    implicit none
+    integer, intent(in) :: NPT                                    ! number of titration points
+    integer, intent(in) :: NCP                                    ! number of components
+    integer, intent(in) :: NEQ                                    ! number of equilibria
+    integer, intent(in) :: NSL                                    ! number of solids
+    integer, intent(in) :: REF                                    ! component of reference
+    integer, intent(inout) :: CTRL                                ! control value. 0 on no error, 1 otherwise
+    integer, dimension(NEQ, NCP), intent(in) :: P                 ! The soluble stoichiometry array
+    integer, dimension(NSL, NCP), intent(in) :: Q                 ! The solids stoichiometry array
+    double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C ! free concentation initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NSL), intent(inout) :: CS    ! solid concentration initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NCP), intent(inout) :: T     ! analytical concentration values
+    double precision, dimension(NEQ), intent(in) :: B             ! the equilibrium constants
+    double precision, dimension(NSL), intent(in) :: KS            ! the solubility constant
+    DOUBLE PRECISION, INTENT(IN)                             :: Iref     ! reference ionic strength
+    DOUBLE PRECISION, INTENT(IN),    dimension(NPT)          :: Iback    ! background ionic strength
+    integer,          INTENT(IN),    DIMENSION(NCP+NEQ)      :: charge   ! charge for every species
+    DOUBLE PRECISION, INTENT(IN)                             :: DHA, DHB ! Debye-Huckel parameters A and B
+    double precision, intent(in),    dimension(NEQ,3)        :: DHP      ! per-species DH parameters C, D and E
+    !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
+    !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
+    !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
+    !f2py integer, intent(hide), depend(q) :: nsl = shape(q,0)
+  
+    double precision :: Cref
+    double precision, dimension(NEQ)        :: fB  ! the frozen equilibrium constants
+    double precision, dimension(NSL)        :: fKS ! the frozen equilibrium constants
+    integer,          dimension(NSL, NCP-1) :: fQ  ! the frozen equilibrium constants
+    integer,          dimension(NEQ, NCP-1) :: fP  ! The frozen stoichiometry array
+    double precision, dimension(NEQ+NCP-1)  :: fC  ! frozen initial estimates (in) and refined values (out)
+    double precision, dimension(NCP-1)      :: fT  ! frozen analytical concentration values
+    DOUBLE PRECISION, dimension(NEQ) :: corr   ! the activity correction to the equilibrium constant
+    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2 
+    integer i, j
+
+    do i=1,NEQ
+        zstar(i) = -charge(NCP+i)**2 + sum(P(i,:)*charge(1:NCP)**2)
+    end do
+    CTRL = 0
+    corr = 0.0 
+
+    call freeze_stoich(P, fP, REF, NCP, NEQ)
+    call freeze_stoich(Q, fQ, REF, NCP, NSL)
+  
+    ! solve point-wise
+    point_loop: do i=1,NPT
+        Cref = C(i,REF)
+        ! Freeze component
+        call freeze_component(Cref, B, fB, T(i,:), fT, P, REF, NCP, NEQ)
+        call freeze_component_solid(Cref, Q, KS, fKS, REF, NCP, NSL)
+  
+        ! Solve point
+        if (i == 1) then
+            do j=1,NCP     ! copy first point to frozenC
+                if (j < REF) fC(j) = C(1,j)
+                if (j > REF) fC(j-1) = C(1,j)
+            end do
+            call solve_point_solid(fC, CS(1,:), fT, fB, fP, fKS, fQ, CTRL, .true., NEQ, NCP-1, NSL)
+        else
+            CS(i,:) = CS(i-1,:)
+            call solve_point_solid(fC, CS(i,:), fT, fB, fP, fKS, fQ, CTRL, .false., NEQ, NCP-1, NSL)
+        end if
+        if (CTRL > 50) exit point_loop ! error unable to continue
+        call outer_solid(corr, C(i,:), charge, B, Iref, Iback(i), zstar, DHA, DHB, DHP, T(i,:), P, CTRL, NCP, NEQ)
+        if (CTRL > 50) exit point_loop ! error unable to continue
+        do j=1,NCP+NEQ
+          if (j < REF) C(i,j) = fC(j)
+          if (j > REF) C(i,j) = fC(j-1)
+        end do
+        T(i,REF) = Cref + sum(P(:,REF)*C(i,NCP+1:NCP+NEQ)) + sum(Q(:,REF)*CS(i,:))
+    end do point_loop
+end subroutine eq_fsi
+
+
 ! ====================================================================================================
 ! END PUBLIC PYTHON MODULE INTERFACE
 ! ====================================================================================================
