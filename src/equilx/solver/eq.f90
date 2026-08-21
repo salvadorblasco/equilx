@@ -1,13 +1,17 @@
 ! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
 ! by Salvador Blasco <salvador.blasco@uv.es>
 !
-! Compile with $ f2py -llapack -c -m solver cpluss.o pcf.o mb.o eq.f90
-! 
-! Simple titration solving:
-!
-!                 activity=1.0   activity!=1.0
-! no solids          solve         solve_vis
-! with solids     solve_solids   solve_solids_vis
+! +---------------------------------------------------+
+! |            Simple titration solving               |
+! |                 activity=1.0   activity!=1.0      |
+! | no solids          eq_000           eq_00i        |
+! | with solids        eq_0s0           eq_0si        |
+! +---------------------------------------------------+
+! |          Frozen component solving                 |
+! |                 activity=1.0   activity!=1.0      |
+! | no solids          eq_f00           eq_f0i        |
+! | with solids        eq_fs0           eq_fsi        |
+! +---------------------------------------------------+
 !
 ! control codes
 ! 0  -> normal exit, no errors
@@ -27,7 +31,7 @@
 ! ====================================================================================================
 
 
-subroutine solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
+subroutine eq_000(C, T, B, P, CTRL, NPT, NCP, NEQ)
     ! Solve equilibrium titration when no solids are present and ionic strengh is constant.
     ! The first initial value must be provided in C(1,1:NCP). The following 
     ! points take as starting value the value of the last iteration.
@@ -56,10 +60,10 @@ subroutine solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
         end if
         if (CTRL > 50) exit  ! error unable to continue
     end do
-end subroutine solve
+end subroutine eq_000
 
 
-subroutine solve_vis(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
+subroutine eq_00i(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
     ! Solve equilibrium titration when no solids are present and ionic strengh is variable.
     ! The first initial value must be provided in C(1,1:NCP). The following 
     ! points take as starting value the value of the last iteration.
@@ -100,10 +104,10 @@ subroutine solve_vis(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NP
         if (CTRL > 50) exit  ! error unable to continue
         call nr(C(i,:), T(i,:), Bref+corr, P, ctrl, NCP, NEQ)
     end do
-end subroutine solve_vis
+end subroutine eq_00i
 
 
-subroutine solve_solids(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
+subroutine eq_0s0(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
   ! Solve titration equilibrium when solids are present. The first initial value must be provided
   ! in the first row of C. The following points take as starting value the value of 
   ! the last iteration.
@@ -137,10 +141,10 @@ subroutine solve_solids(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
     end if
     if (CTRL > 50) exit  ! error unable to continue
   end do
-end subroutine solve_solids
+end subroutine eq_0s0
 
 
-subroutine solve_solids_vis(C, T, Bref, P, CS,KS, Q, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ, NSL)
+subroutine eq_0si(C, T, Bref, P, CS,KS, Q, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ, NSL)
     ! Solve titration equilibrium when solids are present. The first initial value must be provided
     ! in the first row of C. The following points take as starting value the value of 
     ! the last iteration.
@@ -187,10 +191,10 @@ subroutine solve_solids_vis(C, T, Bref, P, CS,KS, Q, Iref, Iback, charge, DHA, D
       end if
       if (CTRL > 50) exit  ! error unable to continue
     end do
-end subroutine solve_solids_vis
+end subroutine eq_0si
 
 
-subroutine solve_distribution(C, T, B, P, REF, CTRL, NPT, NCP, NEQ)
+subroutine eq_f00(C, T, B, P, REF, CTRL, NPT, NCP, NEQ)
     ! Solve the equilibrium when one of the components has a fixed concentration, therefore said
     ! concentration is a given, not an unknown. The index of the fixed component is given in the
     ! variable REF, and the concentration is in C(:,REF). The contents of T(:,REF) is replaced
@@ -238,10 +242,10 @@ subroutine solve_distribution(C, T, B, P, REF, CTRL, NPT, NCP, NEQ)
         end do
         T(i,REF) = Cref + sum(P(:,REF)*C(i,NCP+1:NCP+NEQ))
     end do
-end subroutine solve_distribution
+end subroutine eq_f00
 
 
-subroutine solve_distribution_solids(C, T, B, P, CS, KS, Q, REF, CTRL, NPT, NEQ, NCP, NSL)
+subroutine eq_fs0(C, T, B, P, CS, KS, Q, REF, CTRL, NPT, NEQ, NCP, NSL)
     ! Perform Newton-Raphson iterations per point when the beta matrix
     ! is 1D and solids are present. The first initial value must be provided
     ! in the first row of C. The following points take as starting value the value of 
@@ -304,7 +308,7 @@ subroutine solve_distribution_solids(C, T, B, P, CS, KS, Q, REF, CTRL, NPT, NEQ,
         end do
         T(i,REF) = Cref + sum(P(:,REF)*C(i,NCP+1:NCP+NEQ)) + sum(Q(:,REF)*CS(i,:))
     end do point_loop
-end subroutine solve_distribution_solids
+end subroutine eq_fs0
 
 ! ====================================================================================================
 ! END PUBLIC PYTHON MODULE INTERFACE
