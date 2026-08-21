@@ -11,49 +11,70 @@ from equilx.solver import fsolver
 
 
 def Eq(equil: EquilibriumData,
-       initial_guess: Optional[FArray],
-       debye_params: Optional[DebyeHuckelParameters],
-       freeze: Optional[int], **kwargs) -> dict:
+       initial_guess: Optional[FArray] = None,
+       debye_params: Optional[DebyeHuckelParameters] = None,
+       freeze: Optional[int] = -1, **kwargs) -> dict:
     "Main function for equilibrium solving."
 
     retdict = {}
     control = 0
+
+    funcs = {
+         (False, False): fsolver.solve,
+         (True,  False): fsolver.solve_solids,
+         (False, True):  fsolver.solve_vis,
+         (True,  True):  fsolver.solve_solids_vis
+    }
+    args = []
+
+    with_solids = equil.any_solid()
+    variable_ionic = (debye_params is not None)
 
     # Extract parameters
     if not initial_guess:
         strategy = kwargs.get('initial_guess_strategy', 4)
         initial_guess = guess_starting_point(equil, strategy)
 
-    free_conc = np.asfortranarray(initial_guess)
-    anal_conc = np.asfortranarray(equil.analytical_concentration)
-    beta = np.asfortranarray(10**equil.log_beta)
-    stoichiometry = np.asfortranarray(equil.stoichiometry)
+    free_conc = np.zeros((equil.n_points, equil.n_soluble), order='F')
+    free_conc[:,:equil.n_components] = initial_guess
 
-    with_solids = equil.any_solid()
+    # prepare arguments
+    args.append(free_conc)
+    args.append(np.asfortranarray(equil.analytical_concentration))
+    args.append(np.asfortranarray(10**equil.log_beta))
+    args.append(np.asfortranarray(equil.stoichiometry))
+
     if with_solids:
-        solid_stoichiometry = np.asfortranarray(equil.solid_stoichiometry)
-        ks = np.asfortranarray(10**equil.log_ks)
-        solid_conc = np.zeros((equil.n_points, equil.n_solids), order='F')
+        args.append(np.zeros((equil.n_points, equil.n_solids), order='F'))
+        args.append(np.asfortranarray(equil.solid_stoichiometry))
+        args.append(np.asfortranarray(10**equil.log_ks))
 
-    variable_ionic = (debye_params is not None)
     if variable_ionic:
-        ...
+        args.append(equil.reference_ionic)
+        args.append(np.asfortranarray(equil.background_ions))
+        args.append(np.asfortranarray(equil.chargesx))
+        args.append(debye_params.a)
+        args.append(debye_params.b)
+        args.append(np.zeros((equil.n_equils, 3), order='F'))
 
-    # option 1: simple titration, no solids, no variable ionic strength
-    if not with_solids and not variable_ionic:
-        # call solve(C, T, B, P, CTRL, NPT, NCP, NEQ)
-        fsolver.solve(free_conc, anal_conc, beta, stoichiometry, control)
-    elif with_solids and not variable_ionic:
-        # call solve_solids
-        fsolver.solve_solids(free_conc, solid_conc, anal_conc, beta, stoichiometry,
-                             ks, solid_stoichiometry, control)
-    elif not with_solids and variable_ionic:
-        # call solve_vis
-        fsolver.solve_vis(free_conc, anal_conc, beta, stoichiometry, control)
-    elif with_solids and variable_ionic:
-        # call solve_solids_vis
-        fsolver.solve_solids_vis(free_conc, anal_conc, beta, stoichiometry, control)
+    args.append(control)
+    #args.append(equil.n_points)
+    #args.append(equil.n_components)
+    #args.append(equil.n_equils)
+    print("NPT=", equil.n_points)     
+    print("NCP=", equil.n_components) 
+    print("NEQ=", equil.n_equils)     
 
+    # solve           (C, T, B,    P,                                                CTRL, NPT, NCP, NEQ)
+    # solve_vis       (C, T, Bref, P,            Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
+    # solve_solids    (C, T, B,    P, CS, KS, Q,                                     CTRL, NPT, NCP, NEQ, NSL)
+    # solve_solids_vis(C, T, Bref, P, CS, KS, Q, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ, NSL)
+    
+    caller = funcs[(with_solids, variable_ionic)]
+    caller(*args)
+
+    retdict['free concentration'] = args[0]
+    print(args[0])
     return retdict
 
 

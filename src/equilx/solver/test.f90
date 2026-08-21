@@ -60,7 +60,7 @@ subroutine test_case_caco3()
     C = 0.0
     call initial_guess(C, T, NPT, NCP, NEQ)
 
-    call solve_solids(C, CS, T, B, P, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
+    call solve_solids(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
 
     if (CTRL .ne. 0) then
         if (passed) then
@@ -108,7 +108,7 @@ subroutine test_case_coedta()
     C = 0.0
     call initial_guess(C, T, NPT, NCP, NEQ)
 
-    call solve_solids(C, CS, T, B, P, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
+    call solve_solids(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
 
     if (CTRL .ne. 0) then
         if (passed) then
@@ -514,7 +514,7 @@ subroutine test_case_phosphoric()
     passed = .true.
     call initialize()
     C(1,1) = 1e-10
-    call solve_distribution(C, T, B, P, CTRL, 2, NPT, NCP, NEQ)
+    call solve_distribution(C, T, B, P, 2, CTRL, NPT, NCP, NEQ)
     if (CTRL .ne. 0) then
         if (passed) then
             passed = .false.
@@ -552,7 +552,7 @@ subroutine test_case_molybdate()
     call initialize()
     call initial_guess(C, T, NPT, NCP, NEQ)
 
-    call solve_vis(C, T, B, Iref, Iback, P, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
+    call solve_vis(C, T, B, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
     if (CTRL .ne. 0) then
         if (passed) then
             passed = .false.
@@ -593,7 +593,7 @@ subroutine test_case_aluminium()
     C(1,1) = 1e-10
     C(:,2) = T(:,2)
 
-    call solve_distribution_solids(C, CS, T, B, P, KS, Q, CTRL, 2, NPT, NEQ, NCP, NSL)
+    call solve_distribution_solids(C, T, B, P, CS, KS, Q, 2, CTRL, NPT, NEQ, NCP, NSL)
     if (CTRL .ne. 0) then
         if (passed) then
             passed = .false.

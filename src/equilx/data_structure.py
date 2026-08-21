@@ -18,9 +18,9 @@ from equilx.consts import Flags
 class DebyeHuckelParameters:
     a: float = 0.5115
     b: float = 1.50
-    c0: float = 0.1
+    c0: float | FArray = 0.1
     c1: float | FArray = 0.209
-    d0: float | FArray= 0.0
+    d0: float | FArray = 0.0
     d1: float | FArray = 0.093
     e0: float | FArray = 0.0
     e1: float | FArray = 0.0

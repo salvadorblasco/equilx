@@ -12,7 +12,7 @@ python module fsolver
             integer, optional,intent(hide),depend(p) :: ncp=shape(p,1)
             integer, optional,intent(hide),depend(p) :: neq=shape(p,0)
         end subroutine solve
-        subroutine solve_vis(c,t,bref,iref,iback,p,charge,dha,dhb,dhp,ctrl,npt,ncp,neq) ! in eq.f90
+        subroutine solve_vis(c,t,bref,p,iref,iback,charge,dha,dhb,dhp,ctrl,npt,ncp,neq) ! in eq.f90
             double precision dimension(npt,ncp + neq),intent(inout),check(shape(c, 1) == ncp + neq,shape(c, 1) == ncp + neq),depend(neq,ncp) :: c
             double precision dimension(npt,ncp),intent(in) :: t
             double precision dimension(neq),intent(in) :: bref
@@ -28,7 +28,7 @@ python module fsolver
             integer, optional,intent(hide),depend(p) :: ncp=shape(p,1)
             integer, optional,intent(hide),depend(p) :: neq=shape(p,0)
         end subroutine solve_vis
-        subroutine solve_solids(c,cs,t,b,p,ks,q,ctrl,npt,ncp,neq,nsl) ! in eq.f90
+        subroutine solve_solids(c,t,b,p,cs,ks,q,ctrl,npt,ncp,neq,nsl) ! in eq.f90
             double precision dimension(npt,ncp + neq),intent(inout),depend(neq,ncp,npt) :: c
             double precision dimension(npt,nsl),intent(inout),depend(npt) :: cs
             double precision dimension(npt,ncp),intent(in),depend(ncp) :: t
@@ -42,6 +42,26 @@ python module fsolver
             integer, optional,intent(hide),depend(p) :: neq=shape(p,0)
             integer, optional,intent(hide),check(shape(cs, 1) == nsl),depend(q) :: nsl=shape(q, 0)
         end subroutine solve_solids
+        subroutine solve_solids_vis(c,t,bref,p,cs,ks,q,iref,iback,charge,dha,dhb,dhp,ctrl,npt,ncp,neq,nsl) ! in eq.f90
+            double precision dimension(npt,ncp + neq),intent(inout),depend(neq,npt,ncp) :: c
+            double precision dimension(npt,ncp),intent(in),depend(ncp) :: t
+            double precision dimension(neq),intent(in),depend(neq) :: bref
+            integer dimension(neq,ncp),intent(in) :: p
+            double precision dimension(npt,nsl),intent(inout),depend(npt,nsl) :: cs
+            double precision dimension(nsl),intent(in),depend(nsl) :: ks
+            integer dimension(nsl,ncp),intent(in),depend(ncp) :: q
+            double precision intent(in) :: iref
+            double precision dimension(npt),intent(in),depend(npt) :: iback
+            integer dimension(ncp + neq),intent(in),depend(neq,ncp) :: charge
+            double precision intent(in) :: dha
+            double precision intent(in) :: dhb
+            double precision dimension(neq,3),intent(in),depend(neq) :: dhp
+            integer intent(inout) :: ctrl
+            integer, optional,intent(hide),depend(t) :: npt=shape(t,0)
+            integer, optional,intent(hide),depend(p) :: ncp=shape(p,1)
+            integer, optional,intent(hide),depend(p) :: neq=shape(p,0)
+            integer, optional,intent(hide),depend(q) :: nsl=shape(q,0)
+        end subroutine solve_solids_vis
         subroutine solve_distribution(c,t,b,p,ctrl,ref,npt,ncp,neq) ! in eq.f90
             double precision dimension(npt,ncp + neq),intent(inout),depend(neq,ncp,npt) :: c
             double precision dimension(npt,ncp),intent(inout),depend(ncp) :: t
@@ -68,33 +88,6 @@ python module fsolver
             integer, optional,intent(hide),depend(p) :: ncp=shape(p,1)
             integer, optional,intent(in),check(shape(cs, 1) == nsl),depend(cs) :: nsl=shape(cs, 1)
         end subroutine solve_distribution_solids
-        subroutine freeze_stoich(p,fp,ref,ncp,neq) ! in eq.f90
-            integer dimension(neq,ncp),intent(in) :: p
-            integer dimension(neq,-1 + ncp),intent(out),depend(neq,ncp) :: fp
-            integer intent(in) :: ref
-            integer, optional,intent(in),check(shape(p, 1) == ncp),depend(p) :: ncp=shape(p, 1)
-            integer, optional,intent(in),check(shape(p, 0) == neq),depend(p) :: neq=shape(p, 0)
-        end subroutine freeze_stoich
-        subroutine freeze_component(cref,b,fb,t,ft,p,ref,ncp,neq) ! in eq.f90
-            double precision intent(in) :: cref
-            double precision dimension(neq),intent(in) :: b
-            double precision dimension(neq),intent(out),depend(neq) :: fb
-            double precision dimension(ncp),intent(in) :: t
-            double precision dimension(-1 + ncp),intent(out),depend(ncp) :: ft
-            integer dimension(neq,ncp),intent(in),depend(neq,ncp) :: p
-            integer intent(in) :: ref
-            integer, optional,intent(in),check(shape(t, 0) == ncp),depend(t) :: ncp=shape(t, 0)
-            integer, optional,intent(in),check(shape(b, 0) == neq),depend(b) :: neq=shape(b, 0)
-        end subroutine freeze_component
-        subroutine freeze_component_solid(cr,q,ks,fks,ref,ncp,nsl) ! in eq.f90
-            double precision intent(in) :: cr
-            integer dimension(nsl,ncp),intent(in) :: q
-            double precision dimension(nsl),intent(in),depend(nsl) :: ks
-            double precision dimension(nsl),intent(out),depend(nsl) :: fks
-            integer intent(in) :: ref
-            integer, optional,intent(in),check(shape(q, 1) == ncp),depend(q) :: ncp=shape(q, 1)
-            integer, optional,intent(in),check(shape(q, 0) == nsl),depend(q) :: nsl=shape(q, 0)
-        end subroutine freeze_component_solid
         subroutine solve_point(c,t,b,p,ctrl,is_first,ncp,neq) ! in eq.f90
             double precision dimension(ncp + neq),intent(inout),depend(neq,ncp) :: c
             double precision dimension(ncp),intent(in),depend(ncp) :: t

@@ -81,7 +81,7 @@ end subroutine sysolve
 subroutine jacobian_soluble(J, C, P, NCP, NEQ)
   ! calculate the jacobian df/dlogc of the mass balance not considering solids
   implicit none
-  double precision, INTENT(INOUT), dimension(NCP, NCP) ::  J  ! jacobian
+  double precision, INTENT(INOUT), dimension(NCP, NCP) :: J   ! jacobian
   double precision, INTENT(IN),    dimension(NCP+NEQ)  :: C   ! free concentrations
   integer,          INTENT(IN),    dimension(NEQ, NCP) :: P   ! The soluble stoichiometry array
   integer, intent(in) :: NCP                                  ! number of components
@@ -93,16 +93,16 @@ end subroutine jacobian_soluble
 
 subroutine jacobian_solid(JC, C, KS, P, Q, NCP, NEQ, NSL, NX, do_solids)
   implicit none
-  integer, intent(in) :: NCP                                       ! number of components
-  integer, intent(in) :: NEQ                                       ! number of equilibria
-  integer, intent(in) :: NSL                                       ! number of solids
-  integer, intent(IN) ::  NX                                       ! number of variables
-  integer,          intent(in),  dimension(NEQ, NCP)         :: P  ! The soluble stoichiometry array
-  integer,          intent(in),  dimension(NSL, NCP)         :: Q  ! The solids stoichiometry array
-  double precision, intent(in),  dimension(NEQ+NCP)          :: C  ! free concentation initial estimates (in) and refined values (out)
-  double precision, intent(in),  dimension(NSL)              :: KS ! the solubility product
-  double precision, INTENT(OUT), dimension(NX, NX) :: JC  ! jacobian
-  logical,          intent(in),  dimension(NSL)              :: do_solids
+  integer, intent(in) :: NCP                               ! number of components
+  integer, intent(in) :: NEQ                               ! number of equilibria
+  integer, intent(in) :: NSL                               ! number of solids
+  integer, intent(IN) ::  NX                               ! number of variables
+  integer,          intent(in),  dimension(NEQ, NCP) :: P  ! The soluble stoichiometry array
+  integer,          intent(in),  dimension(NSL, NCP) :: Q  ! The solids stoichiometry array
+  double precision, intent(in),  dimension(NEQ+NCP)  :: C  ! free concentation initial estimates (in) and refined values (out)
+  double precision, intent(in),  dimension(NSL)      :: KS ! the solubility product
+  double precision, INTENT(OUT), dimension(NX, NX)   :: JC ! jacobian
+  logical,          intent(in),  dimension(NSL)      :: do_solids
 
   integer i, j, k, L
   double PRECISION aux
@@ -142,21 +142,18 @@ subroutine jacobian_solid_log(JC, C, CS, KS, P, Q, NCP, NEQ, NSL, NX, do_solids)
   double precision, INTENT(OUT), dimension(NX, NX)    :: JC  ! jacobian
   logical,          intent(in),  dimension(NSL)       :: do_solids
 
-  integer i, j, k, L
+  integer i, j, k
   double PRECISION aux
   JC(:,:) = 0.0
   call jacobian_soluble(JC(1:NCP,1:NCP), C, P, NCP, NEQ)
-  L = 0
+  k = 0
   do i=1,NSL
     if (.not. do_solids(i)) cycle
-    L = L + 1
+    k = k + 1
     do j=1,NCP
-      JC(j,NCP+L) = Q(L,j)*CS(L)
-      aux = -Q(L,j) * product(C(1:NCP)**Q(L,:))
-      !do k=1,NCP
-      !  aux = aux * C(k)**Q(L,k)
-      !end do
-      JC(NCP+L,j) = aux/KS(L)
+      JC(j,NCP+k) = Q(k,j)*CS(k)
+      aux = -Q(k,j) * product(C(1:NCP)**Q(k,:))
+      JC(NCP+k,j) = aux/KS(k)
     end do
   end do
 end subroutine jacobian_solid_log
@@ -262,10 +259,10 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
   ! Perform the actual Newton-Raphson iterations. The initial value is supplied
   ! in the X variable and it is replaced with the refined value upon exit.
   implicit none
-  integer, intent(in)    :: NCP                            ! number of components
-  integer, intent(in)    :: NEQ                            ! number of equilibria
-  integer, intent(in)    :: NSL                            ! number of solids
-  integer, intent(inout) :: ctrl                           ! control value
+  integer, intent(in)    :: NCP                                     ! number of components
+  integer, intent(in)    :: NEQ                                     ! number of equilibria
+  integer, intent(in)    :: NSL                                     ! number of solids
+  integer, intent(inout) :: ctrl                                    ! control value
   integer,          intent(in),    dimension(NEQ, NCP) :: P         ! stoichiometry array
   double precision, intent(inout), dimension(NCP+NEQ)  :: C         ! initial estimates (in) and refined values (out)
   double precision, intent(inout), dimension(NSL)      :: CS        ! solid concentration initial estimates (in) and refined values (out)

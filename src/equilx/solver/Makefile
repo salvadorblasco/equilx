@@ -15,7 +15,7 @@ OBJS = $(SRCS:.f90=.o)
 .PHONY: all test debug fsolver clean
 
 module: $(SRCS)
-	uv run f2py -c $(MODNAME).pyf -m $(MODNAME) $^
+	uv run f2py -c $(MODNAME).pyf -m $(MODNAME) $^ $(LIBS) 
 
 signature:
 	uv run f2py -h $(MODNAME).pyf eq.f90 
