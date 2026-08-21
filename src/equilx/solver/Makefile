@@ -18,7 +18,7 @@ module: $(SRCS)
 	uv run f2py -c $(MODNAME).pyf -m $(MODNAME) $^ $(LIBS) 
 
 signature:
-	uv run f2py -h $(MODNAME).pyf eq.f90 
+	uv run f2py --overwrite-signature -h $(MODNAME).pyf eq.f90 
 
 %.o: %.f90
 	$(FC) -c $< -o $@ $(FFLAGS)
@@ -29,7 +29,6 @@ test: $(OBJS) test_cases.f90 test.f90
 debug: FFLAGS = $(DEVFLAGS)
 debug: $(OBJS) test_cases.f90 test.f90 
 	$(FC) $(DEVFLAGS) $^ $(LIBS) -o test
-
 
 clean:
 	$(RM) *.o test *.mod

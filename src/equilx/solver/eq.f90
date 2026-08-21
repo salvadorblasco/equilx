@@ -108,39 +108,40 @@ end subroutine eq_00i
 
 
 subroutine eq_0s0(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
-  ! Solve titration equilibrium when solids are present. The first initial value must be provided
-  ! in the first row of C. The following points take as starting value the value of 
-  ! the last iteration.
-  implicit none
-  integer, intent(in) :: NPT                                      ! number of titration points
-  integer, intent(in) :: NCP                                      ! number of components
-  integer, intent(in) :: NEQ                                      ! number of equilibria
-  integer, intent(in) :: NSL                                      ! number of solids
-  integer, intent(inout) :: CTRL                                  ! control value. 0 on no error, 1 otherwise
-  integer, dimension(NEQ, NCP), intent(in) :: P                   ! The soluble stoichiometry array
-  integer, dimension(NSL, NCP), intent(in) :: Q                   ! The solids stoichiometry array
-  double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C   ! free concentation initial estimates (in) and refined values (out)
-  double precision, dimension(NPT, NSL), intent(inout) :: CS      ! solid concentration initial estimates (in) and refined values (out)
-  double precision, dimension(NPT, NCP), intent(in) :: T          ! analytical concentration values
-  double precision, dimension(NEQ), intent(in) :: B               ! the equilibrium constants
-  double precision, dimension(NSL), intent(in) :: KS              ! the solubility constant
-  !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
-  !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
-  !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
+    ! Solve titration equilibrium when solids are present. The first initial value must be provided
+    ! in the first row of C. The following points take as starting value the value of 
+    ! the last iteration.
+    implicit none
+    integer, intent(in) :: NPT                                      ! number of titration points
+    integer, intent(in) :: NCP                                      ! number of components
+    integer, intent(in) :: NEQ                                      ! number of equilibria
+    integer, intent(in) :: NSL                                      ! number of solids
+    integer, intent(inout) :: CTRL                                  ! control value. 0 on no error, 1 otherwise
+    integer, dimension(NEQ, NCP), intent(in) :: P                   ! The soluble stoichiometry array
+    integer, dimension(NSL, NCP), intent(in) :: Q                   ! The solids stoichiometry array
+    double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C   ! free concentation initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NSL), intent(inout) :: CS      ! solid concentration initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NCP), intent(in) :: T          ! analytical concentration values
+    double precision, dimension(NEQ), intent(in) :: B               ! the equilibrium constants
+    double precision, dimension(NSL), intent(in) :: KS              ! the solubility constant
+    !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
+    !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
+    !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
+    !f2py integer, intent(hide), depend(q) :: nsl = shape(q,0)
 
-  integer :: i
-
-  CTRL = 0
-  do i=1,NPT
-    if (i .eq. 1) then
-        call solve_point_solid(C(1,:), CS(1,:), T(1,:), B, P, KS, Q, CTRL, .true., NEQ, NCP, NSL)
-    else
-        C(i,:) = C(i-1,:)
-        CS(i,:) = CS(i-1,:)
-        call solve_point_solid(C(i,:), CS(i,:), T(i,:), B, P, KS, Q, CTRL, .false., NEQ, NCP, NSL)
-    end if
-    if (CTRL > 50) exit  ! error unable to continue
-  end do
+    integer :: i
+  
+    CTRL = 0
+    do i=1,NPT
+        if (i .eq. 1) then
+            call solve_point_solid(C(1,:), CS(1,:), T(1,:), B, P, KS, Q, CTRL, .true., NEQ, NCP, NSL)
+        else
+            C(i,:) = C(i-1,:)
+            CS(i,:) = CS(i-1,:)
+            call solve_point_solid(C(i,:), CS(i,:), T(i,:), B, P, KS, Q, CTRL, .false., NEQ, NCP, NSL)
+        end if
+        if (CTRL > 50) exit  ! error unable to continue
+    end do
 end subroutine eq_0s0
 
 
