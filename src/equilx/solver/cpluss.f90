@@ -14,10 +14,11 @@ subroutine cpluss(C, B, P, NCP, NEQ)
   integer i, j
 
   do i=1,NEQ
-    AUX = 1D0
-    do j=1,NCP
-      AUX = AUX*C(j)**P(i,j)
-    end do
-    C(i+NCP) = B(i)*AUX
+    !AUX = 1D0
+    !do j=1,NCP
+    !  AUX = AUX*C(j)**P(i,j)
+    !end do
+    !C(i+NCP) = B(i)*AUX
+    C(i+NCP) = B(i)*PRODUCT(C(1:NCP)**P(i,:))
   end do
 end subroutine cpluss

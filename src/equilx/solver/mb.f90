@@ -19,11 +19,12 @@ subroutine mb_soluble(F, C, P, T, NCP, NEQ)
   integer i, j
 
   DO i=1,NCP
-    AUX = C(i)-T(i)
-    DO j=1,NEQ
-      AUX = AUX+P(j,i)*C(j+NCP)
-    END DO
-    F(i)=AUX
+    !AUX = C(i)-T(i)
+    !DO j=1,NEQ
+    !  AUX = AUX+P(j,i)*C(j+NCP)
+    !END DO
+    ! F(i)=AUX
+    F(i) = C(i) + sum(P(:,i)*C(NCP+1:NCP+NEQ)) - T(i)
   END DO
 END subroutine mb_soluble
 
@@ -46,8 +47,9 @@ subroutine mb_solids(F, C, P, T, Q, CS, NCP, NEQ, NSL)
 
   call mb_soluble(F, C, P, T, NCP, NEQ)
   do i=1,NCP
-    do j=1,NSL
-      F(i) = F(i) + CS(j)*Q(j,i)
-    end do
+    ! do j=1,NSL
+    !   F(i) = F(i) + CS(j)*Q(j,i)
+    ! end do
+    F(i) = F(i) + sum(CS*Q(:,i))
   end do
 END subroutine mb_solids
