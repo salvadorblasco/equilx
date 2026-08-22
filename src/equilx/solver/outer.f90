@@ -120,10 +120,10 @@ subroutine outer_solid(correction, C, CS, charge, Bref, KS, Q, Iref, Iback, zsta
         end if
       end do
       NX = NCP + count(do_solid)
-      call nr_solids_log(C, CS, T, Bref, P, KS, Q, ctrl, do_solid, NCP, NEQ, NSL, NX)
+      call nr_solids(C, CS, T, Bref, P, KS, Q, ctrl, do_solid, NCP, NEQ, NSL, NX)
 
       ! IV. Solve NR
-      call nr_solids_log(C, CS, T, Bref, P, KS, Q, ctrl, do_solid, NCP, NEQ, NSL, NX)
+      call nr_solids(C, CS, T, Bref, P, KS, Q, ctrl, do_solid, NCP, NEQ, NSL, NX)
       if (CTRL > 50) return   ! non-recoverable error happened
 
       ! IV. test convergence
@@ -168,7 +168,7 @@ subroutine full_charge(charges, P, NCP, NEQ)
     implicit none
     integer, intent(in)                    :: NCP     ! number of components
     integer, intent(in)                    :: NEQ     ! number of equilibria
-    integer, intent(inout), DIMENSION(NCP) :: charges ! the charges for each species
+    integer, intent(inout), DIMENSION(NCP+NEQ) :: charges ! the charges for each species
     integer, intent(in),    DIMENSION(NEQ,NCP) :: P   ! stoichiometry array
 
     integer i

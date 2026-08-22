@@ -609,7 +609,7 @@ subroutine solve_point_solid(C, CS, T, B, P, KS, Q, CTRL, is_first, NEQ, NCP, NS
         end if
       end do
       NX = NCP + count(do_solid)
-      call nr_solids_log(C, CS, T, B, P, KS, Q, ctrl, do_solid, NCP, NEQ, NSL, NX)
+      call nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solid, NCP, NEQ, NSL, NX)
       call mb_solids(F, C, P, T, Q, CS, NCP, NEQ, NSL)
       if (.not. any(do_solid) .and. maxval(abs(F)) < 1e-20) exit    ! no solids to do
     end do

@@ -792,7 +792,7 @@ subroutine test_jac2()
     passed = .true.
     nx = NCP + 1
     do i=1,NPT
-        call jacobian_solid(Jac, tC(i,:), KS, P, Q, NCP, NEQ, NSL, nx, do_solids)
+        call jacobian_solid(Jac, tC(i,:), tCS(i,:), KS, P, Q, NCP, NEQ, NSL, nx, do_solids)
         do j=1,NCP+NSL
             do k=1,NCP+NSL
                 if (abs(Jac(j,k)-tJ(i,j,k)) > TOL) then
