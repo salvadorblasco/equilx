@@ -124,7 +124,7 @@ end subroutine jacobian_solid
 
 subroutine amatrix(A, C, P, NCP, NEQ)
   integer, intent(in) :: NCP                             ! number of components
-  integer, intent(in) :: NEQ                             ! numnber of equilibria
+  integer, intent(in) :: NEQ                             ! number of equilibria
   integer, INTENT(IN), dimension(NEQ, NCP) :: P          ! The soluble stoichiometry array
   double precision, dimension(NCP+NEQ), intent(in) :: C  ! free concentrations
   double precision, dimension(NCP,NCP), intent(out) :: A ! output values of the A matrix
@@ -203,19 +203,6 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
   end do
   ctrl = 2 ! Exit on MAXITS
 end subroutine nr
-
-
-subroutine debug(i, f, n)
-    integer, INTENT(IN) :: i, n
-    DOUBLE PRECISION, INTENT(IN), DIMENSION(n) :: f
-    DOUBLE PRECISION s
-    !s = 0.0
-    !do j=1,n
-    !    s = s + f(j)**2
-    !end do
-    s = maxval(abs(f))
-    print "(A, I6, A, E14.6)", "  it=",i, " resid=", s
-end subroutine debug
 
 
 subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
@@ -302,7 +289,6 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
   end do
   ctrl = 2 ! Exit on MAXITS
 end subroutine nr_solids
-
 
 
 subroutine is_converged(dx, fvec, fsize, retval)
