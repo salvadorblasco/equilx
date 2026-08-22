@@ -125,7 +125,7 @@ end subroutine jacobian_solid
 subroutine amatrix(A, C, P, NCP, NEQ)
   integer, intent(in) :: NCP                             ! number of components
   integer, intent(in) :: NEQ                             ! number of equilibria
-  integer, INTENT(IN), dimension(NEQ, NCP) :: P          ! The soluble stoichiometry array
+  integer, intent(in), dimension(NEQ, NCP) :: P          ! The soluble stoichiometry array
   double precision, dimension(NCP+NEQ), intent(in) :: C  ! free concentrations
   double precision, dimension(NCP,NCP), intent(out) :: A ! output values of the A matrix
 
