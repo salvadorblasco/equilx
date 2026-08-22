@@ -10,15 +10,9 @@ subroutine cpluss(C, B, P, NCP, NEQ)
   integer,          intent(in),    dimension(NEQ, NCP) :: P  ! stoichiometry
   double precision, intent(in),    dimension(NEQ)      :: B  ! equilibrium constants
 
-  double precision AUX
-  integer i, j
+  integer i
 
   do i=1,NEQ
-    !AUX = 1D0
-    !do j=1,NCP
-    !  AUX = AUX*C(j)**P(i,j)
-    !end do
-    !C(i+NCP) = B(i)*AUX
     C(i+NCP) = B(i)*PRODUCT(C(1:NCP)**P(i,:))
   end do
 end subroutine cpluss

@@ -15,15 +15,9 @@ subroutine mb_soluble(F, C, P, T, NCP, NEQ)
   double precision, dimension(NCP+NEQ),  intent(in)  :: C  ! the free concentrations
   integer,          dimension(NEQ, NCP), intent(in)  :: P  ! the soluble stoichiometry
 
-  double precision AUX
-  integer i, j
+  integer i
 
   DO i=1,NCP
-    !AUX = C(i)-T(i)
-    !DO j=1,NEQ
-    !  AUX = AUX+P(j,i)*C(j+NCP)
-    !END DO
-    ! F(i)=AUX
     F(i) = C(i) + sum(P(:,i)*C(NCP+1:NCP+NEQ)) - T(i)
   END DO
 END subroutine mb_soluble
@@ -43,13 +37,10 @@ subroutine mb_solids(F, C, P, T, Q, CS, NCP, NEQ, NSL)
   double precision, dimension(NCP+NEQ),  intent(in)  :: C  ! the free concentrations
   double precision, dimension(NSL),      intent(in)  :: CS ! the solids "concentrations"
 
-  integer i, j
+  integer i
 
   call mb_soluble(F, C, P, T, NCP, NEQ)
   do i=1,NCP
-    ! do j=1,NSL
-    !   F(i) = F(i) + CS(j)*Q(j,i)
-    ! end do
     F(i) = F(i) + sum(CS*Q(:,i))
   end do
 END subroutine mb_solids
