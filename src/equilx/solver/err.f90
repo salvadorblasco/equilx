@@ -2,6 +2,7 @@
 ! by Salvador Blasco <salvador.blasco@uv.es>
 
 subroutine var_conc(C, P, varB, varC, NCP, NEQ)
+    ! Compute the variance of the concentrations.
     implicit none
     double precision, intent(in),  dimension(NCP+NEQ)  :: C
     double precision, intent(out), dimension(NCP+NEQ)  :: varC
