@@ -24,6 +24,8 @@
 ! 99 -> unable to invert matrix
 ! 98 -> solids could not be solved
 ! 97 -> invalid reference component for simulation was provided
+! 96 -> incorrect number of parameters for variable ionic stregth solving
+! 95 -> invalid code for variable ionic scheme
 
 
 ! ====================================================================================================

@@ -1,9 +1,10 @@
 !    -*- f90 -*-
 ! Note: the context of this file is case sensitive.
+
 python module fsolver
 interface
 subroutine eq_000(c,t,b,p,ctrl,npt,ncp,neq) ! in eq.f90
-    double precision dimension(npt,ncp + neq),intent(inout),depend(npt,neq,ncp) :: c
+    double precision dimension(npt,ncp + neq),intent(inout),depend(ncp,neq,npt) :: c
     double precision dimension(npt,ncp),intent(in),depend(ncp) :: t
     double precision dimension(neq),intent(in),depend(neq) :: b
     integer dimension(neq,ncp),intent(in) :: p
@@ -29,7 +30,7 @@ subroutine eq_00i(c,t,bref,p,iref,iback,charge,dha,dhb,dhp,ctrl,npt,ncp,neq) ! i
     integer, required,intent(in),check(shape(bref, 0) == neq),depend(bref) :: neq=shape(bref, 0)
 end subroutine eq_00i
 subroutine eq_0s0(c,t,b,p,cs,ks,q,ctrl,npt,ncp,neq,nsl) ! in eq.f90
-    double precision dimension(npt,ncp + neq),intent(inout),depend(npt,neq,ncp) :: c
+    double precision dimension(npt,ncp + neq),intent(inout),depend(ncp,neq,npt) :: c
     double precision dimension(npt,ncp),intent(in),depend(ncp) :: t
     double precision dimension(neq),intent(in),depend(neq) :: b
     integer dimension(neq,ncp),intent(in) :: p
@@ -43,7 +44,7 @@ subroutine eq_0s0(c,t,b,p,cs,ks,q,ctrl,npt,ncp,neq,nsl) ! in eq.f90
     integer, optional,intent(hide),depend(q) :: nsl=shape(q,0)
 end subroutine eq_0s0
 subroutine eq_0si(c,t,bref,p,cs,ks,q,iref,iback,charge,dha,dhb,dhp,ctrl,npt,ncp,neq,nsl) ! in eq.f90
-    double precision dimension(npt,ncp + neq),intent(inout),depend(npt,neq,ncp) :: c
+    double precision dimension(npt,ncp + neq),intent(inout),depend(ncp,neq,npt) :: c
     double precision dimension(npt,ncp),intent(in),depend(ncp) :: t
     double precision dimension(neq),intent(in),depend(neq) :: bref
     integer dimension(neq,ncp),intent(in) :: p
@@ -63,7 +64,7 @@ subroutine eq_0si(c,t,bref,p,cs,ks,q,iref,iback,charge,dha,dhb,dhp,ctrl,npt,ncp,
     integer, optional,intent(hide),depend(q) :: nsl=shape(q,0)
 end subroutine eq_0si
 subroutine eq_f00(c,t,b,p,ref,ctrl,npt,ncp,neq) ! in eq.f90
-    double precision dimension(npt,ncp + neq),intent(inout),depend(npt,neq,ncp) :: c
+    double precision dimension(npt,ncp + neq),intent(inout),depend(ncp,neq,npt) :: c
     double precision dimension(npt,ncp),intent(inout),depend(ncp) :: t
     double precision dimension(neq),intent(in),depend(neq) :: b
     integer dimension(neq,ncp),intent(in) :: p
@@ -74,7 +75,7 @@ subroutine eq_f00(c,t,b,p,ref,ctrl,npt,ncp,neq) ! in eq.f90
     integer, optional,intent(hide),depend(p) :: neq=shape(p,0)
 end subroutine eq_f00
 subroutine eq_fs0(c,t,b,p,cs,ks,q,ref,ctrl,npt,neq,ncp,nsl) ! in eq.f90
-    double precision dimension(npt,ncp + neq),intent(inout),depend(npt,neq,ncp) :: c
+    double precision dimension(npt,ncp + neq),intent(inout),depend(ncp,neq,npt) :: c
     double precision dimension(npt,ncp),intent(inout),depend(ncp) :: t
     double precision dimension(neq),intent(in),depend(neq) :: b
     integer dimension(neq,ncp),intent(in) :: p
@@ -89,7 +90,7 @@ subroutine eq_fs0(c,t,b,p,cs,ks,q,ref,ctrl,npt,neq,ncp,nsl) ! in eq.f90
     integer, optional,intent(hide),depend(q) :: nsl=shape(q,0)
 end subroutine eq_fs0
 subroutine eq_f0i(c,t,b,p,iref,iback,charge,dha,dhb,dhp,ref,ctrl,npt,ncp,neq) ! in eq.f90
-    double precision dimension(npt,ncp + neq),intent(inout),depend(npt,neq,ncp) :: c
+    double precision dimension(npt,ncp + neq),intent(inout),depend(ncp,neq,npt) :: c
     double precision dimension(npt,ncp),intent(inout),depend(ncp) :: t
     double precision dimension(neq),intent(in),depend(neq) :: b
     integer dimension(neq,ncp),intent(in) :: p
@@ -106,7 +107,7 @@ subroutine eq_f0i(c,t,b,p,iref,iback,charge,dha,dhb,dhp,ref,ctrl,npt,ncp,neq) ! 
     integer, optional,intent(hide),depend(p) :: neq=shape(p,0)
 end subroutine eq_f0i
 subroutine eq_fsi(c,t,b,p,cs,ks,q,iref,iback,charge,dha,dhb,dhp,ref,ctrl,npt,neq,ncp,nsl) ! in eq.f90
-    double precision dimension(npt,ncp + neq),intent(inout),depend(npt,neq,ncp) :: c
+    double precision dimension(npt,ncp + neq),intent(inout),depend(ncp,neq,npt) :: c
     double precision dimension(npt,ncp),intent(inout),depend(ncp) :: t
     double precision dimension(neq),intent(in),depend(neq) :: b
     integer dimension(neq,ncp),intent(in) :: p
