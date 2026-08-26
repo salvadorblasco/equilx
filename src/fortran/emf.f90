@@ -5,12 +5,13 @@ module emf
     implicit none
     private
     double precision, allocatable, dimension(:,:)  :: C
-    double precision, allocatable, dimension(:)  :: V
-    double precision, allocatable, dimension(:)  :: E
-    double precision, allocatable, dimension(:)  :: E0
-    double precision, allocatable, dimension(:)  :: slope
-    double precision, allocatable, dimension(:,:)  :: titr_init
-    double precision, allocatable, dimension(:,:)  :: titr_buret
+    real, allocatable, dimension(:)  :: V
+    real, allocatable, dimension(:)  :: V0
+    real, allocatable, dimension(:)  :: E
+    real, allocatable, dimension(:)  :: E0
+    real, allocatable, dimension(:)  :: slope
+    real, allocatable, dimension(:,:)  :: titr_init
+    real, allocatable, dimension(:,:)  :: titr_buret
     double precision, ALLOCATABLE, DIMENSION(:) :: lbeta
     integer, allocatable, dimension(:)  :: flag_beta
     integer, allocatable, dimension(:,:)  :: flag_init
@@ -22,7 +23,7 @@ module emf
     integer, public, protected :: NCP   ! number of components
     integer, public, protected :: NEQ   ! number of equilibria
     integer :: weight_scheme
-    integer, ALLOCATABLE, DIMENSION(:) :: cuts 
+    integer, ALLOCATABLE, DIMENSION(:) :: titr_size 
     integer, allocatable, dimension(:,:) :: P
     integer, public, protected :: diagnostic  ! 0 no error; 1 size of data zero or negative; 2 P and Q incompatible;
                            ! 3  insucient memory allocated, increase n_points;
@@ -59,13 +60,14 @@ subroutine init_module(n_points, n_titrs, wsch, stoich, logbeta, flgbeta)
 
     ALLOCATE(E(NPT))
     ALLOCATE(V(NPT))
+    ALLOCATE(V0(NTT))
     ALLOCATE(E0(NTT))
     ALLOCATE(slope(NTT))
     ALLOCATE(titr_init(NTT,NCP)) 
     ALLOCATE(titr_buret(NTT,NCP)) 
     ALLOCATE(flag_init(NTT,NCP)) 
     ALLOCATE(flag_buret(NTT,NCP)) 
-    allocate(cuts(NTT))
+    allocate(titr_size(NTT))
     allocate(P(NEQ, NCP))
     ALLOCATE(lbeta(NEQ))
     ALLOCATE(flag_beta(NEQ))
@@ -79,11 +81,13 @@ subroutine init_module(n_points, n_titrs, wsch, stoich, logbeta, flgbeta)
 end subroutine init_module
 
 
-subroutine load_titration(curve, titrparms, emf0, nernst_slope, tflags, emf0_flag, slope_flag)
+subroutine load_titration(titre, emf, titrparms, initV, emf0, nernst_slope, tflags, emf0_flag, slope_flag)
     implicit none
-    double precision, intent(in), dimension(:,:) :: curve
-    double precision, intent(in), dimension(:,:) :: titrparms
-    double precision, intent(in) :: emf0, nernst_slope
+    real, intent(in), dimension(:) :: titre
+    real, intent(in), dimension(size(titre)) :: emf
+    real, intent(in), dimension(NCP,2) :: titrparms
+    real, INTENT(IN) :: initV
+    real, intent(in) :: emf0, nernst_slope
     integer, intent(in), dimension(:,:) :: tflags
     integer, INTENT(IN) :: emf0_flag, slope_flag
 
@@ -99,8 +103,8 @@ subroutine load_titration(curve, titrparms, emf0, nernst_slope, tflags, emf0_fla
         return
     end if
 
-    n = SIZE(curve, dim=1)
-    if (n < tmp_space_left) then
+    n = SIZE(titre, dim=1)
+    if (n > tmp_space_left) then
         diagnostic = 3
         return
     end if
@@ -111,10 +115,12 @@ subroutine load_titration(curve, titrparms, emf0, nernst_slope, tflags, emf0_fla
     if (tmp_loaded_titrs .eq. 1) then
         bottom = 1
     else
-        bottom = cuts(tmp_loaded_titrs)
+        bottom = 1+sum(titr_size(1:tmp_loaded_titrs-1))
     end if
-    V(bottom:bottom+n) = curve(:,1)
-    E(bottom:bottom+n) = curve(:,2)
+    titr_size(tmp_loaded_titrs) = n
+    V(bottom:bottom+n-1) = titre
+    E(bottom:bottom+n-1) = emf
+    V0(tmp_loaded_titrs) = initV
 
     E0(tmp_loaded_titrs) = emf0
     slope(tmp_loaded_titrs) = nernst_slope
@@ -129,13 +135,14 @@ end subroutine load_titration
 subroutine finalize()
     DEALLOCATE(E)
     DEALLOCATE(V)
+    DEALLOCATE(V0)
     DEALLOCATE(E0)
     DEALLOCATE(slope)
     DEALLOCATE(titr_init) 
     DEALLOCATE(titr_buret) 
     DEALLOCATE(flag_init) 
     DEALLOCATE(flag_buret) 
-    DEallocate(cuts)
+    DEallocate(titr_size)
     DEallocate(P)
     DEALLOCATE(lbeta)
     DEALLOCATE(flag_beta)
@@ -171,7 +178,7 @@ subroutine jacobian_lm()
     ! following order: (1) equilibrium constants; (2) initial amounts; (3) buret concentrations;
     ! (4) standard potentials; (5) nernstian slopes; (6) constraints
     double precision, dimension(NCP, NEQ) :: dlcdlb  ! the result
-    call calc_dlogcdlogb(C, P, NCP, NEQ, dlcdlb)
+    !call calc_dlogcdlogb(C, P, NCP, NEQ, dlcdlb)
 end subroutine jacobian_lm
 
 end module emf

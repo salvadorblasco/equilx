@@ -6,9 +6,10 @@ TESTDIR=tests
 
 FC = gfortran
 RM = rm -f
-FFLAGS = -Wall -O2 -fPIC
+# FFLAGS = -Wall -O2 -fPIC
+FFLAGS = -g -O0 -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
 LIBS = -llapack -lblas
-DEVFLAGS = -g -O0 -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
+
 
 LIBEQ_SRCS = cpluss.f90 mb.f90 si.f90 nr.f90 pcf.f90 outer.f90 eq.f90 err.f90
 LIBEQ_OBJS = $(LIBEQ_SRCS:.f90=.o)
