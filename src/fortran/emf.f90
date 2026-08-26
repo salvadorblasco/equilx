@@ -3,7 +3,7 @@
 
 module emf
     implicit none
-    !private
+    private
     double precision, allocatable, dimension(:,:)  :: C
     double precision, allocatable, dimension(:)  :: V
     double precision, allocatable, dimension(:)  :: E
@@ -17,18 +17,18 @@ module emf
     integer, allocatable, dimension(:,:)  :: flag_buret
     integer, allocatable, dimension(:)  :: flag_emf0
     integer, allocatable, dimension(:)  :: flag_slope
-    integer :: NTT   ! number of titrations
-    integer :: NPT   ! number of titration points for all titrations
-    integer :: NCP   ! number of components
-    integer :: NEQ   ! number of equilibria
+    integer, public, protected :: NTT   ! number of titrations
+    integer, public, protected :: NPT   ! number of titration points for all titrations
+    integer, public, protected :: NCP   ! number of components
+    integer, public, protected :: NEQ   ! number of equilibria
     integer :: weight_scheme
     integer, ALLOCATABLE, DIMENSION(:) :: cuts 
     integer, allocatable, dimension(:,:) :: P
-    integer :: diagnostic  ! 0 no error; 1 size of data zero or negative; 2 P and Q incompatible;
+    integer, public, protected :: diagnostic  ! 0 no error; 1 size of data zero or negative; 2 P and Q incompatible;
                            ! 3  insucient memory allocated, increase n_points;
                            ! 4 no room for more titrations
     integer :: tmp_loaded_titrs, tmp_space_left
-    !PUBLIC :: diagnostic, init_module
+    PUBLIC :: init_module, load_titration, finalize, fit_emf
 
 contains
 

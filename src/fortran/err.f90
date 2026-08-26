@@ -14,11 +14,6 @@ subroutine var_conc(C, P, varB, varC, NCP, NEQ)
     double precision, dimension(NCP+NEQ, NEQ) :: dlogcdlogb
     integer i
 
-    ! For DGELSY 
-    integer, dimension(NCP) :: ipiv   ! pivot indices
-    integer :: nrhs, lda, ldb, lwork, info
-    double precision, allocatable, dimension(:) :: work
-
     call calc_dlogcdlogb(C, P, NCP, NEQ, dlogcdlogb(1:NCP,:))
     call calc_extdlogcdlogb(dlogcdlogb, P, NCP, NEQ)
 
@@ -56,7 +51,7 @@ subroutine calc_dlogcdlogb(C, P, NCP, NEQ, dlcdlb)
 
     ! For DGELSY 
     integer, dimension(NCP) :: ipiv   ! pivot indices
-    integer :: nrhs, lda, ldb, lwork, info
+    integer :: lwork, info
     double precision, allocatable, dimension(:) :: work
 
     ! compute A matrix

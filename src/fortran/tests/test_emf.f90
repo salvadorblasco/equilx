@@ -1,8 +1,9 @@
 program test_libemf
     use emf
+    implicit none
 
     double precision, dimension(6) :: logbeta
-    integer, dimension(6) :: flag_beta
+    integer, dimension(6) :: flgbeta
     integer, dimension(6,3) :: P
 
     print *, "Testing libemf module"
