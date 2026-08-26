@@ -16,7 +16,7 @@ TEST_OBJS := $(addprefix $(BUILDDIR)/,$(TEST_SRC:.f90=.o))
 all: test_emf
 
 test_emf: $(SRC_OBJS) $(TEST_OBJS)
-	$(FC) $(FFLAGS) $^ -o $(TESTDIR)/$@
+	$(FC) $(FFLAGS) $^ -o $(TESTDIR)/$@ -I $(SRCDIR) -L $(SRCDIR)/libeq.so
 
 # Static pattern rules – now safe because BUILDDIR has no “..”
 $(SRC_OBJS): $(BUILDDIR)/%.o: $(SRCDIR)/%.f90 | $(BUILDDIR)

@@ -9,7 +9,7 @@ FFLAGS = -Wall -O2 -fPIC
 LIBS = -llapack -lblas
 DEVFLAGS = -g -O0 -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
 
-SRCS = cpluss.f90 mb.f90 si.f90 nr.f90 pcf.f90 outer.f90 eq.f90
+SRCS = cpluss.f90 mb.f90 si.f90 nr.f90 pcf.f90 outer.f90 eq.f90 err.f90
 OBJS = $(SRCS:.f90=.o)
 
 .PHONY: all test debug fsolver clean

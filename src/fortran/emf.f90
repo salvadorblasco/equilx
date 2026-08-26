@@ -3,7 +3,7 @@
 
 module emf
     implicit none
-    private
+    !private
     double precision, allocatable, dimension(:,:)  :: C
     double precision, allocatable, dimension(:)  :: V
     double precision, allocatable, dimension(:)  :: E
@@ -28,7 +28,7 @@ module emf
                            ! 3  insucient memory allocated, increase n_points;
                            ! 4 no room for more titrations
     integer :: tmp_loaded_titrs, tmp_space_left
-    PUBLIC :: diagnostic
+    !PUBLIC :: diagnostic, init_module
 
 contains
 
