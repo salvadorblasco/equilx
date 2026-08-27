@@ -12,7 +12,7 @@ module emf
     real, allocatable, dimension(:)  :: slope
     real, allocatable, dimension(:,:)  :: titr_init
     real, allocatable, dimension(:,:)  :: titr_buret
-    double precision, ALLOCATABLE, DIMENSION(:) :: lbeta
+    real, ALLOCATABLE, DIMENSION(:) :: lbeta
     integer, allocatable, dimension(:)  :: flag_beta
     integer, allocatable, dimension(:,:)  :: flag_init
     integer, allocatable, dimension(:,:)  :: flag_buret
@@ -28,6 +28,7 @@ module emf
     integer, public, protected :: diagnostic  ! 0 no error; 1 size of data zero or negative; 2 P and Q incompatible;
                            ! 3  insucient memory allocated, increase n_points;
                            ! 4 no room for more titrations
+                           ! 99 -> linear system could not be solved
     integer :: tmp_loaded_titrs, tmp_space_left
 
     integer, parameter :: RF_CONSTANT = 0
@@ -167,25 +168,166 @@ subroutine lm(W)
     integer :: NX ! number of variables to optimize
     integer iter  ! iteration numnber
     integer, parameter :: MAX_ITERS = 100
-    double precision :: lm_damping
+    real, parameter :: DAMPING_UPPER = 1e10
+    real, parameter :: DAMPING_LOWER = 1e-12
+    real, parameter :: DAMPING_UPF = 8.0
+    real, parameter :: DAMPING_LOWF = 3.0
+    real :: lm_damping
     double precision, allocatable, dimension(:,:) :: jac
     double precision, allocatable, dimension(:) :: dx
-    double precision, allocatable, dimension(:) :: fvec
+    double precision, allocatable, dimension(:) :: fvec, trial_fvec
+    double precision, allocatable, dimension(:) :: gradient
+    double precision, allocatable, dimension(:,:) :: M, dampedM
+    double precision :: gradient_norm, chisq, damping
+    integer i
+    integer CTRL
 
     dx = 0.0
     jac = 0.0
     fvec = 0.0
+    damping = 1D2
 
-    main_loop: do iter=1,MAX_ITERS
+    call count_dof(NX)
+
+    allocate(jac(NPT, NX))
+    ALLOCATE(dx(NX))
+    ALLOCATE(gradient(NX))
+    ALLOCATE(fvec(NPT))
+    ALLOCATE(trial_fvec(NPT))
+    ALLOCATE(M(NX,NX))
+    ALLOCATE(dampedM(NX,NX))
+
+    dx = 0.0
+
+    main_loop: do iter=0,MAX_ITERS
         call jacobian_lm(jac)
-        call calc_resid(fvec)
+        if (iter .eq. 0) then
+            call calc_resid(dx, fvec, 0)
+        else
+            call calc_resid(dx, fvec, 1)
+        end if
+        M = MATMUL(MATMUL(TRANSPOSE(jac), W), jac)
+        gradient = 2*MATMUL(MATMUL(TRANSPOSE(jac),W),fvec)
+        gradient_norm = NORM2(gradient)
+        chisq = DOT_PRODUCT(fvec, MATMUL(W,fvec))
+
+        dampedM = M
+        do i=1,NX
+            dampedM(i,i) = (1.0 + damping) * M(i,i)
+        end do
+
+        if (iter .ne. 0) then
+            call lesolve(dampedM, -fvec, dx, NX, CTRL)
+            if (CTRL .eq. 99) then
+                diagnostic = 99
+                return
+            end if
+        end if
+
     end do main_loop
+
+    DEALLOCATE(jac, dx, fvec, M)
 end subroutine lm
 
 
-subroutine calc_resid(fvec)
-    double precision, dimension(:) :: fvec
+subroutine calc_resid(step, fvec, task)
+    double precision, intent(out), dimension(:) :: fvec
+    double precision, intent(in), dimension(:) :: step
+    integer, intent(in) :: task
+
+    double precision, save, allocatable, DIMENSION(:) :: xvalues
+    integer, save, allocatable, dimension(:) :: constraint_loc
+
+    real, save, allocatable, DIMENSION(:) :: tmp_lbeta
+    real, save, allocatable, DIMENSION(:,:) :: tmp_init
+    real, save, allocatable, DIMENSION(:,:) :: tmp_buret
+    real, save, allocatable, DIMENSION(:) :: tmp_emf0
+    real, save, allocatable, DIMENSION(:) :: tmp_slope
+
+    integer i, k
+
+    if (task .eq. 0) then ! initiation
+        allocate(xvalues(size(step)))
+        xvalues = 0.0
+        allocate(constraint_loc(size(step)))
+        constraint_loc = 0
+        k = 0
+
+        ! I. count formation constants
+        if (any(flag_beta  .ne. RF_CONSTANT)) then
+            allocate(tmp_lbeta(NEQ))
+            tmp_lbeta = lbeta
+            call aux_fillx(lbeta, flag_beta, xvalues, k, constraint_loc)
+        end if
+
+        ! II. count initial amounts
+        if (any(flag_init  .ne. RF_CONSTANT)) then
+            allocate(tmp_init(NTT, NCP))
+            tmp_init = titr_init
+            do i=1,size(flag_init, dim=1)
+                call aux_fillx(titr_init(i,:), flag_init(i,:), xvalues, k, constraint_loc)
+            end do
+        end if
+
+        ! III. count buret concentrations
+        if (any(flag_buret .ne. RF_CONSTANT)) then
+            allocate(tmp_buret(NTT, NCP))
+            tmp_buret = titr_buret
+            do i=1,size(flag_buret, dim=1)
+                call aux_fillx(titr_buret(i,:), flag_buret(i,:), xvalues, k, constraint_loc)
+            end do
+        end if
+
+        ! IV: count standard potentials
+        if (any(flag_emf0  .ne. RF_CONSTANT)) then
+            allocate(tmp_emf0(NTT))
+            tmp_emf0 = E0
+            call aux_fillx(E0, flag_emf0, xvalues, k, constraint_loc)
+        end if
+
+        ! V. count nernstian slopes
+        if (any(flag_slope .ne. RF_CONSTANT)) then
+            allocate(tmp_slope(NTT))
+            tmp_slope = slope
+            call aux_fillx(slope, flag_slope, xvalues, k, constraint_loc)
+        end if
+    end if
+
+    if (task .eq. 1) then ! trial step
+    end if
+
+    if (task .eq. 2) then ! cleanup
+        deallocate(xvalues, constraint_loc)
+        if (allocated(tmp_buret)) deallocate(tmp_buret)
+        if (allocated(tmp_init)) deallocate(tmp_init)
+        if (allocated(tmp_buret)) deallocate(tmp_buret)
+        if (allocated(tmp_emf0)) deallocate(tmp_emf0)
+        if (allocated(tmp_slope)) deallocate(tmp_slope)
+    end if
 end subroutine calc_resid
+
+
+subroutine aux_fillx(vec, flag, xv, counter, locv)
+    real, intent(in), dimension(:) :: vec
+    DOUBLE PRECISION, INTENT(INOUT), DIMENSION(:) :: xv
+    integer, INTENT(INOUT), DIMENSION(:) :: locv
+    integer, INTENT(INOUT), DIMENSION(:) :: flag
+    integer, intent(inout) :: counter
+
+    integer i
+
+    do i=1,size(vec)
+        if (flag(i) .eq. RF_REFINE) then
+            counter = counter + 1
+            xv(counter) = vec(i)
+        else if (flag(i) > RF_REFINE) then
+            if (locv(flag(i)-1) .eq. 0) then
+                counter = counter + 1
+                locv(flag(i)-1) = counter
+            end if
+        end if
+    end do
+end subroutine aux_fillx
 
 
 subroutine jacobian_lm(jac)
