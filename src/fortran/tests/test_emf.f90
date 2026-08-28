@@ -26,24 +26,24 @@ subroutine test_init()
     passed = .true.
 
     call init_module(10, 2, 0, P, logbeta, flgbeta)
-    if (diagnostic .ne. 0) then
+    if (emf_diagnostic .ne. 0) then
         if (passed) call print_result(test_name, "failed")
         passed = .false.
-        print *, "  init_module returned ", diagnostic
+        print *, "  init_module returned ", emf_diagnostic
     end if
 
     call load_titration(data(:,1), data(:,2), tparms, 1.0, 300.0, 1.00, tflags, 0, 0)
-    if (diagnostic .ne. 0) then
+    if (emf_diagnostic .ne. 0) then
         if (passed) call print_result(test_name, "failed")
         passed = .false.
-        print *, "  load_titration returned ", diagnostic
+        print *, "  load_titration returned ", emf_diagnostic
     end if
 
     call load_titration(data(:,1), data(:,2), tparms, 1.0, 300.0, 1.00, tflags, 0, 0)
-    if (diagnostic .ne. 0) then
+    if (emf_diagnostic .ne. 0) then
         if (passed) call print_result(test_name, "failed")
         passed = .false.
-        print *, "  load_titration returned ", diagnostic
+        print *, "  load_titration returned ", emf_diagnostic
     end if
 
     call finalize()
@@ -78,17 +78,17 @@ subroutine test_hexaprotic()
 
     flgbeta = 0
     call init_module(89, 1, 1, P, logb, flgbeta)
-    if (diagnostic .ne. 0) then
+    if (emf_diagnostic .ne. 0) then
         if (passed) call print_result(test_name, "failed")
         passed = .false.
-        print *, "  init_module returned ", diagnostic
+        print *, "  init_module returned ", emf_diagnostic
     end if
 
     call load_titration(titre, emf, tparms, 25.0, 300.0, 1.00, tflags, 0, 0)
-    if (diagnostic .ne. 0) then
+    if (emf_diagnostic .ne. 0) then
         if (passed) call print_result(test_name, "failed")
         passed = .false.
-        print *, "  load_titration returned ", diagnostic
+        print *, "  load_titration returned ", emf_diagnostic
     end if
 
     call finalize()
