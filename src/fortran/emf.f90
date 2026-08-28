@@ -1,45 +1,48 @@
 ! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
 ! by Salvador Blasco <salvador.blasco@uv.es>
+!
+!----------------------------------------------------------------------------------------------------
+! Routines for fitting equilibrium constants and other parameters from potentiometric data.
+!
 
 module emf
     implicit none
     private
-    double precision, allocatable, dimension(:,:)  :: C    ! the free concentrations
-    real, allocatable, dimension(:)  :: V                  ! titre in mL
-    real, allocatable, dimension(:)  :: V0                 ! initial amount in mL
-    real, allocatable, dimension(:)  :: E                  ! experimental emf in mV
-    real, allocatable, dimension(:)  :: E0                 ! standard potential in mV
-    real, allocatable, dimension(:)  :: slope              ! nernstian slope in unit
-    real, allocatable, dimension(:,:)  :: titr_init        ! initial amount in mmol
-    real, allocatable, dimension(:,:)  :: titr_buret       ! buret concentration in mmol/mL
-    real, ALLOCATABLE, DIMENSION(:) :: lbeta               ! formation constants in log10 units
-    integer, allocatable, dimension(:)  :: flag_beta
-    integer, allocatable, dimension(:,:)  :: flag_init
-    integer, allocatable, dimension(:,:)  :: flag_buret
-    integer, allocatable, dimension(:)  :: flag_emf0
-    integer, allocatable, dimension(:)  :: flag_slope
-    real, ALLOCATABLE, DIMENSION(:) :: err_emf
-    real, ALLOCATABLE, DIMENSION(:) :: err_vol
+    double precision, allocatable, public, protected, dimension(:,:)  :: C    ! the free concentrations
+    real,    allocatable, dimension(:)   :: V              ! titre in mL
+    real,    allocatable, dimension(:)   :: V0             ! initial amount in mL
+    real,    allocatable, dimension(:)   :: E              ! experimental emf in mV
+    real,    allocatable, dimension(:)   :: E0             ! standard potential in mV
+    real,    allocatable, dimension(:)   :: slope          ! nernstian slope in unit
+    real,    allocatable, dimension(:,:) :: titr_init      ! initial amount in mmol
+    real,    allocatable, dimension(:,:) :: titr_buret     ! buret concentration in mmol/mL
+    real,    allocatable, dimension(:)   :: lbeta          ! formation constants in log units
+    integer, allocatable, dimension(:)   :: flag_beta      ! refinement flags for formation constants
+    integer, allocatable, dimension(:,:) :: flag_init
+    integer, allocatable, dimension(:,:) :: flag_buret
+    integer, allocatable, dimension(:)   :: flag_emf0
+    integer, allocatable, dimension(:)   :: flag_slope
+    real,    allocatable, dimension(:)   :: err_emf        ! the error for potential, in mV, per titration
+    real,    allocatable, dimension(:)   :: err_vol        ! the error for volume, in mL, per titration
+    integer, allocatable, dimension(:)   :: titr_size      ! the size in experimental points per titration
+    integer, allocatable, dimension(:,:) :: P              ! the stoichiometry array
+    real,    allocatable, dimension(:)   :: tmp_lbeta
+    real,    allocatable, dimension(:,:) :: tmp_init
+    real,    allocatable, dimension(:,:) :: tmp_buret
+    real,    allocatable, dimension(:)   :: tmp_emf0
+    real,    allocatable, dimension(:)   :: tmp_slope
+    real,    allocatable, dimension(:,:) :: T
+    logical, ALLOCATABLE, dimension(:)   :: update_titr    ! flag to know which titration must be updated
     integer, public, protected :: NTT   ! number of titrations
     integer, public, protected :: NPT   ! number of titration points for all titrations
     integer, public, protected :: NCP   ! number of components
     integer, public, protected :: NEQ   ! number of equilibria
+    integer, public, protected :: emf_diagnostic    ! number showing the state of execution or failure
+        ! 0 -> no error; 1 -> size of data zero or negative; 2 -> P and Q incompatible; 3 -> insuficient memory allocated,
+        ! increase n_points; 4 -> no room for more titrations; 5 invalid weighting scheme
+        ! 99 -> linear system could not be solved
     real :: nernst
-    integer, ALLOCATABLE, DIMENSION(:) :: titr_size 
-    integer, allocatable, dimension(:,:) :: P
-    integer, public, protected :: diagnostic  ! 0 no error; 1 size of data zero or negative; 2 P and Q incompatible;
-                           ! 3  insucient memory allocated, increase n_points;
-                           ! 4 no room for more titrations; 5 invalid weighting scheme
-                           ! 99 -> linear system could not be solved
     integer :: tmp_loaded_titrs, tmp_space_left
-
-    real, allocatable, DIMENSION(:) :: tmp_lbeta
-    real, allocatable, DIMENSION(:,:) :: tmp_init
-    real, allocatable, DIMENSION(:,:) :: tmp_buret
-    real, allocatable, DIMENSION(:) :: tmp_emf0
-    real, allocatable, DIMENSION(:) :: tmp_slope
-    real, allocatable, DIMENSION(:,:) :: T
-    logical, ALLOCATABLE, DIMENSION(:) :: update_titr  ! flag to know which titration must be updated
 
     integer, parameter :: RF_CONSTANT = 0
     integer, parameter :: RF_REFINE = 1
@@ -48,23 +51,26 @@ module emf
 
 contains
 
+!----------------------------------------------------------------------------------------------------
+! Initiate module. Allocates variables and some data. Call this one first.
+!----------------------------------------------------------------------------------------------------
 subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta)
-    integer, INTENT(IN) :: n_points
-    integer, INTENT(IN) :: n_titrs
-    integer, intent(in), dimension(:,:) :: stoich
-    double precision, INTENT(IN), DIMENSION(:) :: logbeta
-    integer, intent(in), dimension(:) :: flgbeta
+    integer, intent(in)                                 :: n_points  ! total number of experimental points
+    integer, intent(in)                                 :: n_titrs   ! number of titrations to be loaded
+    integer, intent(in), dimension(:,:)                 :: stoich    ! the stoichiometry array
+    real,    intent(in), dimension(size(stoich, dim=1)) :: logbeta   ! the log10 of the formation constants
+    integer, intent(in), dimension(size(stoich, dim=1)) :: flgbeta   ! the refinement flags for the formation constants
 
-    diagnostic = 0
+    emf_diagnostic = 0
 
     if (n_titrs < 1) then
-        diagnostic = 1
+        emf_diagnostic = 1
         return
     end if
     NTT = n_titrs
 
     if (n_points < 1) then
-        diagnostic = 1
+        emf_diagnostic = 1
         return
     end if
     NPT = n_points
@@ -72,23 +78,26 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta)
     NEQ = SIZE(stoich, dim=1)
     NCP = SIZE(stoich, dim=2)
 
-    ALLOCATE(E(NPT))
+    ALLOCATE(C(NPT,NCP+NEQ))
     ALLOCATE(V(NPT))
     ALLOCATE(V0(NTT))
+    ALLOCATE(E(NPT))
     ALLOCATE(E0(NTT))
     ALLOCATE(slope(NTT))
     ALLOCATE(titr_init(NTT,NCP)) 
     ALLOCATE(titr_buret(NTT,NCP)) 
-    ALLOCATE(flag_init(NTT,NCP)) 
-    ALLOCATE(flag_buret(NTT,NCP)) 
-    allocate(titr_size(NTT))
-    allocate(P(NEQ, NCP))
     ALLOCATE(lbeta(NEQ))
     ALLOCATE(flag_beta(NEQ))
-    allocate(T(NPT,NCP))
-    ALLOCATE(update_titr(NTT))
+    ALLOCATE(flag_init(NTT,NCP)) 
+    ALLOCATE(flag_buret(NTT,NCP)) 
+    allocate(flag_emf0(NTT))
+    allocate(flag_slope(NTT))
     allocate(err_emf(NTT))
     allocate(err_vol(NTT))
+    allocate(titr_size(NTT))
+    allocate(P(NEQ, NCP))
+    allocate(T(NPT,NCP))
+    ALLOCATE(update_titr(NTT))
     update_titr = .false.
 
     P = stoich
@@ -115,18 +124,18 @@ subroutine load_titration(titre, emf, titrparms, initV, emf0, nernst_slope, tfla
     integer n, space_left, bottom
 
     if (tmp_loaded_titrs .eq. NTT) then
-        diagnostic = 4
+        emf_diagnostic = 4
         return
     end if
 
     if (all(shape(titrparms) .ne. shape(tflags))) then
-        diagnostic = 5
+        emf_diagnostic = 5
         return
     end if
 
     n = SIZE(titre, dim=1)
     if (n > tmp_space_left) then
-        diagnostic = 3
+        emf_diagnostic = 3
         return
     end if
 
@@ -156,23 +165,26 @@ end subroutine load_titration
 
 
 subroutine finalize()
-    DEALLOCATE(E)
+    DEALLOCATE(C)
     DEALLOCATE(V)
     DEALLOCATE(V0)
+    DEALLOCATE(E)
     DEALLOCATE(E0)
     DEALLOCATE(slope)
     DEALLOCATE(titr_init) 
     DEALLOCATE(titr_buret) 
-    DEALLOCATE(flag_init) 
-    DEALLOCATE(flag_buret) 
-    DEallocate(titr_size)
-    DEallocate(P)
     DEALLOCATE(lbeta)
     DEALLOCATE(flag_beta)
-    DEALLOCATE(T)
-    DEALLOCATE(update_titr)
+    DEALLOCATE(flag_init) 
+    DEALLOCATE(flag_buret) 
+    DEALLOCATE(flag_emf0) 
+    DEALLOCATE(flag_slope) 
     deallocate(err_emf)
     deallocate(err_vol)
+    DEallocate(titr_size)
+    DEallocate(P)
+    DEALLOCATE(T)
+    DEALLOCATE(update_titr)
 end subroutine finalize
 
 
@@ -203,7 +215,7 @@ subroutine fit_emf(temp, weight_scheme)
         end do
         deallocate(dy)
     else
-        diagnostic = 6
+        emf_diagnostic = 6
     end if
 
     ! TODO
@@ -274,7 +286,7 @@ subroutine lm(W)
         if (iter .ne. 0) then
             call lesolve(dampedM, -fvec, dx, NX, CTRL)
             if (CTRL .eq. 99) then
-                diagnostic = 99
+                emf_diagnostic = 99
                 return
             end if
         end if
