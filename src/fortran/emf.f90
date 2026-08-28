@@ -18,6 +18,8 @@ module emf
     integer, allocatable, dimension(:,:)  :: flag_buret
     integer, allocatable, dimension(:)  :: flag_emf0
     integer, allocatable, dimension(:)  :: flag_slope
+    real, ALLOCATABLE, DIMENSION(:) :: err_emf
+    real, ALLOCATABLE, DIMENSION(:) :: err_vol
     integer, public, protected :: NTT   ! number of titrations
     integer, public, protected :: NPT   ! number of titration points for all titrations
     integer, public, protected :: NCP   ! number of components
@@ -85,6 +87,8 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta)
     ALLOCATE(flag_beta(NEQ))
     allocate(T(NPT,NCP))
     ALLOCATE(update_titr(NTT))
+    allocate(err_emf(NTT))
+    allocate(err_vol(NTT))
     update_titr = .false.
 
     P = stoich
@@ -96,7 +100,7 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta)
 end subroutine init_module
 
 
-subroutine load_titration(titre, emf, titrparms, initV, emf0, nernst_slope, tflags, emf0_flag, slope_flag)
+subroutine load_titration(titre, emf, titrparms, initV, emf0, nernst_slope, tflags, emf0_flag, slope_flag, error_emf, error_vol)
     implicit none
     real, intent(in), dimension(:) :: titre
     real, intent(in), dimension(size(titre)) :: emf
@@ -105,6 +109,8 @@ subroutine load_titration(titre, emf, titrparms, initV, emf0, nernst_slope, tfla
     real, intent(in) :: emf0, nernst_slope
     integer, intent(in), dimension(:,:) :: tflags
     integer, INTENT(IN) :: emf0_flag, slope_flag
+    real, intent(in) :: error_emf
+    real, intent(in) :: error_vol
 
     integer n, space_left, bottom
 
@@ -144,6 +150,8 @@ subroutine load_titration(titre, emf, titrparms, initV, emf0, nernst_slope, tfla
     titr_buret(tmp_loaded_titrs,:) = titrparms(:, 2)
     flag_init(tmp_loaded_titrs, :) = tflags(:,1)
     flag_buret(tmp_loaded_titrs, :) = tflags(:,2)
+    err_emf(tmp_loaded_titrs) = error_emf
+    err_vol(tmp_loaded_titrs) = error_vol
 end subroutine load_titration
 
 
@@ -163,6 +171,8 @@ subroutine finalize()
     DEALLOCATE(flag_beta)
     DEALLOCATE(T)
     DEALLOCATE(update_titr)
+    deallocate(err_emf)
+    deallocate(err_vol)
 end subroutine finalize
 
 
@@ -173,7 +183,8 @@ subroutine fit_emf(temp, weight_scheme)
 
     real, parameter :: nernst_base = 0.08617333262 !mV/K
     DOUBLE PRECISION, DIMENSION(NPT,NPT) :: W
-    integer i
+    real, allocatable, dimension(:) :: dy
+    integer i, blow, bhigh
 
     ! handle temperature
     nernst = nernst_base*temp  ! mV
@@ -185,6 +196,12 @@ subroutine fit_emf(temp, weight_scheme)
             W(i,i) = 1.0
         end do
     else if (weight_scheme .eq. 1) then      ! unit weights
+        allocate(dy(NPT))
+        do i=1,NTT
+            call titr_bounds(i, blow, bhigh)
+            call derivative_1d(titr_size(i), V(blow:bhigh), E(blow:bhigh), dy(blow:bhigh))
+        end do
+        deallocate(dy)
     else
         diagnostic = 6
     end if
@@ -565,5 +582,13 @@ subroutine derivative_1d(n, x, y, dy)
   dy(n) = p1*y(n-2) + p2*y(n-1) + p3*y(n)
 
 end subroutine derivative_1d
+
+
+subroutine titr_bounds(i, low, high)
+    integer, intent(in) :: i
+    integer, intent(out) :: low, high
+    low = 1+sum(titr_size(1:(i-1)))  ! this should work also for i==1
+    high = low + titr_size(i)
+end subroutine titr_bounds
 
 end module emf
