@@ -4,15 +4,15 @@
 module emf
     implicit none
     private
-    double precision, allocatable, dimension(:,:)  :: C
-    real, allocatable, dimension(:)  :: V
-    real, allocatable, dimension(:)  :: V0
-    real, allocatable, dimension(:)  :: E
-    real, allocatable, dimension(:)  :: E0
-    real, allocatable, dimension(:)  :: slope
-    real, allocatable, dimension(:,:)  :: titr_init
-    real, allocatable, dimension(:,:)  :: titr_buret
-    real, ALLOCATABLE, DIMENSION(:) :: lbeta
+    double precision, allocatable, dimension(:,:)  :: C    ! the free concentrations
+    real, allocatable, dimension(:)  :: V                  ! titre in mL
+    real, allocatable, dimension(:)  :: V0                 ! initial amount in mL
+    real, allocatable, dimension(:)  :: E                  ! experimental emf in mV
+    real, allocatable, dimension(:)  :: E0                 ! standard potential in mV
+    real, allocatable, dimension(:)  :: slope              ! nernstian slope in unit
+    real, allocatable, dimension(:,:)  :: titr_init        ! initial amount in mmol
+    real, allocatable, dimension(:,:)  :: titr_buret       ! buret concentration in mmol/mL
+    real, ALLOCATABLE, DIMENSION(:) :: lbeta               ! formation constants in log10 units
     integer, allocatable, dimension(:)  :: flag_beta
     integer, allocatable, dimension(:,:)  :: flag_init
     integer, allocatable, dimension(:,:)  :: flag_buret
@@ -22,12 +22,12 @@ module emf
     integer, public, protected :: NPT   ! number of titration points for all titrations
     integer, public, protected :: NCP   ! number of components
     integer, public, protected :: NEQ   ! number of equilibria
-    integer :: weight_scheme
+    real :: nernst
     integer, ALLOCATABLE, DIMENSION(:) :: titr_size 
     integer, allocatable, dimension(:,:) :: P
     integer, public, protected :: diagnostic  ! 0 no error; 1 size of data zero or negative; 2 P and Q incompatible;
                            ! 3  insucient memory allocated, increase n_points;
-                           ! 4 no room for more titrations
+                           ! 4 no room for more titrations; 5 invalid weighting scheme
                            ! 99 -> linear system could not be solved
     integer :: tmp_loaded_titrs, tmp_space_left
 
@@ -46,10 +46,9 @@ module emf
 
 contains
 
-subroutine init_module(n_points, n_titrs, wsch, stoich, logbeta, flgbeta)
+subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta)
     integer, INTENT(IN) :: n_points
     integer, INTENT(IN) :: n_titrs
-    INTEGER, INTENT(IN) :: wsch
     integer, intent(in), dimension(:,:) :: stoich
     double precision, INTENT(IN), DIMENSION(:) :: logbeta
     integer, intent(in), dimension(:) :: flgbeta
@@ -89,7 +88,7 @@ subroutine init_module(n_points, n_titrs, wsch, stoich, logbeta, flgbeta)
     update_titr = .false.
 
     P = stoich
-    lbeta = logbeta
+    lbeta = logbeta * LOG(10.0)     ! convert from log10 to ln
     flag_beta = flgbeta
 
     tmp_loaded_titrs = 0
@@ -167,8 +166,30 @@ subroutine finalize()
 end subroutine finalize
 
 
-subroutine fit_emf()
+subroutine fit_emf(temp, weight_scheme)
     implicit none
+    real,   intent(in) :: temp
+    integer, intent(in) :: weight_scheme
+
+    real, parameter :: nernst_base = 0.08617333262 !mV/K
+    DOUBLE PRECISION, DIMENSION(NPT,NPT) :: W
+    integer i
+
+    ! handle temperature
+    nernst = nernst_base*temp  ! mV
+
+    ! handle weights
+    if (weight_scheme .eq. 0) then      ! unit weights
+        W = 0.0
+        do i=1,NPT
+            W(i,i) = 1.0
+        end do
+    else if (weight_scheme .eq. 1) then      ! unit weights
+    else
+        diagnostic = 6
+    end if
+
+    ! TODO
 end subroutine fit_emf
 
 
@@ -491,5 +512,58 @@ subroutine calc_analc(titre, init_vol, init, buret, analc)
         end do
     end do
 end subroutine calc_analc
+
+!------------------------------------------------------------------------------
+! Compute numerical first derivative dY/dX of a 1-D array
+! using second-order finite differences.
+!
+! Interior points  : central difference (O(h^2))
+! Left boundary    : forward three-point stencil (O(h^2))
+! Right boundary   : backward three-point stencil (O(h^2))
+!
+! The grid X need not be uniform.
+!------------------------------------------------------------------------------
+subroutine derivative_1d(n, x, y, dy)
+  implicit none
+  integer,          intent(in)  :: n          ! number of points (must be >= 3)
+  real,     intent(in)  :: x(n)       ! abscissae (strictly increasing)
+  real,     intent(in)  :: y(n)       ! function values
+  real,     intent(out) :: dy(n)      ! derivative dy/dx
+
+  integer :: i
+  real(kind=8) :: h1, h2, p1, p2, p3
+
+  if (n < 3) then
+     write(*,*) 'derivative_1d: n must be >= 3'
+     stop
+  end if
+
+  ! ---- left boundary (forward 2nd-order) ------------------------------------
+  h1 = x(2) - x(1)
+  h2 = x(3) - x(2)
+  p1  = -(2.0d0*h1 + h2)/(h1*(h1+h2))
+  p2  =  (h1 + h2)/(h1*h2)
+  p3  = -h1/(h2*(h1+h2))
+  dy(1) = p1*y(1) + p2*y(2) + p3*y(3)
+
+  ! ---- interior points (central 2nd-order) ----------------------------------
+  do i = 2, n-1
+     h1 = x(i)   - x(i-1)
+     h2 = x(i+1) - x(i)
+     p1  = -h2 / (h1*(h1+h2))
+     p2  =  (h2 - h1) / (h1*h2)
+     p3  =  h1 / (h2*(h1+h2))
+     dy(i) = p1*y(i-1) + p2*y(i) + p3*y(i+1)
+  end do
+
+  ! ---- right boundary (backward 2nd-order) ----------------------------------
+  h1 = x(n-1) - x(n-2)
+  h2 = x(n)   - x(n-1)
+  p1  =  h2 / (h1*(h1+h2))
+  p2  = -(h1 + h2)/(h1*h2)
+  p3  =  (2.0d0*h2 + h1)/(h2*(h1+h2))
+  dy(n) = p1*y(n-2) + p2*y(n-1) + p3*y(n)
+
+end subroutine derivative_1d
 
 end module emf
