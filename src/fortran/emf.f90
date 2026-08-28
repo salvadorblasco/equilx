@@ -31,6 +31,12 @@ module emf
                            ! 99 -> linear system could not be solved
     integer :: tmp_loaded_titrs, tmp_space_left
 
+    real, save, allocatable, DIMENSION(:) :: tmp_lbeta
+    real, save, allocatable, DIMENSION(:,:) :: tmp_init
+    real, save, allocatable, DIMENSION(:,:) :: tmp_buret
+    real, save, allocatable, DIMENSION(:) :: tmp_emf0
+    real, save, allocatable, DIMENSION(:) :: tmp_slope
+
     integer, parameter :: RF_CONSTANT = 0
     integer, parameter :: RF_REFINE = 1
 
@@ -200,12 +206,16 @@ subroutine lm(W)
     dx = 0.0
 
     main_loop: do iter=0,MAX_ITERS
-        call jacobian_lm(jac)
         if (iter .eq. 0) then
-            call calc_resid(dx, fvec, 0)
+            call try_step(dx, 0)
         else
-            call calc_resid(dx, fvec, 1)
+            call try_step(dx, 1)
         end if
+
+        call update_equil()
+        call calc_resid(fvec)
+        call jacobian_lm(jac)
+
         M = MATMUL(MATMUL(TRANSPOSE(jac), W), jac)
         gradient = 2*MATMUL(MATMUL(TRANSPOSE(jac),W),fvec)
         gradient_norm = NORM2(gradient)
@@ -230,19 +240,14 @@ subroutine lm(W)
 end subroutine lm
 
 
-subroutine calc_resid(step, fvec, task)
-    double precision, intent(out), dimension(:) :: fvec
+subroutine try_step(step, task)
     double precision, intent(in), dimension(:) :: step
     integer, intent(in) :: task
 
     double precision, save, allocatable, DIMENSION(:) :: xvalues
     integer, save, allocatable, dimension(:) :: constraint_loc
 
-    real, save, allocatable, DIMENSION(:) :: tmp_lbeta
-    real, save, allocatable, DIMENSION(:,:) :: tmp_init
-    real, save, allocatable, DIMENSION(:,:) :: tmp_buret
-    real, save, allocatable, DIMENSION(:) :: tmp_emf0
-    real, save, allocatable, DIMENSION(:) :: tmp_slope
+    real, dimension(10) :: rconstr
 
     integer i, k
 
@@ -251,6 +256,7 @@ subroutine calc_resid(step, fvec, task)
         xvalues = 0.0
         allocate(constraint_loc(size(step)))
         constraint_loc = 0
+        rconstr = 0.0
         k = 0
 
         ! I. count formation constants
@@ -294,17 +300,20 @@ subroutine calc_resid(step, fvec, task)
     end if
 
     if (task .eq. 1) then ! trial step
+        if (allocated(tmp_lbeta)) then
+
+        end if
     end if
 
     if (task .eq. 2) then ! cleanup
         deallocate(xvalues, constraint_loc)
-        if (allocated(tmp_buret)) deallocate(tmp_buret)
+        if (allocated(tmp_lbeta)) deallocate(tmp_lbeta)
         if (allocated(tmp_init)) deallocate(tmp_init)
         if (allocated(tmp_buret)) deallocate(tmp_buret)
         if (allocated(tmp_emf0)) deallocate(tmp_emf0)
         if (allocated(tmp_slope)) deallocate(tmp_slope)
     end if
-end subroutine calc_resid
+end subroutine try_step
 
 
 subroutine aux_fillx(vec, flag, xv, counter, locv)
@@ -391,5 +400,22 @@ subroutine sub_count_dof(vec, NX, constr)
         end if
     end do
 end subroutine sub_count_dof
+
+
+subroutine calc_analc(titre, init_vol, init, buret, analc)
+    ! Calculate the analytical concentration, given the titration paramers, 
+    real, intent(in), dimension(:)  :: titre
+    real, intent(in), dimension(:)  :: init
+    real, intent(in), dimension(:)  :: buret
+    real, intent(out), dimension(:,:)  :: analc
+    real, INTENT(IN) :: init_vol
+
+    integer i, j
+    do i=1,size(titre)
+        do j=1,NCP
+            analc(i,j) = (init(j) + buret(j)*titre(i)) / (init_vol+titre(i))
+        end do
+    end do
+end subroutine calc_analc
 
 end module emf
