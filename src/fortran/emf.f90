@@ -31,11 +31,13 @@ module emf
                            ! 99 -> linear system could not be solved
     integer :: tmp_loaded_titrs, tmp_space_left
 
-    real, save, allocatable, DIMENSION(:) :: tmp_lbeta
-    real, save, allocatable, DIMENSION(:,:) :: tmp_init
-    real, save, allocatable, DIMENSION(:,:) :: tmp_buret
-    real, save, allocatable, DIMENSION(:) :: tmp_emf0
-    real, save, allocatable, DIMENSION(:) :: tmp_slope
+    real, allocatable, DIMENSION(:) :: tmp_lbeta
+    real, allocatable, DIMENSION(:,:) :: tmp_init
+    real, allocatable, DIMENSION(:,:) :: tmp_buret
+    real, allocatable, DIMENSION(:) :: tmp_emf0
+    real, allocatable, DIMENSION(:) :: tmp_slope
+    real, allocatable, DIMENSION(:,:) :: T
+    logical, ALLOCATABLE, DIMENSION(:) :: update_titr  ! flag to know which titration must be updated
 
     integer, parameter :: RF_CONSTANT = 0
     integer, parameter :: RF_REFINE = 1
@@ -82,6 +84,9 @@ subroutine init_module(n_points, n_titrs, wsch, stoich, logbeta, flgbeta)
     allocate(P(NEQ, NCP))
     ALLOCATE(lbeta(NEQ))
     ALLOCATE(flag_beta(NEQ))
+    allocate(T(NPT,NCP))
+    ALLOCATE(update_titr(NTT))
+    update_titr = .false.
 
     P = stoich
     lbeta = logbeta
@@ -157,6 +162,8 @@ subroutine finalize()
     DEallocate(P)
     DEALLOCATE(lbeta)
     DEALLOCATE(flag_beta)
+    DEALLOCATE(T)
+    DEALLOCATE(update_titr)
 end subroutine finalize
 
 
@@ -240,6 +247,20 @@ subroutine lm(W)
 end subroutine lm
 
 
+subroutine update_equil()
+    ! update the free concentrations
+    integer i, blow, bhigh, CTRL
+    do i=1,NTT
+        if (update_titr(i)) then
+            blow = 1+sum(titr_size(1:(i-1)))  ! this should work also for i==1
+            bhigh = blow + titr_size(i)
+            call calc_analc(V(blow:bhigh), V0(i), tmp_init(i,:), tmp_buret(i,:), T(blow:bhigh,:))
+            call eq_000(C(blow:bhigh,:), T(blow:bhigh,:), 10.0**tmp_lbeta, P, CTRL, titr_size(i), NCP, NEQ)
+        end if
+    end do
+end subroutine update_equil
+
+
 subroutine try_step(step, task)
     double precision, intent(in), dimension(:) :: step
     integer, intent(in) :: task
@@ -254,8 +275,11 @@ subroutine try_step(step, task)
     if (task .eq. 0) then ! initiation
         allocate(xvalues(size(step)))
         xvalues = 0.0
+
         allocate(constraint_loc(size(step)))
         constraint_loc = 0
+
+
         rconstr = 0.0
         k = 0
 
@@ -272,6 +296,7 @@ subroutine try_step(step, task)
             tmp_init = titr_init
             do i=1,size(flag_init, dim=1)
                 call aux_fillx(titr_init(i,:), flag_init(i,:), xvalues, k, constraint_loc)
+                if (any(flag_init(i,:)  .ne. RF_CONSTANT)) update_titr(i) = .true.
             end do
         end if
 
@@ -281,6 +306,7 @@ subroutine try_step(step, task)
             tmp_buret = titr_buret
             do i=1,size(flag_buret, dim=1)
                 call aux_fillx(titr_buret(i,:), flag_buret(i,:), xvalues, k, constraint_loc)
+                if (any(flag_buret(i,:)  .ne. RF_CONSTANT)) update_titr(i) = .true.
             end do
         end if
 
@@ -308,9 +334,9 @@ subroutine try_step(step, task)
     if (task .eq. 2) then ! cleanup
         deallocate(xvalues, constraint_loc)
         if (allocated(tmp_lbeta)) deallocate(tmp_lbeta)
-        if (allocated(tmp_init)) deallocate(tmp_init)
+        if (allocated(tmp_init))  deallocate(tmp_init)
         if (allocated(tmp_buret)) deallocate(tmp_buret)
-        if (allocated(tmp_emf0)) deallocate(tmp_emf0)
+        if (allocated(tmp_emf0))  deallocate(tmp_emf0)
         if (allocated(tmp_slope)) deallocate(tmp_slope)
     end if
 end subroutine try_step
