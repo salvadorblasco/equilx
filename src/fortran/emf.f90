@@ -341,56 +341,6 @@ subroutine try_step(step)
 end subroutine try_step
 
 
-subroutine aux_takestep(flag, tmpv, refv, xval, ratio, counter)
-    integer, INTENT(IN), DIMENSION(:) :: flag
-    real, INTENT(INout), DIMENSION(size(flag)) :: tmpv
-    real, INTENT(IN), DIMENSION(size(flag)) :: refv
-    double precision, INTENT(IN), DIMENSION(size(flag)) :: xval
-    real, INTENT(INOUT), DIMENSION(:) :: ratio
-    integer, INTENT(INout) :: counter
-
-    integer i
-
-    do i=1,size(tmpv)
-        if (flag(i) .eq. RF_REFINE) then
-            counter = counter + 1
-            tmpv(i) = xval(counter)
-        else if (flag(i) > RF_REFINE) then
-            if (ratio(flag(i)-1) .eq. 0.0) then
-                counter = counter + 1
-                tmpv(i) = xval(counter)
-                ratio(flag(i)-1) = xval(counter)/refv(i)
-            else
-                tmpv(i) = ratio(flag(i)-1)*xval(counter)
-            end if
-        end if
-    end do
-end subroutine aux_takestep
-
-
-subroutine aux_fillx(vec, flag, xv, counter, locv)
-    real, intent(in), dimension(:) :: vec
-    double precision, INTENT(INOUT), DIMENSION(:) :: xv
-    integer, INTENT(INOUT), DIMENSION(:) :: locv
-    integer, INTENT(IN), DIMENSION(:) :: flag
-    integer, intent(inout) :: counter
-
-    integer i
-
-    do i=1,size(vec)
-        if (flag(i) .eq. RF_REFINE) then
-            counter = counter + 1
-            xv(counter) = vec(i)
-        else if (flag(i) > RF_REFINE) then
-            if (locv(flag(i)-1) .eq. 0) then
-                counter = counter + 1
-                locv(flag(i)-1) = counter
-            end if
-        end if
-    end do
-end subroutine aux_fillx
-
-
 subroutine jacobian_lm(jac)
     ! Compute the jacobian for the Levenberg-Marquardt iteration.
     ! The rows are the experimental points; the columns are the variables to be optimized in the
