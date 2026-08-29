@@ -268,8 +268,6 @@ subroutine lm(W)
     fvec = 0.0
     damping = 1D2
 
-    call count_dof(NX)
-
     allocate(jac(NPT, NX))
     ALLOCATE(dx(NX))
     ALLOCATE(gradient(NX))
@@ -282,9 +280,9 @@ subroutine lm(W)
 
     main_loop: do iter=0,MAX_ITERS
         if (iter .eq. 0) then
-            call try_step(dx, 0)
+            call try_step(dx)
         else
-            call try_step(dx, 1)
+            call try_step(dx)
         end if
 
         call update_equil()
