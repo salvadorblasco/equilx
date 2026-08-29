@@ -18,6 +18,7 @@ module emf
     end type value_holder
     type(value_holder), allocatable, dimension(:) :: variables
     double precision, allocatable, target, dimension(:) :: xvalues
+    DOUBLE PRECISION, allocatable, DIMENSION(:,:) :: W
 
     double precision, allocatable, public, protected, dimension(:,:)  :: C    ! the free concentrations
     real,    allocatable, dimension(:)   :: V              ! titre in mL
@@ -110,6 +111,7 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta)
     allocate(T(NPT,NCP))
     ALLOCATE(update_titr(NTT))
     update_titr = .false.
+    ALLOCATE(W(NPT,NPT))
 
     P = stoich
     lbeta = logbeta * LOG(10.0)     ! convert from log10 to ln
@@ -175,7 +177,32 @@ subroutine load_titration(titre, emf, titrparms, initV, emf0, nernst_slope, tfla
 end subroutine load_titration
 
 
+subroutine set_weight_unit()
+    integer i
+    W = 0.0
+    do i=1,NPT
+        W(i,i) = 1.0
+    end do
+end subroutine set_weight_unit
+
+
+subroutine set_weight_gradient()
+    real, allocatable, dimension(:) :: dy
+    integer i, j, blow, bhigh
+    allocate(dy(NPT))
+    do i=1,NTT
+        call titr_bounds(i, blow, bhigh)
+        call derivative_1d(titr_size(i), V(blow:bhigh), E(blow:bhigh), dy(blow:bhigh))
+        do j=blow,bhigh
+            W(j,j) = 1.0/(err_emf(i)**2 + dy(j)**2 * err_vol(i)**2)
+        end do
+    end do
+    deallocate(dy)
+end subroutine set_weight_gradient
+
+
 subroutine finalize()
+    DEALLOCATE(W)
     DEALLOCATE(C)
     DEALLOCATE(V)
     DEALLOCATE(V0)
@@ -196,19 +223,18 @@ subroutine finalize()
     DEallocate(P)
     DEALLOCATE(T)
     DEALLOCATE(update_titr)
+    DEALLOCATE(W)
     if (allocated(variables)) deallocate(variables)
 end subroutine finalize
 
 
-subroutine fit_emf(temp, weight_scheme)
+subroutine fit_emf(temp)
     implicit none
     real,   intent(in) :: temp
-    integer, intent(in) :: weight_scheme
 
     real, parameter :: nernst_base = 0.08617333262 !mV/K
-    DOUBLE PRECISION, DIMENSION(NPT,NPT) :: W
     real, allocatable, dimension(:) :: dy
-    integer i, blow, bhigh, NX, NV
+    integer i, j, blow, bhigh, NX, NV
 
     ! handle temperature
     nernst = nernst_base*temp  ! mV
@@ -220,12 +246,6 @@ subroutine fit_emf(temp, weight_scheme)
             W(i,i) = 1.0
         end do
     else if (weight_scheme .eq. 1) then      ! unit weights
-        allocate(dy(NPT))
-        do i=1,NTT
-            call titr_bounds(i, blow, bhigh)
-            call derivative_1d(titr_size(i), V(blow:bhigh), E(blow:bhigh), dy(blow:bhigh))
-        end do
-        deallocate(dy)
     else
         emf_diagnostic = 6
     end if
