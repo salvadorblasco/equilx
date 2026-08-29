@@ -329,105 +329,15 @@ subroutine update_equil()
 end subroutine update_equil
 
 
-subroutine try_step(step, task)
+subroutine try_step(step)
     double precision, intent(in), dimension(:) :: step
-    integer, intent(in) :: task
 
-    double precision, save, allocatable, DIMENSION(:) :: xvalues
-    integer, save, allocatable, dimension(:) :: constraint_loc
+    integer i
 
-    real, dimension(10) :: rconstr
-
-    integer i, k
-
-    if (task .eq. 0) then ! initiation
-        allocate(xvalues(size(step)))
-        xvalues = 0.0
-
-        allocate(constraint_loc(size(step)))
-        constraint_loc = 0
-
-
-        rconstr = 0.0
-        k = 0
-
-        ! I. count formation constants
-        if (any(flag_beta  .ne. RF_CONSTANT)) then
-            allocate(tmp_lbeta(NEQ))
-            tmp_lbeta = lbeta
-            call aux_fillx(lbeta, flag_beta, xvalues, k, constraint_loc)
-        end if
-
-        ! II. count initial amounts
-        if (any(flag_init  .ne. RF_CONSTANT)) then
-            allocate(tmp_init(NTT, NCP))
-            tmp_init = titr_init
-            do i=1,size(flag_init, dim=1)
-                call aux_fillx(titr_init(i,:), flag_init(i,:), xvalues, k, constraint_loc)
-                if (any(flag_init(i,:)  .ne. RF_CONSTANT)) update_titr(i) = .true.
-            end do
-        end if
-
-        ! III. count buret concentrations
-        if (any(flag_buret .ne. RF_CONSTANT)) then
-            allocate(tmp_buret(NTT, NCP))
-            tmp_buret = titr_buret
-            do i=1,size(flag_buret, dim=1)
-                call aux_fillx(titr_buret(i,:), flag_buret(i,:), xvalues, k, constraint_loc)
-                if (any(flag_buret(i,:)  .ne. RF_CONSTANT)) update_titr(i) = .true.
-            end do
-        end if
-
-        ! IV: count standard potentials
-        if (any(flag_emf0  .ne. RF_CONSTANT)) then
-            allocate(tmp_emf0(NTT))
-            tmp_emf0 = E0
-            call aux_fillx(E0, flag_emf0, xvalues, k, constraint_loc)
-        end if
-
-        ! V. count nernstian slopes
-        if (any(flag_slope .ne. RF_CONSTANT)) then
-            allocate(tmp_slope(NTT))
-            tmp_slope = slope
-            call aux_fillx(slope, flag_slope, xvalues, k, constraint_loc)
-        end if
-    end if
-
-    if (task .eq. 1) then ! trial step
-        k = 0
-        rconstr = 0.0
-        if (allocated(tmp_lbeta)) then
-            tmp_lbeta = lbeta
-            call aux_takestep(flag_beta, tmp_lbeta, lbeta, xvalues+step, rconstr, k)
-        end if
-        if (allocated(tmp_init))   then
-            do i=1,size(flag_init, dim=1)
-                call aux_takestep(flag_init(i,:), tmp_init(i,:), titr_init(i,:), xvalues+step, rconstr, k)
-            end do
-        end if
-        if (allocated(tmp_buret)) then
-            do i=1,size(flag_buret, dim=1)
-                call aux_takestep(flag_buret(i,:), tmp_buret(i,:), titr_buret(i,:), xvalues+step, rconstr, k)
-            end do
-        end if
-        if (allocated(tmp_emf0)) then
-            tmp_emf0 = E0
-            call aux_takestep(flag_emf0, tmp_emf0, E0, xvalues+step, rconstr, k)
-        end if
-        if (allocated(tmp_slope)) then 
-            tmp_slope = slope
-            call aux_takestep(flag_slope, tmp_slope, slope, xvalues+step, rconstr, k)
-        end if
-    end if
-
-    if (task .eq. 2) then ! cleanup
-        deallocate(xvalues, constraint_loc)
-        if (allocated(tmp_lbeta)) deallocate(tmp_lbeta)
-        if (allocated(tmp_init))  deallocate(tmp_init)
-        if (allocated(tmp_buret)) deallocate(tmp_buret)
-        if (allocated(tmp_emf0))  deallocate(tmp_emf0)
-        if (allocated(tmp_slope)) deallocate(tmp_slope)
-    end if
+    ! update tmp values
+    do i=1,size(variables)
+        variables(i)%destination_value = variables(i)%ratio*(variables(i)%origin_value + step(i))
+    end do
 end subroutine try_step
 
 
