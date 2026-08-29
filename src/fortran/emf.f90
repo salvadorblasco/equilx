@@ -8,6 +8,17 @@
 module emf
     implicit none
     private
+
+    ! variables for constraints
+    type value_holder
+        double precision, pointer :: origin_value
+        real, pointer :: destination_value
+        integer :: id
+        double precision :: ratio
+    end type value_holder
+    type(value_holder), allocatable, dimension(:) :: variables
+    double precision, allocatable, target, dimension(:) :: xvalues
+
     double precision, allocatable, public, protected, dimension(:,:)  :: C    ! the free concentrations
     real,    allocatable, dimension(:)   :: V              ! titre in mL
     real,    allocatable, dimension(:)   :: V0             ! initial amount in mL
@@ -26,11 +37,11 @@ module emf
     real,    allocatable, dimension(:)   :: err_vol        ! the error for volume, in mL, per titration
     integer, allocatable, dimension(:)   :: titr_size      ! the size in experimental points per titration
     integer, allocatable, dimension(:,:) :: P              ! the stoichiometry array
-    real,    allocatable, dimension(:)   :: tmp_lbeta
-    real,    allocatable, dimension(:,:) :: tmp_init
-    real,    allocatable, dimension(:,:) :: tmp_buret
-    real,    allocatable, dimension(:)   :: tmp_emf0
-    real,    allocatable, dimension(:)   :: tmp_slope
+    real,    allocatable, target, dimension(:)   :: tmp_lbeta
+    real,    allocatable, target, dimension(:,:) :: tmp_init
+    real,    allocatable, target, dimension(:,:) :: tmp_buret
+    real,    allocatable, target, dimension(:)   :: tmp_emf0
+    real,    allocatable, target, dimension(:)   :: tmp_slope
     real,    allocatable, dimension(:,:) :: T
     logical, ALLOCATABLE, dimension(:)   :: update_titr    ! flag to know which titration must be updated
     integer, public, protected :: NTT   ! number of titrations
@@ -185,6 +196,7 @@ subroutine finalize()
     DEallocate(P)
     DEALLOCATE(T)
     DEALLOCATE(update_titr)
+    if (allocated(variables)) deallocate(variables)
 end subroutine finalize
 
 
@@ -196,7 +208,7 @@ subroutine fit_emf(temp, weight_scheme)
     real, parameter :: nernst_base = 0.08617333262 !mV/K
     DOUBLE PRECISION, DIMENSION(NPT,NPT) :: W
     real, allocatable, dimension(:) :: dy
-    integer i, blow, bhigh
+    integer i, blow, bhigh, NX, NV
 
     ! handle temperature
     nernst = nernst_base*temp  ! mV
@@ -217,6 +229,12 @@ subroutine fit_emf(temp, weight_scheme)
     else
         emf_diagnostic = 6
     end if
+
+    ! create constraints
+    call count_dof(NX, NV)
+    allocate(xvalues(NX))
+    allocate(variables(NV))
+    call create_variables()
 
     ! TODO
 end subroutine fit_emf
@@ -475,40 +493,133 @@ subroutine jacobian_lm(jac)
 end subroutine jacobian_lm
 
 
-subroutine count_dof(NX)
+subroutine create_variables()
+    implicit none
+
+    integer i, vcount, xcount
+    real, dimension(2:9) :: vref
+    integer, dimension(2:9) :: iref
+    integer flag
+
+    vcount = 0
+    xcount = 0
+    vref = 0.0
+    iref = 0
+
+    ! I. count formation constants
+    if (sum(flag_beta) > 0) then        ! something to refine here
+        allocate(tmp_lbeta(NEQ))
+        tmp_lbeta = lbeta
+        call aux_create_variables(tmp_lbeta, flag_beta, xcount, vcount, iref, vref)
+    end if
+
+    ! II. count initial amounts
+    if (sum(flag_init) > 0) then        ! something to refine here
+        allocate(tmp_init(NTT,NCP))
+        tmp_init = titr_init
+        do i=1,NTT
+            call aux_create_variables(tmp_init(i,:), flag_init(i,:), xcount, vcount, iref, vref)
+        end do
+    end if
+
+    ! III. count buret concentrations
+    if (sum(flag_buret) > 0) then        ! something to refine here
+        allocate(tmp_buret(NTT,NCP))
+        tmp_buret = titr_buret
+        do i=1,NTT
+            call aux_create_variables(tmp_buret(i,:), flag_buret(i,:), xcount, vcount, iref, vref)
+        end do
+    end if
+
+    ! IV: count standard potentials
+    if (sum(flag_emf0) > 0) then        ! something to refine here
+        allocate(tmp_emf0(NTT))
+        tmp_emf0 = E0
+        call aux_create_variables(tmp_emf0, flag_emf0, xcount, vcount, iref, vref)
+    end if
+
+    ! V. count nernstian slopes
+    if (sum(flag_slope) > 0) then        ! something to refine here
+        allocate(tmp_slope(NTT))
+        tmp_slope = slope
+        call aux_create_variables(tmp_slope, flag_slope, xcount, vcount, iref, vref)
+    end if
+end subroutine create_variables
+
+
+subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref)
+    real, intent(in), target, DIMENSION(:) :: vector
+    integer, intent(in), DIMENSION(:) :: flags
+    integer, intent(inout) :: xcount, vcount
+    real, intent(inout), dimension(2:9) :: vref
+    integer, intent(inout), dimension(2:9) :: iref
+
+    integer i
+    do i=1,size(flags)
+        if (flags(i) == RF_REFINE) then
+            vcount = vcount + 1
+            xcount = xcount + 1
+            variables(vcount)%origin_value => xvalues(xcount)
+            variables(vcount)%destination_value => vector(i)
+            variables(vcount)%ratio = 1.0
+            variables(vcount)%id = flags(i)
+        else if (flags(i) > 1) then
+            vcount = vcount + 1
+            if (iref(flags(i)) .eq. 0) then   ! constraint, first time
+                xcount = xcount + 1
+                variables(vcount)%origin_value => xvalues(xcount)
+                variables(vcount)%destination_value => vector(i)
+                variables(vcount)%ratio = 1.0
+
+                iref(flags(i)) = xcount
+                vref(flags(i)) = vector(i)
+            else                                  ! constraint already set
+                variables(vcount)%origin_value => xvalues(iref(flags(i)))
+                variables(vcount)%destination_value => vector(i)
+                variables(vcount)%ratio = vref(flags(i))/vector(i)
+            end if
+            variables(vcount)%id = flags(i)
+        end if
+    end do
+end subroutine aux_create_variables
+
+
+subroutine count_dof(NX, NV)
     ! count degrees of freedom
     implicit none
-    integer, intent(out) :: NX ! number of variables to optimize
+    integer, intent(out) :: NX ! number of free variables
+    integer, intent(out) :: NV ! total number of variables
 
-    logical constr(9)
+    logical constr(2:9)
     integer i, j
     NX = 0
     constr = .false.
 
     ! I. count formation constants
-    call sub_count_dof(flag_beta, NX, constr)
+    call sub_count_dof(flag_beta, NX, NV, constr)
 
     ! II. count initial amounts
     do i=1,size(flag_init, dim=1)
-        call sub_count_dof(flag_init(i,:), NX, constr)
+        call sub_count_dof(flag_init(i,:), NX, NV, constr)
     end do
 
     ! III. count buret concentrations
     do i=1,size(flag_buret, dim=1)
-        call sub_count_dof(flag_buret(i,:), NX, constr)
+        call sub_count_dof(flag_buret(i,:), NX, NV, constr)
     end do
 
     ! IV: count standard potentials
-    call sub_count_dof(flag_emf0, NX, constr)
+    call sub_count_dof(flag_emf0, NX, NV, constr)
 
     ! V. count nernstian slopes
-    call sub_count_dof(flag_slope, NX, constr)
+    call sub_count_dof(flag_slope, NX, NV, constr)
 end subroutine count_dof
 
 
-subroutine sub_count_dof(vec, NX, constr)
+subroutine sub_count_dof(vec, NX, NV, constr)
     ! auxiliary routine to count degrees of freedom
-    integer, intent(inout) :: NX ! number of variables to optimize
+    integer, intent(out) :: NX ! number of variables to optimize
+    integer, intent(out) :: NV ! number of constrained variables
     logical, intent(inout) :: constr(:)
     integer, intent(in) :: vec(:)
 
@@ -516,7 +627,9 @@ subroutine sub_count_dof(vec, NX, constr)
     do i=1,size(vec)
         if (vec(i) .eq. RF_REFINE) then
             NX = NX + 1
+            NV = NV + 1
         else if (vec(i) > RF_REFINE) then
+            NV = NV + 1
             if (constr(i)) then
                 NX = NX + 1
                 constr(i) = .true.
