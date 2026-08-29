@@ -59,7 +59,7 @@ module emf
     integer, parameter :: RF_CONSTANT = 0
     integer, parameter :: RF_REFINE = 1
 
-    PUBLIC :: init_module, load_titration, finalize, fit_emf
+    PUBLIC :: init_module, load_titration, finalize, fit_emf, set_weight_gradient, set_weight_unit
 
 contains
 
@@ -134,7 +134,7 @@ subroutine load_titration(titre, emf, titrparms, initV, emf0, nernst_slope, tfla
     real, intent(in) :: error_emf
     real, intent(in) :: error_vol
 
-    integer n, space_left, bottom
+    integer n, bottom
 
     if (tmp_loaded_titrs .eq. NTT) then
         emf_diagnostic = 4
@@ -172,6 +172,8 @@ subroutine load_titration(titre, emf, titrparms, initV, emf0, nernst_slope, tfla
     titr_buret(tmp_loaded_titrs,:) = titrparms(:, 2)
     flag_init(tmp_loaded_titrs, :) = tflags(:,1)
     flag_buret(tmp_loaded_titrs, :) = tflags(:,2)
+    flag_slope(tmp_loaded_titrs) = slope_flag
+    flag_emf0(tmp_loaded_titrs) = emf0_flag
     err_emf(tmp_loaded_titrs) = error_emf
     err_vol(tmp_loaded_titrs) = error_vol
 end subroutine load_titration
@@ -233,8 +235,7 @@ subroutine fit_emf(temp)
     real,   intent(in) :: temp
 
     real, parameter :: nernst_base = 0.08617333262 !mV/K
-    real, allocatable, dimension(:) :: dy
-    integer i, j, blow, bhigh, NX, NV
+    integer NX, NV
 
     ! handle temperature
     nernst = nernst_base*temp  ! mV
@@ -260,7 +261,6 @@ subroutine lm()
     real, parameter :: DAMPING_LOWER = 1e-12
     real, parameter :: DAMPING_UPF = 8.0
     real, parameter :: DAMPING_LOWF = 3.0
-    real :: lm_damping
     double precision, allocatable, dimension(:,:) :: jac
     double precision, allocatable, dimension(:) :: dx
     double precision, allocatable, dimension(:) :: fvec, trial_fvec
@@ -271,11 +271,6 @@ subroutine lm()
     integer CTRL
 
     NX = size(xvalues)
-    dx = 0.0
-    jac = 0.0
-    fvec = 0.0
-    damping = 1D2
-
     allocate(jac(NPT, NX))
     ALLOCATE(dx(NX))
     ALLOCATE(gradient(NX))
@@ -285,9 +280,13 @@ subroutine lm()
     ALLOCATE(dampedM(NX,NX))
 
     dx = 0.0
+    jac = 0.0
+    fvec = 0.0
+    damping = 1D2
 
     main_loop: do iter=0,MAX_ITERS
         call try_step(dx)
+
         call update_equil()
         call calc_resid(fvec)
         call jacobian_lm(jac)
@@ -337,7 +336,7 @@ subroutine try_step(step)
 
     ! update tmp values
     do i=1,size(variables)
-        variables(i)%destination_value = variables(i)%ratio*(variables(i)%origin_value + step(i))
+        variables(i)%destination_value = real(variables(i)%ratio*(variables(i)%origin_value + step(i)))
     end do
 end subroutine try_step
 
@@ -360,7 +359,6 @@ subroutine create_variables()
     integer i, vcount, xcount
     real, dimension(2:9) :: vref
     integer, dimension(2:9) :: iref
-    integer flag
 
     vcount = 0
     xcount = 0
@@ -452,7 +450,7 @@ subroutine count_dof(NX, NV)
     integer, intent(out) :: NV ! total number of variables
 
     logical constr(2:9)
-    integer i, j
+    integer i
     NX = 0
     constr = .false.
 
@@ -547,7 +545,7 @@ subroutine derivative_1d(n, x, y, dy)
   p1  = -(2.0d0*h1 + h2)/(h1*(h1+h2))
   p2  =  (h1 + h2)/(h1*h2)
   p3  = -h1/(h2*(h1+h2))
-  dy(1) = p1*y(1) + p2*y(2) + p3*y(3)
+  dy(1) = real(p1*y(1) + p2*y(2) + p3*y(3))
 
   ! ---- interior points (central 2nd-order) ----------------------------------
   do i = 2, n-1
@@ -556,7 +554,7 @@ subroutine derivative_1d(n, x, y, dy)
      p1  = -h2 / (h1*(h1+h2))
      p2  =  (h2 - h1) / (h1*h2)
      p3  =  h1 / (h2*(h1+h2))
-     dy(i) = p1*y(i-1) + p2*y(i) + p3*y(i+1)
+     dy(i) = real(p1*y(i-1) + p2*y(i) + p3*y(i+1))
   end do
 
   ! ---- right boundary (backward 2nd-order) ----------------------------------
@@ -565,7 +563,7 @@ subroutine derivative_1d(n, x, y, dy)
   p1  =  h2 / (h1*(h1+h2))
   p2  = -(h1 + h2)/(h1*h2)
   p3  =  (2.0d0*h2 + h1)/(h2*(h1+h2))
-  dy(n) = p1*y(n-2) + p2*y(n-1) + p3*y(n)
+  dy(n) = real(p1*y(n-2) + p2*y(n-1) + p3*y(n))
 
 end subroutine derivative_1d
 
