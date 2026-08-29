@@ -239,32 +239,19 @@ subroutine fit_emf(temp)
     ! handle temperature
     nernst = nernst_base*temp  ! mV
 
-    ! handle weights
-    if (weight_scheme .eq. 0) then      ! unit weights
-        W = 0.0
-        do i=1,NPT
-            W(i,i) = 1.0
-        end do
-    else if (weight_scheme .eq. 1) then      ! unit weights
-    else
-        emf_diagnostic = 6
-    end if
-
     ! create constraints
     call count_dof(NX, NV)
     allocate(xvalues(NX))
     allocate(variables(NV))
     call create_variables()
 
-    ! TODO
+    call lm()
 end subroutine fit_emf
 
 
-subroutine lm(W)
+subroutine lm()
     ! routine for Levenberg-Marquardt iterations.
     implicit none
-
-    double precision, intent(in), dimension(:,:) :: W  ! the weights matrix
 
     integer :: NX ! number of variables to optimize
     integer iter  ! iteration numnber
@@ -283,6 +270,7 @@ subroutine lm(W)
     integer i
     integer CTRL
 
+    NX = size(xvalues)
     dx = 0.0
     jac = 0.0
     fvec = 0.0
@@ -299,12 +287,7 @@ subroutine lm(W)
     dx = 0.0
 
     main_loop: do iter=0,MAX_ITERS
-        if (iter .eq. 0) then
-            call try_step(dx)
-        else
-            call try_step(dx)
-        end if
-
+        call try_step(dx)
         call update_equil()
         call calc_resid(fvec)
         call jacobian_lm(jac)
