@@ -15,6 +15,7 @@ module emf
     ! variables for constraints
     type value_holder
         double precision, pointer :: origin_value
+        integer :: origin_index
         real, pointer :: destination_value
         integer :: id
         double precision :: ratio
@@ -24,31 +25,36 @@ module emf
     DOUBLE PRECISION, allocatable, DIMENSION(:,:) :: W
 
     double precision, allocatable, public, protected, dimension(:,:)  :: C    ! the free concentrations
-    real,    allocatable, dimension(:)   :: V              ! titre in mL
-    real,    allocatable, dimension(:)   :: V0             ! initial amount in mL
-    real,    allocatable, dimension(:)   :: E              ! experimental emf in mV
-    real,    allocatable, dimension(:)   :: E0             ! standard potential in mV
-    real,    allocatable, dimension(:)   :: slope          ! nernstian slope in unit
-    real,    allocatable, dimension(:,:) :: titr_init      ! initial amount in mmol
-    real,    allocatable, dimension(:,:) :: titr_buret     ! buret concentration in mmol/mL
-    real,    allocatable, dimension(:)   :: lbeta          ! formation constants in log units
-    integer, allocatable, dimension(:)   :: eactive        ! indices of electroactive component
-    integer, allocatable, dimension(:)   :: flag_beta      ! refinement flags for formation constants
-    integer, allocatable, dimension(:,:) :: flag_init
-    integer, allocatable, dimension(:,:) :: flag_buret
-    integer, allocatable, dimension(:)   :: flag_emf0
-    integer, allocatable, dimension(:)   :: flag_slope
-    real,    allocatable, dimension(:)   :: err_emf        ! the error for potential, in mV, per titration
-    real,    allocatable, dimension(:)   :: err_vol        ! the error for volume, in mL, per titration
-    integer, allocatable, dimension(:)   :: titr_size      ! the size in experimental points per titration
-    integer, allocatable, dimension(:,:) :: P              ! the stoichiometry array
+    real,    allocatable,         dimension(:)   :: V              ! titre in mL
+    real,    allocatable,         dimension(:)   :: V0             ! initial amount in mL
+    real,    allocatable,         dimension(:)   :: E              ! experimental emf in mV
+    real,    allocatable, target, dimension(:)   :: E0             ! standard potential in mV
+    real,    allocatable, target, dimension(:)   :: slope          ! nernstian slope in unit
+    real,    allocatable, target, dimension(:,:) :: titr_init      ! initial amount in mmol
+    real,    allocatable, target, dimension(:,:) :: titr_buret     ! buret concentration in mmol/mL
+    real,    allocatable, target, dimension(:)   :: lbeta          ! formation constants in log units
+    integer, allocatable,         dimension(:)   :: eactive        ! indices of electroactive component
+    integer, allocatable,         dimension(:)   :: flag_beta      ! refinement flags for formation constants
+    integer, allocatable,         dimension(:,:) :: flag_init
+    integer, allocatable,         dimension(:,:) :: flag_buret
+    integer, allocatable,         dimension(:)   :: flag_emf0
+    integer, allocatable,         dimension(:)   :: flag_slope
+    real,    allocatable,         dimension(:)   :: err_emf        ! the error for potential, in mV, per titration
+    real,    allocatable,         dimension(:)   :: err_vol        ! the error for volume, in mL, per titration
+    integer, allocatable,         dimension(:)   :: titr_size      ! the size in experimental points per titration
+    integer, allocatable,         dimension(:,:) :: P              ! the stoichiometry array
     real,    allocatable, target, dimension(:)   :: tmp_lbeta
     real,    allocatable, target, dimension(:,:) :: tmp_init
     real,    allocatable, target, dimension(:,:) :: tmp_buret
     real,    allocatable, target, dimension(:)   :: tmp_emf0
     real,    allocatable, target, dimension(:)   :: tmp_slope
-    real,    allocatable, dimension(:,:) :: T
-    logical, ALLOCATABLE, dimension(:)   :: update_titr    ! flag to know which titration must be updated
+    real,    pointer,             dimension(:)   :: use_lbeta
+    real,    pointer,             dimension(:,:) :: use_init
+    real,    pointer,             dimension(:,:) :: use_buret
+    real,    pointer,             dimension(:)   :: use_emf0
+    real,    pointer,             dimension(:)   :: use_slope
+    real,    allocatable,         dimension(:,:) :: T
+    logical, allocatable,         dimension(:)   :: update_titr    ! flag to know which titration must be updated
     integer, public, protected :: NTT   ! number of titrations
     integer, public, protected :: NPT   ! number of titration points for all titrations
     integer, public, protected :: NCP   ! number of components
@@ -92,28 +98,46 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta)
     NCP = SIZE(stoich, dim=2)
 
     ALLOCATE(C(NPT,NCP+NEQ))
+    C = 0.0
     ALLOCATE(V(NPT))
+    V = 0.0
     ALLOCATE(V0(NTT))
+    V0 = 0.0
     ALLOCATE(E(NPT))
+    E = 0.0
     ALLOCATE(E0(NTT))
+    E0 = 0.0
     ALLOCATE(slope(NTT))
+    slope = 1.00
     ALLOCATE(eactive(NTT))
+    eactive = 0
     ALLOCATE(titr_init(NTT,NCP)) 
+    titr_init = 0.0
     ALLOCATE(titr_buret(NTT,NCP)) 
+    titr_buret = 0.0
     ALLOCATE(lbeta(NEQ))
     ALLOCATE(flag_beta(NEQ))
     ALLOCATE(flag_init(NTT,NCP)) 
+    flag_init = 0
     ALLOCATE(flag_buret(NTT,NCP)) 
-    allocate(flag_emf0(NTT))
-    allocate(flag_slope(NTT))
-    allocate(err_emf(NTT))
-    allocate(err_vol(NTT))
-    allocate(titr_size(NTT))
-    allocate(P(NEQ, NCP))
-    allocate(T(NPT,NCP))
+    flag_buret = 0
+    ALLOCATE(flag_emf0(NTT))
+    flag_emf0 = 0
+    ALLOCATE(flag_slope(NTT))
+    flag_slope = 0
+    ALLOCATE(err_emf(NTT))
+    err_emf = 0.0
+    ALLOCATE(err_vol(NTT))
+    err_vol = 0.0
+    ALLOCATE(titr_size(NTT))
+    titr_size = 0
+    ALLOCATE(P(NEQ, NCP))
+    ALLOCATE(T(NPT,NCP))
+    T = 0.0
     ALLOCATE(update_titr(NTT))
     update_titr = .false.
     ALLOCATE(W(NPT,NPT))
+    W = 0.0
 
     P = stoich
     lbeta = logbeta * LOG(10.0)     ! convert from log10 to ln
@@ -124,19 +148,23 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta)
 end subroutine init_module
 
 
+!----------------------------------------------------------------------------------------------------
+! Load single titration. The memory has been previously allocated by calling the init_module first.
+!----------------------------------------------------------------------------------------------------
 subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slope, tflags, emf0_flag, slope_flag, &
         error_emf, error_vol)
     implicit none
-    real, intent(in), dimension(:) :: titre
-    real, intent(in), dimension(size(titre)) :: emf
-    real, intent(in), dimension(NCP,2) :: titrparms
-    real, INTENT(IN) :: initV
-    real, intent(in) :: emf0, nernst_slope
-    integer, intent(in), dimension(:,:) :: tflags
-    integer, INTENT(IN) :: emf0_flag, slope_flag
-    real, intent(in) :: error_emf
-    real, intent(in) :: error_vol
-    integer, intent(in) :: active
+    real,    intent(in), dimension(:)           :: titre       ! the titre in mL
+    real,    intent(in), dimension(size(titre)) :: emf         ! experiemntal emf in mV
+    real,    intent(in), dimension(NCP,2)       :: titrparms
+    integer, intent(in), dimension(:,:)         :: tflags
+    real,    intent(in) :: initV                 ! initial volume in mL
+    real,    intent(in) :: nernst_slope          ! the nernstian slope in x1
+    real,    intent(in) :: emf0                  ! the standard potential in mL
+    integer, intent(in) :: active                ! index of the electroactive component
+    integer, intent(in) :: emf0_flag, slope_flag ! refinement flag for emf0 and slope
+    real,    intent(in) :: error_emf             ! uncertainty for potential in mV
+    real,    intent(in) :: error_vol             ! uncertainty for volume in mL
 
     integer n, bottom
 
@@ -188,6 +216,9 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
 end subroutine load_titration
 
 
+!----------------------------------------------------------------------------------------------------
+! Select unit values as weight. The weight matrix will be a unit matrix.
+!----------------------------------------------------------------------------------------------------
 subroutine set_weight_unit()
     integer i
     W = 0.0
@@ -197,6 +228,11 @@ subroutine set_weight_unit()
 end subroutine set_weight_unit
 
 
+!----------------------------------------------------------------------------------------------------
+! Select weight matrix as proportional to the gradient.
+! W_ij = 1/(sigma_emf**2 * gradient(i) + sigma_vol^2)  if i=j
+! W_ij = 0  if i /= j
+!----------------------------------------------------------------------------------------------------
 subroutine set_weight_gradient()
     real, allocatable, dimension(:) :: dy
     integer i, j, blow, bhigh
@@ -212,6 +248,9 @@ subroutine set_weight_gradient()
 end subroutine set_weight_gradient
 
 
+!----------------------------------------------------------------------------------------------------
+! Cleanup routine and deallocate memory assets.
+!----------------------------------------------------------------------------------------------------
 subroutine finalize()
     DEALLOCATE(W)
     DEALLOCATE(C)
@@ -265,28 +304,31 @@ subroutine fit_emf(temp)
 end subroutine fit_emf
 
 
+!----------------------------------------------------------------------------------------------------
+! Run the Levenberg-Marquardt loop.
+!----------------------------------------------------------------------------------------------------
 subroutine lm()
     ! routine for Levenberg-Marquardt iterations.
     implicit none
 
     integer :: NX ! number of variables to optimize
-    integer iter  ! iteration numnber
+    integer iter  ! iteration number
     integer, parameter :: MAX_ITERS = 100
-    real, parameter :: DAMPING_UPPER = 1e10
-    real, parameter :: DAMPING_LOWER = 1e-12
-    real, parameter :: DAMPING_UPF = 8.0
-    real, parameter :: DAMPING_LOWF = 3.0
+    real,    parameter :: DAMPING_UPPER = 1e10
+    real,    parameter :: DAMPING_LOWER = 1e-12
+    real,    parameter :: DAMPING_UPF = 8.0
+    real,    parameter :: DAMPING_LOWF = 3.0
     double precision, allocatable, dimension(:,:) :: jac
-    double precision, allocatable, dimension(:) :: dx
-    double precision, allocatable, dimension(:) :: fvec, trial_fvec
-    double precision, allocatable, dimension(:) :: gradient
+    double precision, allocatable, dimension(:)   :: dx
+    double precision, allocatable, dimension(:)   :: fvec, trial_fvec
+    double precision, allocatable, dimension(:)   :: gradient
     double precision, allocatable, dimension(:,:) :: M, dampedM
     double precision :: gradient_norm, chisq, damping
     integer i
     integer CTRL
 
     NX = size(xvalues)
-    allocate(jac(NPT, NX))
+    ALLOCATE(jac(NPT, NX))
     ALLOCATE(dx(NX))
     ALLOCATE(gradient(NX))
     ALLOCATE(fvec(NPT))
@@ -329,9 +371,10 @@ subroutine lm()
     DEALLOCATE(jac, dx, fvec, M)
 end subroutine lm
 
-
+!----------------------------------------------------------------------------------------------------
+! Update the free concentrations.
+!----------------------------------------------------------------------------------------------------
 subroutine update_equil()
-    ! update the free concentrations
     integer i, blow, bhigh, CTRL
     do i=1,NTT
         if (update_titr(i)) then
@@ -380,8 +423,19 @@ subroutine jacobian_lm(jac)
     ! (4) standard potentials; (5) nernstian slopes; (6) constraints
     double precision, intent(out), dimension(:,:) :: jac
 
+    double precision, DIMENSION(NCP, NCP) :: Am      ! the A-matrix
     double precision, dimension(NCP, NEQ) :: dlcdlb  ! the result
-    !call calc_dlogcdlogb(C, P, NCP, NEQ, dlcdlb)
+    integer i
+
+    jac = 0.0
+    
+    ! I. compute jacobian for formation constants
+    if (allocated(tmp_lbeta)) then
+        call calc_dlogcdlogb(C, P, NCP, NEQ, dlcdlb)
+        do i=1,NEQ
+
+        end do
+    end if
 end subroutine jacobian_lm
 
 
@@ -401,32 +455,44 @@ subroutine create_variables()
     if (sum(flag_beta) > 0) then        ! something to refine here
         allocate(tmp_lbeta(NEQ))
         tmp_lbeta = lbeta
+        use_lbeta => tmp_lbeta
         call aux_create_variables(tmp_lbeta, flag_beta, xcount, vcount, iref, vref)
+    else
+        use_lbeta => lbeta
     end if
 
     ! II. count initial amounts
     if (sum(flag_init) > 0) then        ! something to refine here
         allocate(tmp_init(NTT,NCP))
         tmp_init = titr_init
+        use_init => tmp_init
         do i=1,NTT
             call aux_create_variables(tmp_init(i,:), flag_init(i,:), xcount, vcount, iref, vref)
         end do
+    else
+        use_init => titr_init
     end if
 
     ! III. count buret concentrations
     if (sum(flag_buret) > 0) then        ! something to refine here
         allocate(tmp_buret(NTT,NCP))
         tmp_buret = titr_buret
+        use_buret => tmp_buret
         do i=1,NTT
             call aux_create_variables(tmp_buret(i,:), flag_buret(i,:), xcount, vcount, iref, vref)
         end do
+    else
+        use_buret => titr_buret
     end if
 
     ! IV: count standard potentials
     if (sum(flag_emf0) > 0) then        ! something to refine here
         allocate(tmp_emf0(NTT))
         tmp_emf0 = E0
+        use_emf0 => tmp_emf0
         call aux_create_variables(tmp_emf0, flag_emf0, xcount, vcount, iref, vref)
+    else
+        use_emf0 => E0
     end if
 
     ! V. count nernstian slopes
@@ -451,6 +517,7 @@ subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref)
             vcount = vcount + 1
             xcount = xcount + 1
             variables(vcount)%origin_value => xvalues(xcount)
+            variables(vcount)%origin_index = xcount
             variables(vcount)%destination_value => vector(i)
             variables(vcount)%ratio = 1.0
             variables(vcount)%id = flags(i)
@@ -461,6 +528,7 @@ subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref)
                 variables(vcount)%origin_value => xvalues(xcount)
                 variables(vcount)%destination_value => vector(i)
                 variables(vcount)%ratio = 1.0
+                variables(vcount)%origin_index = xcount
 
                 iref(flags(i)) = xcount
                 vref(flags(i)) = vector(i)
