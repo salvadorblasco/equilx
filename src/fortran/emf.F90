@@ -14,11 +14,14 @@ module emf
 
     ! variables for constraints
     type value_holder
-        double precision, pointer :: origin_value
-        integer :: origin_index
-        real, pointer :: destination_value
+        double precision, pointer :: origin_value   ! points to value in xvalues
+        integer :: origin_index                     ! index of xvalues
+        real, pointer :: destination_value          ! points to value in tmp_*
+        integer :: destination_index1               ! index of EQ, CP or NT
+        integer :: destination_index2               ! index of EQ, CP or NT
         integer :: id
-        double precision :: ratio
+        integer :: jtype                            ! type of variable (beta, init, etc.)
+        double precision :: ratio                   ! 1.0 for free and reference; other for the rest
     end type value_holder
     type(value_holder), allocatable, dimension(:) :: variables
     double precision, allocatable, target, dimension(:) :: xvalues
@@ -65,6 +68,11 @@ module emf
 
     integer, parameter :: RF_CONSTANT = 0
     integer, parameter :: RF_REFINE = 1
+    integer, parameter :: J_LBETA = 1
+    integer, parameter :: J_TINIT = 2
+    integer, parameter :: J_TBURE = 3
+    integer, parameter :: J_EMF0  = 4
+    integer, parameter :: J_SLOPE = 5
 
     PUBLIC :: init_module, load_titration, finalize, fit_emf, set_weight_gradient, set_weight_unit
 
@@ -380,8 +388,8 @@ subroutine update_equil()
         if (update_titr(i)) then
             blow = 1+sum(titr_size(1:(i-1)))  ! this should work also for i==1
             bhigh = blow + titr_size(i)
-            call calc_analc(V(blow:bhigh), V0(i), tmp_init(i,:), tmp_buret(i,:), T(blow:bhigh,:))
-            call eq_000(C(blow:bhigh,:), T(blow:bhigh,:), 10.0**tmp_lbeta, P, CTRL, titr_size(i), NCP, NEQ)
+            call calc_analc(V(blow:bhigh), V0(i), use_init(i,:), use_buret(i,:), T(blow:bhigh,:))
+            call eq_000(C(blow:bhigh,:), T(blow:bhigh,:), EXP(use_lbeta), P, CTRL, titr_size(i), NCP, NEQ)
         end if
     end do
 end subroutine update_equil
@@ -410,7 +418,7 @@ subroutine calc_resid(fvec)
     l_titr: do i=1,NTT
         hact = eactive(i)
         call titr_bounds(i, lb, ub)
-        fvec(lb:ub) = E(lb:ub) - (tmp_emf0(i) - tmp_slope(i) * nernst * LOG(C(lb:ub,hact)))
+        fvec(lb:ub) = E(lb:ub) - (use_emf0(i) - use_slope(i) * nernst * LOG(C(lb:ub,hact)))
     end do l_titr
 
 end subroutine calc_resid
@@ -425,17 +433,105 @@ subroutine jacobian_lm(jac)
 
     double precision, DIMENSION(NCP, NCP) :: Am      ! the A-matrix
     double precision, dimension(NCP, NEQ) :: dlcdlb  ! the result
-    integer i
+    double precision, allocatable, dimension(:,:) :: bvec
+    integer i, j, k, CTRL
+    integer curr_titr
+    integer aux, eac
+    integer bsize
+    logical do_beta, do_init, do_buret, do_amatrix
+    integer, DIMENSION(5,size(variables)) :: filter_jtype
 
     jac = 0.0
-    
-    ! I. compute jacobian for formation constants
-    if (allocated(tmp_lbeta)) then
-        call calc_dlogcdlogb(C, P, NCP, NEQ, dlcdlb)
-        do i=1,NEQ
+    do_beta = allocated(tmp_lbeta)
+    if (do_beta) bsize = bsize + NEQ
+    do_init = allocated(tmp_init)
+    do_buret = allocated(tmp_buret)
+    do_amatrix = do_beta .or. do_init .or. do_buret
 
+    filter_jtype = 0
+    do i=1,5
+        do j=1,size(variables)
+            if (variables(j)%jtype .eq. i) filter_jtype(i,j) = j
         end do
-    end if
+    end do
+
+    bsize = 0
+    do i=1,size(variables)
+        if (variables(i)%jtype < 3) bsize = bsize + 1
+    end do
+    allocate(bvec(NCP,bsize))
+
+    curr_titr = 1       ! track which titration are we currently in
+
+    do i=1,NPT
+        if (do_amatrix) then
+            call amatrix(Am, C(i,:), P, NCP, NEQ)
+            bsize = 0
+
+            do j=1,size(variables)
+                if (j > 4) exit
+                aux = variables(j)%destination_index1
+                select case (variables(j)%jtype)
+                    case (J_LBETA)
+                        do k=1,NCP
+                            bvec(k, j) = -P(aux,k)*C(i,aux+NCP)
+                        end do
+                    case (J_TINIT)
+                        if (variables(j)%destination_index2 .ne. curr_titr) then
+                            bvec(:,j) = 0.0
+                            cycle
+                        end if
+                        do k=1,NCP
+                            if (aux .eq. k) then
+                                bvec(k, j) = 1.0/(V(i)+V0(curr_titr))
+                            else
+                                bvec(k, j) = 0.0
+                            end if
+                        end do
+                    case (J_TBURE)
+                        if (variables(j)%destination_index2 .ne. curr_titr) then
+                            bvec(:,j) = 0.0
+                            cycle
+                        end if
+                        do k=1,NCP
+                            if (aux .eq. k) then
+                                bvec(k, j) = V(i)/(V(i)+V0(curr_titr))
+                            else
+                                bvec(k, j) = 0.0
+                            end if
+                        end do
+                end select
+            end do
+            call msysolve(Am, bvec, CTRL)
+            if (CTRL .eq. 99) then
+                emf_diagnostic="Error computing jacobian"
+                return
+            end if
+        end if
+
+        do j=1,size(variables)
+            eac = eactive(curr_titr)
+            aux = variables(j)%origin_index
+            select case (variables(j)%jtype)
+                case (J_LBETA:J_TBURE)
+                    jac(i, aux) = jac(i, aux) - variables(j)%ratio*use_slope(curr_titr)*nernst*bvec(eac,j)
+                case (J_EMF0)
+                    if (curr_titr .eq. variables(j)%destination_index1) then
+                        jac(i, aux) = jac(i, aux) - variables(j)%ratio
+                    end if
+                case (J_SLOPE)
+                    if (curr_titr .eq. variables(j)%destination_index1) then
+                        jac(i, aux) = jac(i, aux) - variables(j)%ratio*nernst
+                    end if
+            end select
+        end do
+
+        if (i > sum(titr_size(1:curr_titr))) then
+            curr_titr = curr_titr + 1
+        end if
+    end do
+
+    deallocate(bvec)
 end subroutine jacobian_lm
 
 
@@ -456,7 +552,7 @@ subroutine create_variables()
         allocate(tmp_lbeta(NEQ))
         tmp_lbeta = lbeta
         use_lbeta => tmp_lbeta
-        call aux_create_variables(tmp_lbeta, flag_beta, xcount, vcount, iref, vref)
+        call aux_create_variables(tmp_lbeta, flag_beta, xcount, vcount, iref, vref, J_LBETA, 0)
     else
         use_lbeta => lbeta
     end if
@@ -467,7 +563,7 @@ subroutine create_variables()
         tmp_init = titr_init
         use_init => tmp_init
         do i=1,NTT
-            call aux_create_variables(tmp_init(i,:), flag_init(i,:), xcount, vcount, iref, vref)
+            call aux_create_variables(tmp_init(i,:), flag_init(i,:), xcount, vcount, iref, vref, J_TINIT, i)
         end do
     else
         use_init => titr_init
@@ -479,7 +575,7 @@ subroutine create_variables()
         tmp_buret = titr_buret
         use_buret => tmp_buret
         do i=1,NTT
-            call aux_create_variables(tmp_buret(i,:), flag_buret(i,:), xcount, vcount, iref, vref)
+            call aux_create_variables(tmp_buret(i,:), flag_buret(i,:), xcount, vcount, iref, vref, J_TBURE, i)
         end do
     else
         use_buret => titr_buret
@@ -490,7 +586,7 @@ subroutine create_variables()
         allocate(tmp_emf0(NTT))
         tmp_emf0 = E0
         use_emf0 => tmp_emf0
-        call aux_create_variables(tmp_emf0, flag_emf0, xcount, vcount, iref, vref)
+        call aux_create_variables(tmp_emf0, flag_emf0, xcount, vcount, iref, vref, J_EMF0, 0)
     else
         use_emf0 => E0
     end if
@@ -499,20 +595,23 @@ subroutine create_variables()
     if (sum(flag_slope) > 0) then        ! something to refine here
         allocate(tmp_slope(NTT))
         tmp_slope = slope
-        call aux_create_variables(tmp_slope, flag_slope, xcount, vcount, iref, vref)
+        call aux_create_variables(tmp_slope, flag_slope, xcount, vcount, iref, vref, J_SLOPE, 0)
     end if
 end subroutine create_variables
 
 
-subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref)
+subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref, jtype, index2)
     real, intent(in), target, DIMENSION(:) :: vector
     integer, intent(in), DIMENSION(:) :: flags
     integer, intent(inout) :: xcount, vcount
     real, intent(inout), dimension(2:9) :: vref
     integer, intent(inout), dimension(2:9) :: iref
+    integer, intent(in) :: jtype
+    integer, intent(in) :: index2
 
     integer i
     do i=1,size(flags)
+        if (flags(i) == RF_CONSTANT) cycle
         if (flags(i) == RF_REFINE) then
             vcount = vcount + 1
             xcount = xcount + 1
@@ -520,8 +619,8 @@ subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref)
             variables(vcount)%origin_index = xcount
             variables(vcount)%destination_value => vector(i)
             variables(vcount)%ratio = 1.0
-            variables(vcount)%id = flags(i)
-        else if (flags(i) > 1) then
+        end if
+        if (flags(i) > 1) then
             vcount = vcount + 1
             if (iref(flags(i)) .eq. 0) then   ! constraint, first time
                 xcount = xcount + 1
@@ -537,8 +636,11 @@ subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref)
                 variables(vcount)%destination_value => vector(i)
                 variables(vcount)%ratio = vref(flags(i))/vector(i)
             end if
-            variables(vcount)%id = flags(i)
         end if
+        variables(vcount)%id = flags(i)
+        variables(vcount)%destination_index1 = i
+        variables(vcount)%destination_index2 = index2
+        variables(vcount)%jtype = jtype
     end do
 end subroutine aux_create_variables
 
@@ -675,5 +777,46 @@ subroutine titr_bounds(i, low, high)
     low = 1+sum(titr_size(1:(i-1)))  ! this should work also for i==1
     high = low + titr_size(i)
 end subroutine titr_bounds
+
+
+subroutine msysolve(A, b, CTRL)
+    ! Solve lineal equations using LAPACK when A is symmetric. This is always the case when
+    ! solids are not present. This routine requires
+    ! the -llapack flag at compilation and, probably also -lblas in some systems.
+    implicit none
+    double precision, dimension(:,:), intent(in) :: A   ! The nxn array of coefficients
+    double precision, dimension(:,:), intent(in) :: b   ! the n array of independent terms
+    integer, intent(inout) :: CTRL                      ! control value. 0 on no error.
+  
+    ! For DGELSY 
+    integer, dimension(size(A,1)) :: ipiv   ! pivot indices
+    integer :: nrhs, lda, ldb, lwork, info
+    double precision, allocatable, dimension(:) :: work
+    integer n
+
+    ! External procedures defined in LAPACK
+    external dsysv
+
+    n = size(A, dim=1)
+    nrhs = size(b, dim=2)
+    lda = n
+    ldb = n
+    lwork = -1              ! workspace query first
+
+    lwork = -1
+    allocate(work(1))
+    call dsysv("U", n, 1, A, lda, ipiv, b, ldb, work, lwork, info)
+    lwork = nint(work(1))
+    deallocate(work)
+
+    allocate(work(lwork))
+    call dsysv("U", n, 1, A, lda, ipiv, b, ldb, work, lwork, info)
+    deallocate(work)
+
+    if (info /= 0) then
+        CTRL = 99    ! unable to invert matrix
+        return
+    end if
+end subroutine msysolve
 
 end module emf
