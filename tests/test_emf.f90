@@ -7,6 +7,7 @@ program test_libemf
     print *, ""
 
     !call test_init()
+    call test_gradient()
     call test_hexaprotic()
 contains
 
@@ -53,8 +54,10 @@ contains
 
 subroutine test_hexaprotic()
     use emf
+    use iso_fortran_env, only: output_unit
+
     implicit none
-    character(len=*), parameter :: test_name = "load hexaprotic"
+    character(len=*), parameter :: test_name = "hexaprotic"
     logical passed
     integer :: unit, ios
     integer :: maxits, rNEQ, rNCP, aux
@@ -97,7 +100,11 @@ subroutine test_hexaprotic()
 
     read(unit, '(A)', iostat=ios) line    ! blank
 
-    call init_module(513, 6, rP, rlogb, rlbflags)
+    ! Open unit 99 to /dev/null (Unix/Linux) or 'NUL' (Windows)
+    ! open(unit=99, file='/dev/null', status='unknown')
+    ! call init_module(513, 6, rP, rlogb, rlbflags, output_unit)
+
+    call init_module(513, 6, rP, rlogb, rlbflags, output_unit)
 
     call aux_read_suptitr(89, unit)
     if (trim(emf_diagnostic) /= 'no error') then
@@ -142,8 +149,12 @@ subroutine test_hexaprotic()
     end if
 
     close(unit, iostat=ios)
+    !close(99)
 
-    !call finalize()
+    call set_weight_gradient()
+    call fit_emf(r_temp)
+
+    call finalize()
 
     if (passed) call print_result(test_name, "passed")
 end subroutine test_hexaprotic
@@ -188,6 +199,52 @@ subroutine aux_read_suptitr(n, unit)
 end subroutine aux_read_suptitr
 
 
+subroutine test_gradient()
+    use misc, only: derivative_1d
+    implicit none
+    character(len=*), parameter :: test_name = "gradient"
+    logical passed
+    real, dimension(89) :: titre = [ .00, .12, .24, .36, .48, .60, .72, .84, .96, 1.08, 1.20, 1.32, 1.44, 1.56, 1.68,&
+        1.80, 1.92, 2.04, 2.16, 2.28, 2.40, 2.52, 2.64, 2.76, 2.88, 3.00, 3.12, 3.24, 3.36, 3.48, 3.60, 3.72, 3.84, &
+        3.96, 4.08, 4.20, 4.32, 4.44, 4.56, 4.68, 4.80, 4.92, 5.04, 5.16, 5.28, 5.40, 5.52, 5.64, 5.76, 5.88, 6.00, &
+        6.12, 6.24, 6.36, 6.48, 6.60, 6.72, 6.84, 6.96, 7.08, 7.20, 7.32, 7.44, 7.56, 7.68, 7.80, 7.92, 8.04, 8.16, &
+        8.28, 8.40, 8.52, 8.64, 8.76, 8.88, 9.00, 9.12, 9.24, 9.36, 9.48, 9.72, 10.08, 10.32, 10.56, 10.80, 10.92, &
+        11.28, 11.64, 12.00 ]
+    real, dimension(89) :: emf = [ 265.6, 263.5, 261.4, 259.1, 256.7, 254.2, 251.6, 248.8, 245.9, 242.9, 239.7, 236.3, &
+        232.8, 229.1, 225.2, 221.1, 216.9, 212.4, 207.8, 203.0, 197.9, 192.7, 187.2, 181.5, 175.5, 169.2, 162.4, 155.0, &
+        146.7, 137.1, 125.6, 112.2, 98.0, 84.9, 73.6, 63.6, 54.2, 45.1, 35.7, 25.5, 14.0, .6, -14.0, -27.9, -40.1, -50.6, &
+        -60.2, -69.4, -78.6, -88.4, -99.2, -111.6, -125.6, -139.7, -152.3, -163.0, -172.5, -181.1, -189.3, -197.2, -205.1, &
+        -212.9, -220.4, -227.5, -234.0, -239.7, -244.8, -249.2, -253.0, -256.5, -259.5, -262.3, -264.8, -267.1, -269.1, &
+        -271.0, -272.9, -274.5, -276.0, -277.5, -280.2, -283.7, -285.8, -287.6, -289.4, -290.2, -292.5, -294.6, -296.5 ]
+    real, dimension(89) :: w = [ 10.78, 10.78, 10.75, 10.70, 10.67, 10.63, 10.58, 10.51, 10.48, 10.42, 10.33, 10.26, 10.20, 10.10,&
+        10.00, 9.93, 9.82, 9.71, 9.64, 9.49, 9.38, 9.27, 9.12, 8.98, 8.81, 8.58, 8.25, 7.82, 7.19, 6.29, 5.31, 4.69, 4.76, 5.46, &
+        6.27, 6.77, 7.01, 7.02, 6.71, 6.16, 5.35, 4.62, 4.52, 5.06, 5.90, 6.59, 6.93, 7.04, 6.88, 6.44, 5.77, 4.98, 4.59, 4.90, &
+        5.73, 6.55, 7.12, 7.49, 7.68, 7.76, 7.77, 7.89, 8.09, 8.39, 8.83, 9.24, 9.61, 9.97, 10.17, 10.36, 10.50, 10.59, 10.68, &
+        10.77, 10.83, 10.83, 10.88, 10.93, 10.94, 10.96, 10.99, 11.02, 11.04, 11.05, 11.05, 11.06, 11.07, 11.08, 11.08 ]
+    real, parameter :: errV=0.003
+    real, parameter :: errE=0.3
+    real, parameter :: TOL=0.99
+    real, dimension(89) :: dy
+    real, dimension(89) :: calcw
+    integer i
+
+    passed = .true.
+
+    call derivative_1d(89, titre, emf, dy)
+    calcw = 1.0/(dy**2*errV**2 + errE**2)
+
+    do i=1,89
+    if (abs(calcw(i)-w(i)) > TOL) then
+        if (passed) call print_result(test_name, 'failed')
+        print '(A,2F6.2)', "  ", calcw(i), w(i)
+        passed = .false.
+    end if
+    end do
+
+    if (passed) call print_result(test_name, 'passed')
+
+end subroutine test_gradient
+
 subroutine print_result(test_name, result_tag)
     character(len=*), intent(in) :: result_tag, test_name
     integer, parameter :: total_width = 30
@@ -212,3 +269,4 @@ subroutine print_result(test_name, result_tag)
 end subroutine
 
 end program test_libemf
+

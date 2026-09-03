@@ -71,6 +71,8 @@ module emf
     integer, parameter :: J_TBURE = 3
     integer, parameter :: J_EMF0  = 4
     integer, parameter :: J_SLOPE = 5
+    
+    integer outu
 
     PUBLIC :: init_module, load_titration, finalize, fit_emf, set_weight_gradient, set_weight_unit
 
@@ -79,14 +81,17 @@ contains
 !----------------------------------------------------------------------------------------------------
 ! Initiate module. Allocates variables and some data. Call this one first.
 !----------------------------------------------------------------------------------------------------
-subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta)
+subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, outn)
     integer, intent(in)                                 :: n_points  ! total number of experimental points
     integer, intent(in)                                 :: n_titrs   ! number of titrations to be loaded
     integer, intent(in), dimension(:,:)                 :: stoich    ! the stoichiometry array
     real,    intent(in), dimension(size(stoich, dim=1)) :: logbeta   ! the log10 of the formation constants
     integer, intent(in), dimension(size(stoich, dim=1)) :: flgbeta   ! the refinement flags for the formation constants
+    integer, INTENT(IN)                                 :: outn
 
     emf_diagnostic = "no error"
+
+    write (outn, '(A)') "Initiating module"
 
     if (n_titrs < 1) then
         emf_diagnostic = "n_titrs must be positive"
@@ -151,6 +156,8 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta)
 
     tmp_loaded_titrs = 0
     tmp_space_left = NPT
+
+    outu = outn
 end subroutine init_module
 
 
@@ -219,6 +226,9 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
     flag_emf0(tmp_loaded_titrs) = emf0_flag
     err_emf(tmp_loaded_titrs) = error_emf
     err_vol(tmp_loaded_titrs) = error_vol
+
+    write (outu, '(I4,A)') n, " points loaded"
+    
 end subroutine load_titration
 
 
@@ -231,6 +241,7 @@ subroutine set_weight_unit()
     do i=1,NPT
         W(i,i) = 1.0
     end do
+    write (outu, '(A)') "weighting scheme set to UNIT"
 end subroutine set_weight_unit
 
 
@@ -240,8 +251,15 @@ end subroutine set_weight_unit
 ! W_ij = 0  if i /= j
 !----------------------------------------------------------------------------------------------------
 subroutine set_weight_gradient()
+    use misc, only: derivative_1d
     real, allocatable, dimension(:) :: dy
     integer i, j, blow, bhigh
+
+
+    do i=1,NTT
+        call titr_bounds(i, blow, bhigh)
+    end do
+
     allocate(dy(NPT))
     do i=1,NTT
         call titr_bounds(i, blow, bhigh)
@@ -251,6 +269,7 @@ subroutine set_weight_gradient()
         end do
     end do
     deallocate(dy)
+    write (outu, '(A)') "weighting scheme set to AUTO"
 end subroutine set_weight_gradient
 
 
@@ -285,20 +304,32 @@ end subroutine finalize
 
 
 subroutine fit_emf(temp)
+    use misc, only: calc_analc
     implicit none
     real,   intent(in) :: temp
 
     real, parameter :: nernst_base = 0.08617333262 ! mV/K
     integer NX, NV
+    integer i, blow, bhigh
 
     ! handle temperature
     nernst = nernst_base*temp  ! mV
 
     ! create constraints
     call count_dof(NX, NV)
+
+    write (outu, '(2(A,I3),A)') "Fitting ", NX, " degrees of freedom and ", NV, " variables"
+
     allocate(xvalues(NX))
     allocate(variables(NV))
     call create_variables()
+
+    ! Initialize T
+    do i=1,NTT
+        if (sum(flag_init(i,:))+sum(flag_buret(i,:)) > 0) update_titr(i) = .true.
+        call titr_bounds(i, blow, bhigh)
+        call calc_analc(V(blow:bhigh), V0(i), use_init(i,:), use_buret(i,:), T(blow:bhigh,:))
+    end do
 
     call lm()
 
@@ -380,15 +411,18 @@ end subroutine lm
 ! Update the free concentrations.
 !----------------------------------------------------------------------------------------------------
 subroutine update_equil()
+    use misc, only: calc_analc
     integer i, blow, bhigh, CTRL
+    external eq_000
     do i=1,NTT
-        if (update_titr(i)) then
-            blow = 1+sum(titr_size(1:(i-1)))  ! this should work also for i==1
-            bhigh = blow + titr_size(i)
-            call calc_analc(V(blow:bhigh), V0(i), use_init(i,:), use_buret(i,:), T(blow:bhigh,:))
-            call eq_000(C(blow:bhigh,:), T(blow:bhigh,:), EXP(use_lbeta), P, CTRL, titr_size(i), NCP, NEQ)
-        end if
+        call titr_bounds(i, blow, bhigh)
+        if (update_titr(i)) call calc_analc(V(blow:bhigh), V0(i), use_init(i,:), use_buret(i,:), T(blow:bhigh,:))
+        call eq_000(C(blow:bhigh,:), T(blow:bhigh,:), EXP(use_lbeta), P, CTRL, titr_size(i), NCP, NEQ)
     end do
+    do i=1,NPT
+        print "(I4,2E12.4)", i, C(i,1:2)
+    end do
+
 end subroutine update_equil
 
 
@@ -426,10 +460,10 @@ subroutine jacobian_lm(jac)
     ! The rows are the experimental points; the columns are the variables to be optimized in the
     ! following order: (1) equilibrium constants; (2) initial amounts; (3) buret concentrations;
     ! (4) standard potentials; (5) nernstian slopes; (6) constraints
+    use misc, only: msysolve
     double precision, intent(out), dimension(:,:) :: jac
 
     double precision, DIMENSION(NCP, NCP) :: Am      ! the A-matrix
-    double precision, dimension(NCP, NEQ) :: dlcdlb  ! the result
     double precision, allocatable, dimension(:,:) :: bvec
     integer i, j, k, CTRL
     integer curr_titr
@@ -439,6 +473,7 @@ subroutine jacobian_lm(jac)
     integer, DIMENSION(5,size(variables)) :: filter_jtype
 
     jac = 0.0
+    bsize = 0
     do_beta = allocated(tmp_lbeta)
     if (do_beta) bsize = bsize + NEQ
     do_init = allocated(tmp_init)
@@ -548,12 +583,12 @@ subroutine create_variables()
     if (sum(flag_beta) > 0) then        ! something to refine here
         allocate(tmp_lbeta(NEQ))
         tmp_lbeta = lbeta
-        use_lbeta => tmp_lbeta
         call aux_create_variables(tmp_lbeta, flag_beta, xcount, vcount, iref, vref, J_LBETA, 0)
+        use_lbeta => tmp_lbeta
     else
         use_lbeta => lbeta
     end if
-
+    
     ! II. count initial amounts
     if (sum(flag_init) > 0) then        ! something to refine here
         allocate(tmp_init(NTT,NCP))
@@ -592,7 +627,10 @@ subroutine create_variables()
     if (sum(flag_slope) > 0) then        ! something to refine here
         allocate(tmp_slope(NTT))
         tmp_slope = slope
+        use_slope => tmp_slope
         call aux_create_variables(tmp_slope, flag_slope, xcount, vcount, iref, vref, J_SLOPE, 0)
+    else
+        use_slope => slope
     end if
 end subroutine create_variables
 
@@ -612,6 +650,7 @@ subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref, jtype
         if (flags(i) == RF_REFINE) then
             vcount = vcount + 1
             xcount = xcount + 1
+            xvalues(xcount) = vector(i)
             variables(vcount)%origin_value => xvalues(xcount)
             variables(vcount)%origin_index = xcount
             variables(vcount)%destination_value => vector(i)
@@ -621,6 +660,7 @@ subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref, jtype
             vcount = vcount + 1
             if (iref(flags(i)) .eq. 0) then   ! constraint, first time
                 xcount = xcount + 1
+                xvalues(xcount) = vector(i)
                 variables(vcount)%origin_value => xvalues(xcount)
                 variables(vcount)%destination_value => vector(i)
                 variables(vcount)%ratio = 1.0
@@ -651,6 +691,7 @@ subroutine count_dof(NX, NV)
     logical constr(2:9)
     integer i
     NX = 0
+    NV = 0
     constr = .false.
 
     ! I. count formation constants
@@ -697,123 +738,13 @@ subroutine sub_count_dof(vec, NX, NV, constr)
 end subroutine sub_count_dof
 
 
-subroutine calc_analc(titre, init_vol, init, buret, analc)
-    ! Calculate the analytical concentration, given the titration paramers, 
-    real, intent(in), dimension(:)  :: titre
-    real, intent(in), dimension(:)  :: init
-    real, intent(in), dimension(:)  :: buret
-    real, intent(out), dimension(:,:)  :: analc
-    real, INTENT(IN) :: init_vol
-
-    integer i, j
-    do i=1,size(titre)
-        do j=1,NCP
-            analc(i,j) = (init(j) + buret(j)*titre(i)) / (init_vol+titre(i))
-        end do
-    end do
-end subroutine calc_analc
-
-
-!------------------------------------------------------------------------------
-! Compute numerical first derivative dY/dX of a 1-D array
-! using second-order finite differences.
-!
-! Interior points  : central difference (O(h^2))
-! Left boundary    : forward three-point stencil (O(h^2))
-! Right boundary   : backward three-point stencil (O(h^2))
-!
-! The grid X need not be uniform.
-!------------------------------------------------------------------------------
-subroutine derivative_1d(n, x, y, dy)
-  implicit none
-  integer,          intent(in)  :: n          ! number of points (must be >= 3)
-  real,     intent(in)  :: x(n)       ! abscissae (strictly increasing)
-  real,     intent(in)  :: y(n)       ! function values
-  real,     intent(out) :: dy(n)      ! derivative dy/dx
-
-  integer :: i
-  real(kind=8) :: h1, h2, p1, p2, p3
-
-  if (n < 3) then
-     write(*,*) 'derivative_1d: n must be >= 3'
-     stop
-  end if
-
-  ! ---- left boundary (forward 2nd-order) ------------------------------------
-  h1 = x(2) - x(1)
-  h2 = x(3) - x(2)
-  p1  = -(2.0d0*h1 + h2)/(h1*(h1+h2))
-  p2  =  (h1 + h2)/(h1*h2)
-  p3  = -h1/(h2*(h1+h2))
-  dy(1) = real(p1*y(1) + p2*y(2) + p3*y(3))
-
-  ! ---- interior points (central 2nd-order) ----------------------------------
-  do i = 2, n-1
-     h1 = x(i)   - x(i-1)
-     h2 = x(i+1) - x(i)
-     p1  = -h2 / (h1*(h1+h2))
-     p2  =  (h2 - h1) / (h1*h2)
-     p3  =  h1 / (h2*(h1+h2))
-     dy(i) = real(p1*y(i-1) + p2*y(i) + p3*y(i+1))
-  end do
-
-  ! ---- right boundary (backward 2nd-order) ----------------------------------
-  h1 = x(n-1) - x(n-2)
-  h2 = x(n)   - x(n-1)
-  p1  =  h2 / (h1*(h1+h2))
-  p2  = -(h1 + h2)/(h1*h2)
-  p3  =  (2.0d0*h2 + h1)/(h2*(h1+h2))
-  dy(n) = real(p1*y(n-2) + p2*y(n-1) + p3*y(n))
-
-end subroutine derivative_1d
-
-
 subroutine titr_bounds(i, low, high)
     integer, intent(in) :: i
     integer, intent(out) :: low, high
     low = 1+sum(titr_size(1:(i-1)))  ! this should work also for i==1
-    high = low + titr_size(i)
+    high = low + titr_size(i) - 1
 end subroutine titr_bounds
 
 
-subroutine msysolve(A, b, CTRL)
-    ! Solve lineal equations using LAPACK when A is symmetric. This is always the case when
-    ! solids are not present. This routine requires
-    ! the -llapack flag at compilation and, probably also -lblas in some systems.
-    implicit none
-    double precision, dimension(:,:), intent(in) :: A   ! The nxn array of coefficients
-    double precision, dimension(:,:), intent(in) :: b   ! the n array of independent terms
-    integer, intent(inout) :: CTRL                      ! control value. 0 on no error.
-  
-    ! For DGELSY 
-    integer, dimension(size(A,1)) :: ipiv   ! pivot indices
-    integer :: nrhs, lda, ldb, lwork, info
-    double precision, allocatable, dimension(:) :: work
-    integer n
-
-    ! External procedures defined in LAPACK
-    external dsysv
-
-    n = size(A, dim=1)
-    nrhs = size(b, dim=2)
-    lda = n
-    ldb = n
-    lwork = -1              ! workspace query first
-
-    lwork = -1
-    allocate(work(1))
-    call dsysv("U", n, 1, A, lda, ipiv, b, ldb, work, lwork, info)
-    lwork = nint(work(1))
-    deallocate(work)
-
-    allocate(work(lwork))
-    call dsysv("U", n, 1, A, lda, ipiv, b, ldb, work, lwork, info)
-    deallocate(work)
-
-    if (info /= 0) then
-        CTRL = 99    ! unable to invert matrix
-        return
-    end if
-end subroutine msysolve
 
 end module emf

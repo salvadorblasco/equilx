@@ -5,10 +5,9 @@ MODNAME=fsolver
 TESTDIR=tests
 
 FC = gfortran
-RM = rm -f
+RM = rm 
 FFLAGS = -Wall -O2 -fPIC
-LIBFLAGS = -Wall -O2 -fPIC
-TESTFLAGS = -g -O0 -fPIC -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
+FFLAGS = -g -O0 -fPIC -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
 LDFLAGS = -shared
 RPATH   = -Wl,-rpath,'$$ORIGIN/../lib'
 LLAPACK = -llapack -lblas
@@ -44,7 +43,7 @@ $(EQ_LIB): $(EQ_OBJS)
 	$(FC) $(LDFLAGS) -o $@ $^ $(LLAPACK)
 
 $(BUILD)/libeq/%.o: $(SRCDIR)/libeq/%.f90
-	$(FC) $(LIBFLAGS) -J$(MODDIR) -c $< -o $@
+	$(FC) $(FFLAGS) -J$(MODDIR) -c $< -o $@
 
 
 #--------------------------------------------------------------------------------
@@ -57,7 +56,7 @@ $(EMF_LIB): $(EMF_OBJS)
 	$(FC) $(LDFLAGS) -o $@ $^ $(LLAPACK)
 
 $(BUILD)/libemf/%.o: $(SRCDIR)/libemf/%.f90
-	$(FC) $(LIBFLAGS) -J$(MODDIR) -c $< -o $@
+	$(FC) $(FFLAGS) -J$(MODDIR) -c $< -o $@
 
 #--------------------------------------------------------------------------------
 # tests rules
@@ -69,12 +68,12 @@ teq: $(TEST_EQ)
 
 temf: $(TEST_EMF)
 
-$(TEST_EQ): $(TESTDIR)/test_cases.f90 $(TESTDIR)/test_eq.f90  $(EQ_LIB)
-	$(FC) $(TESTFLAGS) -J$(MODDIR)  -I$(MODDIR) -o $@ $< \
-	      -L$(LIBDIR) -leq $(RPATH)
+$(TEST_EQ):  $(TESTDIR)/test_eq.f90  $(EQ_LIB)
+	$(FC) $(FFLAGS) -J$(MODDIR) -c $(TESTDIR)/test_cases.f90 -o $(TESTDIR)/test_cases.o
+	$(FC) $(FFLAGS) -J$(MODDIR)  -I$(MODDIR) -o $@ $(TESTDIR)/test_cases.o $< -L$(LIBDIR) -leq $(RPATH)
 
 $(TEST_EMF): $(TESTDIR)/test_emf.f90 $(EMF_LIB)
-	$(FC) $(TESTFLAGS) -I$(MODDIR) -o $@ $< \
+	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $@ $< \
 	      -L$(LIBDIR) -lemf -leq $(RPATH)
 
 run-tests: tests
@@ -98,18 +97,9 @@ run-tests: tests
 # %.o: %.f90
 # 	$(FC) -c $< -o $@ $(FFLAGS)
 # 
-# test_eq: $(LIBEQ_OBJS) $(TESTDIR)/test_cases.f90 $(TESTDIR)/test_eq.f90 
-# 	$(FC) $(FFLAGS) $^ $(LIBS) -o $(TESTDIR)/$@
 # 
-# test_emf: $(LIBEMF_OBJS) $(TESTDIR)/test_emf.f90 
-# 	$(FC) $(FFLAGS) $^ $(LIBS) -L. -leq -o $(TESTDIR)/$@
-# 
-# debug: FFLAGS = $(DEVFLAGS)
-# debug: $(OBJS) test_cases.f90 test.f90 
-# 	$(FC) $(DEVFLAGS) $^ $(LIBS) -o test
-# 
-# clean:
-# 	$(RM) *.o test *.mod
+clean:
+	$(RM) $(EQ_OBJS) $(EMF_OBJS) $(MODDIR)/*
 # 
 # deepclean: clean
 # 	$(RM) $(MODNAME)*.so
