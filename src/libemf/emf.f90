@@ -8,9 +8,7 @@
 module emf
     implicit none
 
-#ifndef UNITTEST
     private
-#endif
 
     ! variables for constraints
     type value_holder
@@ -260,7 +258,6 @@ end subroutine set_weight_gradient
 ! Cleanup routine and deallocate memory assets.
 !----------------------------------------------------------------------------------------------------
 subroutine finalize()
-    DEALLOCATE(W)
     DEALLOCATE(C)
     DEALLOCATE(V)
     DEALLOCATE(V0)
