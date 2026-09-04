@@ -310,7 +310,9 @@ subroutine fit_emf(temp)
 
     real, parameter :: nernst_base = 0.08617333262 ! mV/K
     integer NX, NV
-    integer i, blow, bhigh
+    integer i, j, blow, bhigh
+    double precision, parameter :: TDAMP = 0.01
+    double precision, parameter :: TMIN = 1D-10
 
     ! handle temperature
     nernst = nernst_base*temp  ! mV
@@ -324,11 +326,22 @@ subroutine fit_emf(temp)
     allocate(variables(NV))
     call create_variables()
 
-    ! Initialize T
+    ! Initialise T
     do i=1,NTT
         if (sum(flag_init(i,:))+sum(flag_buret(i,:)) > 0) update_titr(i) = .true.
         call titr_bounds(i, blow, bhigh)
         call calc_analc(V(blow:bhigh), V0(i), use_init(i,:), use_buret(i,:), T(blow:bhigh,:))
+    end do
+
+    ! Initialise C
+    do i=1,NPT
+        do j=1,NCP
+            if (T(i,j) > 0.0) then
+                C(i,j) = TDAMP*T(i,j)
+            else
+                C(i,j) = TMIN
+            end if
+        end do
     end do
 
     call lm()
@@ -417,7 +430,7 @@ subroutine update_equil()
     do i=1,NTT
         call titr_bounds(i, blow, bhigh)
         if (update_titr(i)) call calc_analc(V(blow:bhigh), V0(i), use_init(i,:), use_buret(i,:), T(blow:bhigh,:))
-        call eq_000(C(blow:bhigh,:), T(blow:bhigh,:), EXP(use_lbeta), P, CTRL, titr_size(i), NCP, NEQ)
+        call eq_000(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, CTRL, titr_size(i), NCP, NEQ)
     end do
     do i=1,NPT
         print "(I4,2E12.4)", i, C(i,1:2)

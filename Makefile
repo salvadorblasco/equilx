@@ -76,6 +76,9 @@ $(TEST_EMF): $(TESTDIR)/test_emf.f90 $(EMF_LIB)
 	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $@ $< \
 	      -L$(LIBDIR) -lemf -leq $(RPATH)
 
+temfd: $(TESTDIR)/test_emf.f90 $(EMF_OBJS) $(EQ_OBJS)
+	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $(TEST_EMF) $<  $(EMF_OBJS) $(EQ_OBJS) $(LLAPACK)
+
 run-tests: tests
 	@echo "Running tests..."
 	@echo ">>> test_eq"
