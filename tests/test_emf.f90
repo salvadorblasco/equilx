@@ -87,7 +87,7 @@ subroutine test_hexaprotic()
         read(unit, '(A)', iostat=ios) line
     end do
     ! temperature
-    read(unit, '(A)', iostat=ios) r_temp
+    read(unit, '(F8.2)', iostat=ios) r_temp
 
     rNEQ = 7
     allocate(rlogb(rNEQ))

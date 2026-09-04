@@ -24,6 +24,7 @@ module emf
     type(value_holder), allocatable, dimension(:) :: variables
     double precision, allocatable, target, dimension(:) :: xvalues
     DOUBLE PRECISION, allocatable, DIMENSION(:,:) :: W
+    DOUBLE PRECISION, allocatable, DIMENSION(:) :: weights
 
     double precision, allocatable, public, protected, dimension(:,:)  :: C    ! the free concentrations
     real,    allocatable,         dimension(:)   :: V              ! titre in mL
@@ -149,6 +150,8 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, outn)
     update_titr = .false.
     ALLOCATE(W(NPT,NPT))
     W = 0.0
+    ALLOCATE(weights(NPT))
+    weights = 0.0
 
     P = stoich
     lbeta = logbeta * LOG(10.0)     ! convert from log10 to ln
@@ -241,6 +244,7 @@ subroutine set_weight_unit()
     do i=1,NPT
         W(i,i) = 1.0
     end do
+    weights = 1.0
     write (outu, '(A)') "weighting scheme set to UNIT"
 end subroutine set_weight_unit
 
@@ -266,6 +270,7 @@ subroutine set_weight_gradient()
         call derivative_1d(titr_size(i), V(blow:bhigh), E(blow:bhigh), dy(blow:bhigh))
         do j=blow,bhigh
             W(j,j) = 1.0/(err_emf(i)**2 + dy(j)**2 * err_vol(i)**2)
+            weights(j) = W(j,j)
         end do
     end do
     deallocate(dy)
@@ -313,9 +318,10 @@ subroutine fit_emf(temp)
     integer i, j, blow, bhigh
     double precision, parameter :: TDAMP = 0.01
     double precision, parameter :: TMIN = 1D-10
+    real, PARAMETER :: TOKELVIN = 273.15
 
     ! handle temperature
-    nernst = nernst_base*temp  ! mV
+    nernst = nernst_base*(temp+TOKELVIN)  ! mV
 
     ! create constraints
     call count_dof(NX, NV)
@@ -358,6 +364,7 @@ end subroutine fit_emf
 !----------------------------------------------------------------------------------------------------
 subroutine lm()
     ! routine for Levenberg-Marquardt iterations.
+    use misc, only: fit_sigma, lesolve
     implicit none
 
     integer :: NX ! number of variables to optimize
@@ -367,12 +374,17 @@ subroutine lm()
     real,    parameter :: DAMPING_LOWER = 1e-12
     real,    parameter :: DAMPING_UPF = 8.0
     real,    parameter :: DAMPING_LOWF = 3.0
+    real,    parameter :: SIGMA_THRESHOLD= 1e-2
+    real,    parameter :: GRAD_THRESHOLD= 1e-4
+    real,    parameter :: STEP_THRESHOLD= 1e-5
+    double precision, PARAMETER :: RHO_THRESH = 1D-4
     double precision, allocatable, dimension(:,:) :: jac
     double precision, allocatable, dimension(:)   :: dx
     double precision, allocatable, dimension(:)   :: fvec, trial_fvec
     double precision, allocatable, dimension(:)   :: gradient
     double precision, allocatable, dimension(:,:) :: M, dampedM
-    double precision :: gradient_norm, chisq, damping
+    double precision :: gradient_norm, chisq, damping, trial_chisq
+    double precision :: rho, sigma
     integer i
     integer CTRL
 
@@ -389,32 +401,111 @@ subroutine lm()
     jac = 0.0
     fvec = 0.0
     damping = 1D2
+    chisq = HUGE(1D1)
+    trial_chisq = 0.0
+    trial_fvec = 0.0
 
-    main_loop: do iter=0,MAX_ITERS
+    main_loop: do while (iter<MAX_ITERS)
         call try_step(dx)
 
         call update_equil()
         call calc_resid(fvec)
-        call jacobian_lm(jac)
+        trial_chisq = DOT_PRODUCT(fvec, MATMUL(W,fvec))
 
-        M = MATMUL(MATMUL(TRANSPOSE(jac), W), jac)
-        gradient = 2*MATMUL(MATMUL(TRANSPOSE(jac),W),fvec)
-        gradient_norm = NORM2(gradient)
-        chisq = DOT_PRODUCT(fvec, MATMUL(W,fvec))
+        if (iter .eq. 0) then
+            chisq = trial_chisq
+            call jacobian_lm(jac)
+            M = MATMUL(MATMUL(TRANSPOSE(jac), W), jac)
+            ! gradient = 2*MATMUL(MATMUL(TRANSPOSE(jac),W),fvec)
+            ! gradient_norm = NORM2(gradient)
+            dampedM = M
+            do i=1,NX
+                dampedM(i,i) = (1.0 + damping) * M(i,i)
+            end do
+        end if
+
+        call lesolve(dampedM, fvec, dx, NX, CTRL)
+        if (CTRL .ne. 0) then
+            emf_diagnostic="linear system could not be solved"
+            return
+        end if
+
+        if (iter .eq. 0) then
+            iter = iter +1
+            cycle
+        end if
+
+        rho = calc_rho((chisq - trial_chisq), dx, gradient, M, damping)
+        if (abs(rho) > RHO_THRESH) then                     ! sometimes rho can be negative very close to the solution
+            ! step accepted
+            write(outu, '(A,I4,/)') "Iteration", iter
+            write(outu, '(A)') "   #    previous        step         new"
+            do i=1,NX
+                write(outu, '(I4,3F12.4)') i, xvalues(i), dx(i), (xvalues(i)+dx(i))
+            end do
+
+            xvalues = xvalues + dx
+            chisq = trial_chisq
+
+            call jacobian_lm(jac)
+
+            M = MATMUL(MATMUL(TRANSPOSE(jac), W), jac)
+            gradient = 2*MATMUL(MATMUL(TRANSPOSE(jac),W),fvec)
+            gradient_norm = NORM2(gradient)
+            sigma = fit_sigma(fvec, weights, NPT, NX)
+
+            write(outu, '(A,E14.6)') "   chisq", chisq
+
+            ! Adaptive damping (very effective)
+            if (rho > 0.75) then
+                damping = max(damping / 2*DAMPING_LOWF, DAMPING_LOWER)
+            else
+                damping = max(damping / DAMPING_LOWF, DAMPING_LOWER)
+            end if
+
+            ! Exit check
+            ! Sigma check
+            write(outu, '(A,E14.6)', advance='no') "   sigma", sigma
+            if (sigma < SIGMA_THRESHOLD) then
+                write(outu, '(A)') " YES"
+                exit
+            else
+                write(outu, '(A)') " NO"
+            end if
+
+            ! Gradient norm check
+            write(outu, '(A,E14.6)', advance='no') "   gnorm", gradient_norm
+            if (gradient_norm < GRAD_THRESHOLD) then
+                write(outu, '(A)') " YES"
+                exit
+            else
+                write(outu, '(A)') " NO"
+            end if
+
+            ! step length check
+            i = MAXLOC(abs(dx), dim=1)
+            write(outu, '(A,E14.6)', advance='no') "   step ", dx(i)
+            if (abs(dx(i)) < STEP_THRESHOLD) then
+                write(outu, '(A)') " YES"
+                exit
+            else
+                write(outu, '(A)') " NO"
+            end if
+
+            iter = iter + 1
+        else
+            ! step rejected
+            damping = damping*DAMPING_UPF
+            if (damping > DAMPING_UPPER) then
+                emf_diagnostic="LM loop rejected too many steps"
+                exit
+            end if
+        end if
 
         dampedM = M
         do i=1,NX
             dampedM(i,i) = (1.0 + damping) * M(i,i)
         end do
-
-        if (iter .ne. 0) then
-            call lesolve(dampedM, -fvec, dx, NX, CTRL)
-            if (CTRL .eq. 99) then
-                emf_diagnostic = "jacobian could not be inverted"
-                return
-            end if
-        end if
-
     end do main_loop
 
     DEALLOCATE(jac, dx, fvec, M)
@@ -432,10 +523,6 @@ subroutine update_equil()
         if (update_titr(i)) call calc_analc(V(blow:bhigh), V0(i), use_init(i,:), use_buret(i,:), T(blow:bhigh,:))
         call eq_000(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, CTRL, titr_size(i), NCP, NEQ)
     end do
-    do i=1,NPT
-        print "(I4,2E12.4)", i, C(i,1:2)
-    end do
-
 end subroutine update_equil
 
 
@@ -462,17 +549,17 @@ subroutine calc_resid(fvec)
     l_titr: do i=1,NTT
         hact = eactive(i)
         call titr_bounds(i, lb, ub)
-        fvec(lb:ub) = E(lb:ub) - (use_emf0(i) - use_slope(i) * nernst * LOG(C(lb:ub,hact)))
+        fvec(lb:ub) = E(lb:ub) - (use_emf0(i) + use_slope(i) * nernst * LOG(C(lb:ub,hact)))
     end do l_titr
 
 end subroutine calc_resid
 
 
+! Compute the jacobian for the Levenberg-Marquardt iteration.
+! The rows are the experimental points; the columns are the variables to be optimized in the
+! following order: (1) equilibrium constants; (2) initial amounts; (3) buret concentrations;
+! (4) standard potentials; (5) nernstian slopes; (6) constraints
 subroutine jacobian_lm(jac)
-    ! Compute the jacobian for the Levenberg-Marquardt iteration.
-    ! The rows are the experimental points; the columns are the variables to be optimized in the
-    ! following order: (1) equilibrium constants; (2) initial amounts; (3) buret concentrations;
-    ! (4) standard potentials; (5) nernstian slopes; (6) constraints
     use misc, only: msysolve
     double precision, intent(out), dimension(:,:) :: jac
 
@@ -488,7 +575,6 @@ subroutine jacobian_lm(jac)
     jac = 0.0
     bsize = 0
     do_beta = allocated(tmp_lbeta)
-    if (do_beta) bsize = bsize + NEQ
     do_init = allocated(tmp_init)
     do_buret = allocated(tmp_buret)
     do_amatrix = do_beta .or. do_init .or. do_buret
@@ -514,7 +600,7 @@ subroutine jacobian_lm(jac)
             bsize = 0
 
             do j=1,size(variables)
-                if (j > 4) exit
+                if (variables(j)%jtype > 4) exit
                 aux = variables(j)%destination_index1
                 select case (variables(j)%jtype)
                     case (J_LBETA)
@@ -759,5 +845,23 @@ subroutine titr_bounds(i, low, high)
 end subroutine titr_bounds
 
 
+function calc_rho(descent, step, gradient, M, damping) result(rho)
+    double precision, INTENT(IN) :: descent
+    double precision, INTENT(IN), DIMENSION(:) :: step
+    double precision, INTENT(IN), DIMENSION(:) :: gradient
+    double precision, INTENT(IN), DIMENSION(:,:) :: M
+    double precision, INTENT(IN) :: damping
+
+    double precision :: rho
+    double precision :: predicted
+    double precision, DIMENSION(size(M,dim=1)) :: D
+
+    integer i
+
+    D = [ (M(i,i), i=1,size(M,dim=1)) ]
+    predicted = -DOT_PRODUCT(step, gradient) &
+                -0.5*DOT_PRODUCT(step, damping*(D*step))
+    rho = descent/predicted
+end function calc_rho
 
 end module emf
