@@ -27,6 +27,7 @@ module emf
     DOUBLE PRECISION, allocatable, DIMENSION(:) :: weights
 
     double precision, allocatable, public, protected, dimension(:,:)  :: C    ! the free concentrations
+    double precision, allocatable, dimension(:,:) :: covariance    ! the covatiance matrix
     real,    allocatable,         dimension(:)   :: V              ! titre in mL
     real,    allocatable,         dimension(:)   :: V0             ! initial amount in mL
     real,    allocatable,         dimension(:)   :: E              ! experimental emf in mV
@@ -306,6 +307,7 @@ subroutine finalize()
     DEALLOCATE(update_titr)
     DEALLOCATE(W)
     if (allocated(variables)) deallocate(variables)
+    if (allocated(covariance)) deallocate(covariance)
 end subroutine finalize
 
 
@@ -874,5 +876,41 @@ function calc_rho(descent, step, gradient, M, damping) result(rho)
                 -0.5*DOT_PRODUCT(step, damping*(D*step))
     rho = descent/predicted
 end function calc_rho
+
+
+! Given the Hessian matrix, calculate the covariance
+subroutine calc_covariance(H)
+    implicit none
+    double precision, intent(in), dimension(:,:) :: H
+
+    integer n, info, i, j
+    double precision, allocatable, DIMENSION(:) :: ipiv
+
+    n = size(H, dim=1)
+    allocate(covariance(n,n))
+
+    covariance = H
+
+    ! 1. LU factorization
+    call DPOTRF('U', n, covariance, n, info)
+    if (info .ne. 0) then
+        emf_diagnostic="COV could not be calculated"
+        return
+    end if
+
+    ! 2. Invert using the factors
+    call DPOTRI('U', n, covariance, n, info)
+    if (info .ne. 0) then
+        emf_diagnostic="COV could not be calculated"
+        return
+    end if
+
+    ! 3. Copy the lower triangular matrix
+    do i=1,n
+        do j=i+1,n
+            covariance(j,i) = covariance(i,j)
+        end do
+    end do
+end subroutine calc_covariance
 
 end module emf
