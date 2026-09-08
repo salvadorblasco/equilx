@@ -104,6 +104,13 @@ subroutine test_hexaprotic()
     ! open(unit=99, file='/dev/null', status='unknown')
     ! call init_module(513, 6, rP, rlogb, rlbflags, output_unit)
 
+    rlogb(1) = rlogb(1) + 0.5
+    rlogb(2) = rlogb(2) - 0.5
+    rlogb(3) = rlogb(3) + 0.5
+    rlogb(4) = rlogb(4) - 0.5
+    rlogb(5) = rlogb(5) + 0.5
+    rlogb(6) = rlogb(6) - 0.5
+
     call init_module(513, 6, rP, rlogb, rlbflags, output_unit)
 
     call aux_read_suptitr(89, unit)
@@ -189,7 +196,7 @@ subroutine aux_read_suptitr(n, unit)
 
     read(unit, '(A)', iostat=ios) line    ! blank
     do i=1,n
-        read(unit, '(F6.2,F12.2)', iostat=ios) titre(i), emfr(i)
+        read(unit, *, iostat=ios) titre(i), emfr(i)
     end do
 
     call load_titration(titre, emfr, tparams, eact, initv, emf0, 1.00, tflags, e0flag, 0, &

@@ -72,6 +72,7 @@ module emf
     integer, parameter :: J_TBURE = 3
     integer, parameter :: J_EMF0  = 4
     integer, parameter :: J_SLOPE = 5
+    double precision, parameter :: LG10=LOG(10.0)
     
     integer outu
 
@@ -369,18 +370,18 @@ subroutine lm()
 
     integer :: NX ! number of variables to optimize
     integer iter  ! iteration number
-    integer, parameter :: MAX_ITERS = 100
+    integer, parameter :: MAX_ITERS = 20
     real,    parameter :: DAMPING_UPPER = 1e10
     real,    parameter :: DAMPING_LOWER = 1e-12
     real,    parameter :: DAMPING_UPF = 8.0
     real,    parameter :: DAMPING_LOWF = 3.0
     real,    parameter :: SIGMA_THRESHOLD= 1e-2
-    real,    parameter :: GRAD_THRESHOLD= 1e-4
-    real,    parameter :: STEP_THRESHOLD= 1e-5
-    double precision, PARAMETER :: RHO_THRESH = 1D-4
+    real,    parameter :: GRAD_THRESHOLD= 1e-2
+    real,    parameter :: STEP_THRESHOLD= 1e-6
+    !double precision, PARAMETER :: RHO_THRESH = 1D-4
     double precision, allocatable, dimension(:,:) :: jac
     double precision, allocatable, dimension(:)   :: dx
-    double precision, allocatable, dimension(:)   :: fvec, trial_fvec
+    double precision, allocatable, dimension(:)   :: fvec, trial_fvec, F
     double precision, allocatable, dimension(:)   :: gradient
     double precision, allocatable, dimension(:,:) :: M, dampedM
     double precision :: gradient_norm, chisq, damping, trial_chisq
@@ -396,35 +397,37 @@ subroutine lm()
     ALLOCATE(trial_fvec(NPT))
     ALLOCATE(M(NX,NX))
     ALLOCATE(dampedM(NX,NX))
+    ALLOCATE(F(NX))
 
     dx = 0.0
     jac = 0.0
     fvec = 0.0
-    damping = 1D2
+    damping = 1D-2
     chisq = HUGE(1D1)
     trial_chisq = 0.0
     trial_fvec = 0.0
 
+    iter = 0
     main_loop: do while (iter<MAX_ITERS)
         call try_step(dx)
 
         call update_equil()
         call calc_resid(fvec)
-        trial_chisq = DOT_PRODUCT(fvec, MATMUL(W,fvec))
+        trial_chisq = NORM2(fvec)
 
         if (iter .eq. 0) then
             chisq = trial_chisq
             call jacobian_lm(jac)
+
             M = MATMUL(MATMUL(TRANSPOSE(jac), W), jac)
-            ! gradient = 2*MATMUL(MATMUL(TRANSPOSE(jac),W),fvec)
-            ! gradient_norm = NORM2(gradient)
+            F = -MATMUL(MATMUL(TRANSPOSE(jac), W), fvec)
             dampedM = M
             do i=1,NX
                 dampedM(i,i) = (1.0 + damping) * M(i,i)
             end do
+            call lesolve(dampedM, F, dx, NX, CTRL)
         end if
 
-        call lesolve(dampedM, fvec, dx, NX, CTRL)
         if (CTRL .ne. 0) then
             emf_diagnostic="linear system could not be solved"
             return
@@ -435,13 +438,14 @@ subroutine lm()
             cycle
         end if
 
-        rho = calc_rho((chisq - trial_chisq), dx, gradient, M, damping)
-        if (abs(rho) > RHO_THRESH) then                     ! sometimes rho can be negative very close to the solution
+        !rho = calc_rho((chisq - trial_chisq), dx, gradient, M, damping)
+        !if (abs(rho) > RHO_THRESH) then                     ! sometimes rho can be negative very close to the solution
+        if (trial_chisq < chisq) then
             ! step accepted
             write(outu, '(A,I4,/)') "Iteration", iter
             write(outu, '(A)') "   #    previous        step         new"
             do i=1,NX
-                write(outu, '(I4,3F12.4)') i, xvalues(i), dx(i), (xvalues(i)+dx(i))
+                write(outu, '(I4,3F12.4)') i, xvalues(i)/LG10, dx(i)/LG10, (xvalues(i)+dx(i))/LG10
             end do
 
             xvalues = xvalues + dx
@@ -450,18 +454,21 @@ subroutine lm()
             call jacobian_lm(jac)
 
             M = MATMUL(MATMUL(TRANSPOSE(jac), W), jac)
+            F = -MATMUL(MATMUL(TRANSPOSE(jac), W), fvec)
             gradient = 2*MATMUL(MATMUL(TRANSPOSE(jac),W),fvec)
             gradient_norm = NORM2(gradient)
             sigma = fit_sigma(fvec, weights, NPT, NX)
 
-            write(outu, '(A,E14.6)') "   chisq", chisq
+            !write(outu, '(A,E14.6)') "   chisq", chisq
+            write(outu, '(A,E14.6)') "   sumsq", chisq
 
             ! Adaptive damping (very effective)
-            if (rho > 0.75) then
-                damping = max(damping / 2*DAMPING_LOWF, DAMPING_LOWER)
-            else
-                damping = max(damping / DAMPING_LOWF, DAMPING_LOWER)
-            end if
+            !if (rho > 0.75) then
+            !    damping = max(damping / 2*DAMPING_LOWF, DAMPING_LOWER)
+            !else
+            !    damping = max(damping / DAMPING_LOWF, DAMPING_LOWER)
+            !end if
+            damping = max(damping / DAMPING_LOWF, DAMPING_LOWER)
 
             ! Exit check
             ! Sigma check
@@ -500,12 +507,16 @@ subroutine lm()
                 emf_diagnostic="LM loop rejected too many steps"
                 exit
             end if
+            call lesolve(dampedM, F, dx, NX, CTRL)
+            print "(A,E14.4)", "damping = ", damping
+            print "(2(A,E14.4))", "trial sumsq=", trial_chisq, " sumsq=", chisq
         end if
 
         dampedM = M
         do i=1,NX
             dampedM(i,i) = (1.0 + damping) * M(i,i)
         end do
+        call lesolve(dampedM, F, dx, NX, CTRL)
     end do main_loop
 
     DEALLOCATE(jac, dx, fvec, M)
@@ -549,7 +560,7 @@ subroutine calc_resid(fvec)
     l_titr: do i=1,NTT
         hact = eactive(i)
         call titr_bounds(i, lb, ub)
-        fvec(lb:ub) = E(lb:ub) - (use_emf0(i) + use_slope(i) * nernst * LOG(C(lb:ub,hact)))
+        fvec(lb:ub) = DBLE(E(lb:ub) - (use_emf0(i) + use_slope(i) * nernst * LOG(C(lb:ub,hact))))
     end do l_titr
 
 end subroutine calc_resid
