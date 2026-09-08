@@ -415,7 +415,7 @@ subroutine lm()
 
         call update_equil()
         call calc_resid(fvec)
-        trial_sumsq = NORM2(fvec)
+        trial_sumsq = SUM(weights*fvec**2)
 
         if (iter .eq. 0) then
             sumsq = trial_sumsq
