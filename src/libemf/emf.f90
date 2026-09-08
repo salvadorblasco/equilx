@@ -386,7 +386,7 @@ subroutine lm()
     double precision, allocatable, dimension(:)   :: fvec, trial_fvec, F
     double precision, allocatable, dimension(:)   :: gradient
     double precision, allocatable, dimension(:,:) :: M, dampedM
-    double precision :: gradient_norm, chisq, damping, trial_chisq
+    double precision :: gradient_norm, sumsq, damping, trial_sumsq
     double precision :: rho, sigma
     integer i
     integer CTRL
@@ -405,8 +405,8 @@ subroutine lm()
     jac = 0.0
     fvec = 0.0
     damping = 1D-2
-    chisq = HUGE(1D1)
-    trial_chisq = 0.0
+    sumsq = HUGE(1D1)
+    trial_sumsq = 0.0
     trial_fvec = 0.0
 
     iter = 0
@@ -415,10 +415,10 @@ subroutine lm()
 
         call update_equil()
         call calc_resid(fvec)
-        trial_chisq = NORM2(fvec)
+        trial_sumsq = NORM2(fvec)
 
         if (iter .eq. 0) then
-            chisq = trial_chisq
+            sumsq = trial_sumsq
             call jacobian_lm(jac)
 
             M = MATMUL(MATMUL(TRANSPOSE(jac), W), jac)
@@ -442,7 +442,7 @@ subroutine lm()
 
         !rho = calc_rho((chisq - trial_chisq), dx, gradient, M, damping)
         !if (abs(rho) > RHO_THRESH) then                     ! sometimes rho can be negative very close to the solution
-        if (trial_chisq < chisq) then
+        if (trial_sumsq < sumsq) then
             ! step accepted
             write(outu, '(A,I4,/)') "Iteration", iter
             write(outu, '(A)') "   #    previous        step         new"
@@ -451,7 +451,7 @@ subroutine lm()
             end do
 
             xvalues = xvalues + dx
-            chisq = trial_chisq
+            sumsq = trial_sumsq
 
             call jacobian_lm(jac)
 
@@ -462,7 +462,7 @@ subroutine lm()
             sigma = fit_sigma(fvec, weights, NPT, NX)
 
             !write(outu, '(A,E14.6)') "   chisq", chisq
-            write(outu, '(A,E14.6)') "   sumsq", chisq
+            write(outu, '(A,E14.6)') "   sumsq", sumsq
 
             ! Adaptive damping (very effective)
             !if (rho > 0.75) then
@@ -511,7 +511,7 @@ subroutine lm()
             end if
             call lesolve(dampedM, F, dx, NX, CTRL)
             print "(A,E14.4)", "damping = ", damping
-            print "(2(A,E14.4))", "trial sumsq=", trial_chisq, " sumsq=", chisq
+            print "(2(A,E14.4))", "trial sumsq=", trial_sumsq, " sumsq=", sumsq
         end if
 
         dampedM = M
@@ -856,6 +856,16 @@ subroutine titr_bounds(i, low, high)
     low = 1+sum(titr_size(1:(i-1)))  ! this should work also for i==1
     high = low + titr_size(i) - 1
 end subroutine titr_bounds
+
+
+function calc_chisq(resid, npars) result(chisq)
+    implicit none
+    double precision, intent(in), dimension(:) :: resid
+    integer, intent(in) :: npars
+    double precision :: chisq
+
+    chisq = sum(resid**2)/(NPT-npars)
+end function calc_chisq
 
 
 function calc_rho(descent, step, gradient, M, damping) result(rho)
