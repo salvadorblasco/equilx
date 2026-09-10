@@ -35,7 +35,7 @@ module emf
     real,    allocatable, target, dimension(:)   :: slope          ! nernstian slope in unit
     real,    allocatable, target, dimension(:,:) :: titr_init      ! initial amount in mmol
     real,    allocatable, target, dimension(:,:) :: titr_buret     ! buret concentration in mmol/mL
-    real,    allocatable, target, dimension(:)   :: lbeta          ! formation constants in log units
+    real,    allocatable, target, public, protected, dimension(:)   :: lbeta          ! formation constants in log units
     integer, allocatable,         dimension(:)   :: eactive        ! indices of electroactive component
     integer, allocatable,         dimension(:)   :: flag_beta      ! refinement flags for formation constants
     integer, allocatable,         dimension(:,:) :: flag_init
@@ -322,6 +322,7 @@ subroutine fit_emf(temp)
     double precision, parameter :: TDAMP = 0.01
     double precision, parameter :: TMIN = 1D-10
     real, PARAMETER :: TOKELVIN = 273.15
+    character(len=8) :: cflag
 
     ! handle temperature
     nernst = nernst_base*(temp+TOKELVIN)  ! mV
@@ -356,6 +357,50 @@ subroutine fit_emf(temp)
     call lm()
 
     ! TODO post processing
+    ! update values
+    if (allocated(tmp_lbeta)) then
+        lbeta = tmp_lbeta / LG10
+        DEALLOCATE(tmp_lbeta)
+    end if
+
+    if (allocated(tmp_init)) then
+        titr_init = tmp_init
+        deallocate(tmp_init)
+    end if
+
+    if (allocated(tmp_buret)) then
+        titr_buret = tmp_buret
+        deallocate(tmp_buret)
+    end if
+
+    if (allocated(tmp_emf0)) then
+        E0 = tmp_emf0
+        deallocate(tmp_emf0)
+    end if
+
+    if (allocated(tmp_slope)) then
+        slope = tmp_slope
+        deallocate(tmp_slope)
+    end if
+
+    ! print values
+    write (outu, "(/,A)") "REFINED VARIABLES"
+    write (outu, "(A)") "  #  PARM       VALUE       ERROR"
+    do i=1,size(variables)
+        select case (variables(i)%jtype)
+            case (1)   ! log beta
+                write (outu, "(I3,A6,2F12.4,*(I4))") i, "LOGB", variables(i)%origin_value/LG10, SQRT(covariance(i,i))/LG10, &
+                    P(i,:)
+            case (2)   ! initial amount
+                write (outu, "(I3,A6,2F12.4)") i, "init", variables(i)%destination_value, SQRT(covariance(i,i))
+            case (3)   ! buret concentration
+                write (outu, "(I3,A6,2F12.4)") i, "buret", variables(i)%destination_value, SQRT(covariance(i,i))
+            case (4)   ! emf0
+                write (outu, "(I3,A6,2F12.4)") i, "emf0", variables(i)%destination_value, SQRT(covariance(i,i))
+            case (5)   ! slope
+                write (outu, "(I3,A6,2F12.4)") i, "slope", variables(i)%destination_value, SQRT(covariance(i,i))
+        end select
+    end do
 
     ! deallocation
     DEALLOCATE(xvalues, variables)
@@ -379,7 +424,7 @@ subroutine lm()
     real,    parameter :: DAMPING_LOWF = 3.0
     real,    parameter :: SIGMA_THRESHOLD= 1e-2
     real,    parameter :: GRAD_THRESHOLD= 1e-2
-    real,    parameter :: STEP_THRESHOLD= 1e-6
+    real,    parameter :: STEP_THRESHOLD= 1e-5
     !double precision, PARAMETER :: RHO_THRESH = 1D-4
     double precision, allocatable, dimension(:,:) :: jac
     double precision, allocatable, dimension(:)   :: dx
@@ -387,7 +432,7 @@ subroutine lm()
     double precision, allocatable, dimension(:)   :: gradient
     double precision, allocatable, dimension(:,:) :: M, dampedM
     double precision :: gradient_norm, sumsq, damping, trial_sumsq
-    double precision :: rho, sigma
+    double precision :: sigma
     integer i
     integer CTRL
 
@@ -444,7 +489,7 @@ subroutine lm()
         !if (abs(rho) > RHO_THRESH) then                     ! sometimes rho can be negative very close to the solution
         if (trial_sumsq < sumsq) then
             ! step accepted
-            write(outu, '(A,I4,/)') "Iteration", iter
+            write(outu, '(/,A,I4,/)') "Iteration", iter
             write(outu, '(A)') "   #    previous        step         new"
             do i=1,NX
                 write(outu, '(I4,3F12.4)') i, xvalues(i)/LG10, dx(i)/LG10, (xvalues(i)+dx(i))/LG10
@@ -520,6 +565,8 @@ subroutine lm()
         end do
         call lesolve(dampedM, F, dx, NX, CTRL)
     end do main_loop
+
+    call calc_covariance(M)
 
     DEALLOCATE(jac, dx, fvec, M)
 end subroutine lm
@@ -894,7 +941,6 @@ subroutine calc_covariance(H)
     double precision, intent(in), dimension(:,:) :: H
 
     integer n, info, i, j
-    double precision, allocatable, DIMENSION(:) :: ipiv
 
     n = size(H, dim=1)
     allocate(covariance(n,n))

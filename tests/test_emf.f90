@@ -66,6 +66,7 @@ subroutine test_hexaprotic()
     real, allocatable, dimension(:) :: rlogb
     integer, allocatable, DIMENSION(:,:) :: rP
     integer, allocatable, DIMENSION(:) :: rlbflags
+    real, dimension(6) :: real_logbeta = [ 10.0, 18.0, 24.0, 28.0, 31.0, 33.0 ]
     real :: r_temp
 
     passed = .true.
@@ -103,13 +104,6 @@ subroutine test_hexaprotic()
     ! Open unit 99 to /dev/null (Unix/Linux) or 'NUL' (Windows)
     ! open(unit=99, file='/dev/null', status='unknown')
     ! call init_module(513, 6, rP, rlogb, rlbflags, output_unit)
-
-    rlogb(1) = rlogb(1) + 0.5
-    rlogb(2) = rlogb(2) - 0.5
-    rlogb(3) = rlogb(3) + 0.5
-    rlogb(4) = rlogb(4) - 0.5
-    rlogb(5) = rlogb(5) + 0.5
-    rlogb(6) = rlogb(6) - 0.5
 
     call init_module(513, 6, rP, rlogb, rlbflags, output_unit)
 
@@ -160,6 +154,14 @@ subroutine test_hexaprotic()
 
     call set_weight_gradient()
     call fit_emf(r_temp)
+
+    do i=1,6
+        if (abs(lbeta(i)-real_logbeta(i)) > 0.02) then
+            if (passed) call print_result(test_name, "failed")
+            passed = .false.
+            print "(A,I1,A, 2F10.3)", "  log beta(",i,") too large: ", lbeta(i), real_logbeta(i)
+        end if
+    end do
 
     call finalize()
 
