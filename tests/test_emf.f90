@@ -105,7 +105,7 @@ subroutine test_hexaprotic()
     ! open(unit=99, file='/dev/null', status='unknown')
     ! call init_module(513, 6, rP, rlogb, rlbflags, output_unit)
 
-    call init_module(513, 6, rP, rlogb, rlbflags, output_unit)
+    call init_module(513, 6, rP, rlogb, rlbflags, 0, output_unit)
 
     call aux_read_suptitr(89, unit)
     if (trim(emf_diagnostic) /= 'no error') then
@@ -186,6 +186,8 @@ subroutine aux_read_suptitr(n, unit)
     real :: emf0, erremf
     integer :: eact, e0flag
     integer i
+    real, dimension(0) :: rnull
+    integer, dimension(0) :: inull
 
     do i=1,NCP
         read(unit, '(I3,I2,2F9.5,I6,I5)', iostat=ios) dummy, dummy, tparams(i,:), tflags(i,:)
@@ -202,7 +204,7 @@ subroutine aux_read_suptitr(n, unit)
     end do
 
     call load_titration(titre, emfr, tparams, eact, initv, emf0, 1.00, tflags, e0flag, 0, &
-        erremf, errv)
+        erremf, errv, rnull, inull, inull)
 
     read(unit, '(A)', iostat=ios) line    ! blank
 end subroutine aux_read_suptitr

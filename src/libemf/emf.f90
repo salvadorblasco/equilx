@@ -31,11 +31,14 @@ module emf
     real,    allocatable,         dimension(:)   :: V              ! titre in mL
     real,    allocatable,         dimension(:)   :: V0             ! initial amount in mL
     real,    allocatable,         dimension(:)   :: E              ! experimental emf in mV
-    real,    allocatable, target, dimension(:)   :: E0             ! standard potential in mV
-    real,    allocatable, target, dimension(:)   :: slope          ! nernstian slope in unit
+    real,    allocatable, target, dimension(:)   :: electr_emf0    ! standard potential in mV
+    real,    allocatable, target, dimension(:)   :: electr_slope          ! nernstian slope in unit
     real,    allocatable, target, dimension(:,:) :: titr_init      ! initial amount in mmol
     real,    allocatable, target, dimension(:,:) :: titr_buret     ! buret concentration in mmol/mL
-    real,    allocatable, target, public, protected, dimension(:)   :: lbeta          ! formation constants in log units
+    real,    allocatable, target, public, protected, dimension(:) :: lbeta      ! formation constants in log units
+    real,    allocatable, target, public, protected, dimension(:,:) :: junctionp  ! junction potential in mV.mL/mmmol
+    integer, allocatable,         dimension(:,:)   :: junctionc    ! indices of the components for the junction potential
+    integer, allocatable,         dimension(:,:)   :: junctionf    ! refinement flags for the junction potential
     integer, allocatable,         dimension(:)   :: eactive        ! indices of electroactive component
     integer, allocatable,         dimension(:)   :: flag_beta      ! refinement flags for formation constants
     integer, allocatable,         dimension(:,:) :: flag_init
@@ -51,11 +54,13 @@ module emf
     real,    allocatable, target, dimension(:,:) :: tmp_buret
     real,    allocatable, target, dimension(:)   :: tmp_emf0
     real,    allocatable, target, dimension(:)   :: tmp_slope
+    real,    allocatable, target, dimension(:,:) :: tmp_junction  ! junction potential in mV.mL/mmmol
     real,    pointer,             dimension(:)   :: use_lbeta
     real,    pointer,             dimension(:,:) :: use_init
     real,    pointer,             dimension(:,:) :: use_buret
     real,    pointer,             dimension(:)   :: use_emf0
     real,    pointer,             dimension(:)   :: use_slope
+    real,    pointer,             dimension(:,:) :: use_junction
     real,    allocatable,         dimension(:,:) :: T
     logical, allocatable,         dimension(:)   :: update_titr    ! flag to know which titration must be updated
     integer, public, protected :: NTT   ! number of titrations
@@ -73,6 +78,7 @@ module emf
     integer, parameter :: J_TBURE = 3
     integer, parameter :: J_EMF0  = 4
     integer, parameter :: J_SLOPE = 5
+    integer, parameter :: J_JUNCT = 6
     double precision, parameter :: LG10=LOG(10.0)
     
     integer outu
@@ -84,13 +90,14 @@ contains
 !----------------------------------------------------------------------------------------------------
 ! Initiate module. Allocates variables and some data. Call this one first.
 !----------------------------------------------------------------------------------------------------
-subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, outn)
+subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, n_junct, outn)
     integer, intent(in)                                 :: n_points  ! total number of experimental points
     integer, intent(in)                                 :: n_titrs   ! number of titrations to be loaded
     integer, intent(in), dimension(:,:)                 :: stoich    ! the stoichiometry array
     real,    intent(in), dimension(size(stoich, dim=1)) :: logbeta   ! the log10 of the formation constants
     integer, intent(in), dimension(size(stoich, dim=1)) :: flgbeta   ! the refinement flags for the formation constants
-    integer, INTENT(IN)                                 :: outn
+    integer, intent(in)                                 :: n_junct   ! number of junction components (usually zero)
+    integer, intent(in)                                 :: outn
 
     emf_diagnostic = "no error"
 
@@ -119,10 +126,10 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, outn)
     V0 = 0.0
     ALLOCATE(E(NPT))
     E = 0.0
-    ALLOCATE(E0(NTT))
-    E0 = 0.0
-    ALLOCATE(slope(NTT))
-    slope = 1.00
+    ALLOCATE(electr_emf0(NTT))
+    electr_emf0 = 0.0
+    ALLOCATE(electr_slope(NTT))
+    electr_slope = 1.00
     ALLOCATE(eactive(NTT))
     eactive = 0
     ALLOCATE(titr_init(NTT,NCP)) 
@@ -154,6 +161,9 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, outn)
     W = 0.0
     ALLOCATE(weights(NPT))
     weights = 0.0
+    allocate(junctionp(NTT,n_junct))
+    allocate(junctionf(NTT,n_junct))
+    allocate(junctionc(NTT,n_junct))
 
     P = stoich
     lbeta = logbeta * LOG(10.0)     ! convert from log10 to ln
@@ -170,12 +180,16 @@ end subroutine init_module
 ! Load single titration. The memory has been previously allocated by calling the init_module first.
 !----------------------------------------------------------------------------------------------------
 subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slope, tflags, emf0_flag, slope_flag, &
-        error_emf, error_vol)
+        error_emf, error_vol, junctionpot, junctioncom, junctionflag)
     implicit none
     real,    intent(in), dimension(:)           :: titre       ! the titre in mL
-    real,    intent(in), dimension(size(titre)) :: emf         ! experiemntal emf in mV
-    real,    intent(in), dimension(NCP,2)       :: titrparms
-    integer, intent(in), dimension(:,:)         :: tflags
+    real,    intent(in), dimension(size(titre)) :: emf         ! experiental emf in mV
+    real,    intent(in), dimension(NCP,2)       :: titrparms   ! titration parameters; dim(1)-> component;
+                                                               ! dim(2)=1 -> init in mmol; dim(2)=2 -> buret c in mmol/mL
+    real,    intent(in), dimension(:)                 :: junctionpot  ! the junction potential in mV for each active species
+    integer, intent(in), dimension(size(junctionpot)) :: junctioncom  ! the component index for the corresponding junction
+    integer, intent(in), dimension(size(junctionpot)) :: junctionflag ! refinament flag for the juntion
+    integer, intent(in), dimension(NCP,2)             :: tflags       ! refinement flags for the titration parameters
     real,    intent(in) :: initV                 ! initial volume in mL
     real,    intent(in) :: nernst_slope          ! the nernstian slope in x1
     real,    intent(in) :: emf0                  ! the standard potential in mL
@@ -220,8 +234,8 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
     V0(tmp_loaded_titrs) = initV
     eactive(tmp_loaded_titrs) = active
 
-    E0(tmp_loaded_titrs) = emf0
-    slope(tmp_loaded_titrs) = nernst_slope
+    electr_emf0(tmp_loaded_titrs) = emf0
+    electr_slope(tmp_loaded_titrs) = nernst_slope
 
     titr_init(tmp_loaded_titrs,:) = titrparms(:, 1)
     titr_buret(tmp_loaded_titrs,:) = titrparms(:, 2)
@@ -231,6 +245,10 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
     flag_emf0(tmp_loaded_titrs) = emf0_flag
     err_emf(tmp_loaded_titrs) = error_emf
     err_vol(tmp_loaded_titrs) = error_vol
+
+    junctionp(tmp_loaded_titrs,:) = junctionpot
+    junctionc(tmp_loaded_titrs,:) = junctioncom
+    junctionf(tmp_loaded_titrs,:) = junctionflag
 
     write (outu, '(I4,A)') n, " points loaded"
     
@@ -288,9 +306,9 @@ subroutine finalize()
     DEALLOCATE(V)
     DEALLOCATE(V0)
     DEALLOCATE(E)
-    DEALLOCATE(E0)
+    DEALLOCATE(electr_emf0)
     DEALLOCATE(eactive)
-    DEALLOCATE(slope)
+    DEALLOCATE(electr_slope)
     DEALLOCATE(titr_init) 
     DEALLOCATE(titr_buret) 
     DEALLOCATE(lbeta)
@@ -306,6 +324,9 @@ subroutine finalize()
     DEALLOCATE(T)
     DEALLOCATE(update_titr)
     DEALLOCATE(W)
+    deallocate(junctionp)
+    deallocate(junctionf)
+    deallocate(junctionc)
     if (allocated(variables)) deallocate(variables)
     if (allocated(covariance)) deallocate(covariance)
 end subroutine finalize
@@ -322,7 +343,7 @@ subroutine fit_emf(temp)
     double precision, parameter :: TDAMP = 0.01
     double precision, parameter :: TMIN = 1D-10
     real, PARAMETER :: TOKELVIN = 273.15
-    character(len=8) :: cflag
+    !character(len=8) :: cflag
 
     ! handle temperature
     nernst = nernst_base*(temp+TOKELVIN)  ! mV
@@ -359,7 +380,7 @@ subroutine fit_emf(temp)
     ! TODO post processing
     ! update values
     if (allocated(tmp_lbeta)) then
-        lbeta = tmp_lbeta / LG10
+        lbeta = tmp_lbeta / REAL(LG10)
         DEALLOCATE(tmp_lbeta)
     end if
 
@@ -374,13 +395,18 @@ subroutine fit_emf(temp)
     end if
 
     if (allocated(tmp_emf0)) then
-        E0 = tmp_emf0
+        electr_emf0 = tmp_emf0
         deallocate(tmp_emf0)
     end if
 
     if (allocated(tmp_slope)) then
-        slope = tmp_slope
+        electr_slope = tmp_slope
         deallocate(tmp_slope)
+    end if
+
+    if (allocated(tmp_junction)) then
+        junctionp = tmp_junction
+        deallocate(tmp_junction)
     end if
 
     ! print values
@@ -399,6 +425,8 @@ subroutine fit_emf(temp)
                 write (outu, "(I3,A6,2F12.4)") i, "emf0", variables(i)%destination_value, SQRT(covariance(i,i))
             case (5)   ! slope
                 write (outu, "(I3,A6,2F12.4)") i, "slope", variables(i)%destination_value, SQRT(covariance(i,i))
+            case (6)   ! slope
+                write (outu, "(I3,A6,2F12.4)") i, "junct", variables(i)%destination_value, SQRT(covariance(i,i))
         end select
     end do
 
@@ -586,6 +614,9 @@ subroutine update_equil()
 end subroutine update_equil
 
 
+!----------------------------------------------------------------------------------------------------
+! Update the free variables in each step.
+!----------------------------------------------------------------------------------------------------
 subroutine try_step(step)
     double precision, intent(in), dimension(:) :: step
 
@@ -598,19 +629,55 @@ subroutine try_step(step)
 end subroutine try_step
 
 
+!----------------------------------------------------------------------------------------------------
+! Compute residuals.
+!----------------------------------------------------------------------------------------------------
 subroutine calc_resid(fvec)
     implicit none
     double precision, intent(out), DIMENSION(:) :: fvec
 
-    integer i
-    integer lb, ub
+    integer i, j
+    !integer lb, ub
     integer hact
+    integer curr_titr
+    integer curr_jcomp
+    double precision calc_emf
+    double precision junction
 
-    l_titr: do i=1,NTT
-        hact = eactive(i)
-        call titr_bounds(i, lb, ub)
-        fvec(lb:ub) = DBLE(E(lb:ub) - (use_emf0(i) + use_slope(i) * nernst * LOG(C(lb:ub,hact))))
-    end do l_titr
+    curr_titr = 0
+
+    do i=1,NPT
+        if (i > sum(titr_size(1:curr_titr))) then             
+            curr_titr = curr_titr + 1
+            hact = eactive(curr_titr)
+        end if
+        junction=0.0 
+        if (allocated(tmp_junction)) then
+            do j=1,size(use_junction)
+                curr_jcomp = junctionc(curr_titr,j)
+                junction=junction+use_junction(curr_titr,j)*C(i,curr_titr)
+            end do
+        end if
+        calc_emf = use_emf0(curr_titr)  &
+                 + use_slope(curr_titr) * nernst * LOG(C(i,hact))  & 
+                 + junction
+        fvec(i) = E(i) - calc_emf
+    end do
+
+    ! l_titr: do i=1,NTT
+    !     hact = eactive(i)
+    !     call titr_bounds(i, lb, ub)
+    !     fvec(lb:ub) = DBLE(                                 &
+    !         E(lb:ub) - (                                    &
+    !             use_emf0(i) +                               &
+    !             use_slope(i) * nernst * LOG(C(lb:ub,hact))  &
+    !             + sum(use_junction(i)*C(lb:ub,)
+    !         )                                               &
+    !     )
+    !     if (i > sum(titr_size(1:curr_titr))) then
+    !         curr_titr = curr_titr + 1
+    !     end if
+    ! end do l_titr
 
 end subroutine calc_resid
 
@@ -775,21 +842,33 @@ subroutine create_variables()
     ! IV: count standard potentials
     if (sum(flag_emf0) > 0) then        ! something to refine here
         allocate(tmp_emf0(NTT))
-        tmp_emf0 = E0
+        tmp_emf0 = electr_emf0
         use_emf0 => tmp_emf0
         call aux_create_variables(tmp_emf0, flag_emf0, xcount, vcount, iref, vref, J_EMF0, 0)
     else
-        use_emf0 => E0
+        use_emf0 => electr_emf0
     end if
 
     ! V. count nernstian slopes
     if (sum(flag_slope) > 0) then        ! something to refine here
         allocate(tmp_slope(NTT))
-        tmp_slope = slope
+        tmp_slope = electr_slope
         use_slope => tmp_slope
         call aux_create_variables(tmp_slope, flag_slope, xcount, vcount, iref, vref, J_SLOPE, 0)
     else
-        use_slope => slope
+        use_slope => electr_slope
+    end if
+    
+    ! VI. count junction potentials
+    if (sum(junctionf) > 0) then        ! something to refine here
+        allocate(tmp_junction(NTT,size(junctionp,dim=2)))
+        tmp_junction = junctionp
+        use_junction => tmp_junction
+        do i=1,NTT
+            call aux_create_variables(tmp_junction(i,:), junctionf(i,:), xcount, vcount, iref, vref, J_JUNCT, i)
+        end do
+    else
+        use_slope => electr_slope
     end if
 end subroutine create_variables
 

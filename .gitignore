@@ -12,3 +12,5 @@ benchmark/
 
 # Other
 sandbox/
+
+*.o
