@@ -4,6 +4,14 @@
 !----------------------------------------------------------------------------------------------------
 ! Routines for fitting equilibrium constants and other parameters from potentiometric data.
 !
+! HOW TO USE
+! 1. call init_module with the parameters indicated
+! 2. load the titrations one by one by calling load_titration
+! 3. set the weighting scheme by calling one of the set weights routine
+! 4. call fit_emf
+! 5. copy the result from the public variables
+! 6. call finalize to deallocate and cleanup
+!----------------------------------------------------------------------------------------------------
 
 module emf
     implicit none
@@ -21,48 +29,55 @@ module emf
         integer :: jtype                            ! type of variable (beta, init, etc.)
         double precision :: ratio                   ! 1.0 for free and reference; other for the rest
     end type value_holder
-    type(value_holder), allocatable, dimension(:) :: variables
-    double precision, allocatable, target, dimension(:) :: xvalues
-    DOUBLE PRECISION, allocatable, DIMENSION(:,:) :: W
-    DOUBLE PRECISION, allocatable, DIMENSION(:) :: weights
 
-    double precision, allocatable, public, protected, dimension(:,:)  :: C    ! the free concentrations
-    double precision, allocatable, dimension(:,:) :: covariance    ! the covatiance matrix
-    real,    allocatable,         dimension(:)   :: V              ! titre in mL
-    real,    allocatable,         dimension(:)   :: V0             ! initial amount in mL
-    real,    allocatable,         dimension(:)   :: E              ! experimental emf in mV
-    real,    allocatable, target, dimension(:)   :: electr_emf0    ! standard potential in mV
-    real,    allocatable, target, dimension(:)   :: electr_slope          ! nernstian slope in unit
-    real,    allocatable, target, dimension(:,:) :: titr_init      ! initial amount in mmol
-    real,    allocatable, target, dimension(:,:) :: titr_buret     ! buret concentration in mmol/mL
-    real,    allocatable, target, public, protected, dimension(:) :: lbeta      ! formation constants in log units
-    real,    allocatable, target, public, protected, dimension(:,:) :: junctionp  ! junction potential in mV.mL/mmmol
-    integer, allocatable,         dimension(:,:)   :: junctionc    ! indices of the components for the junction potential
-    integer, allocatable,         dimension(:,:)   :: junctionf    ! refinement flags for the junction potential
-    integer, allocatable,         dimension(:)   :: eactive        ! indices of electroactive component
-    integer, allocatable,         dimension(:)   :: flag_beta      ! refinement flags for formation constants
-    integer, allocatable,         dimension(:,:) :: flag_init
-    integer, allocatable,         dimension(:,:) :: flag_buret
-    integer, allocatable,         dimension(:)   :: flag_emf0
-    integer, allocatable,         dimension(:)   :: flag_slope
-    real,    allocatable,         dimension(:)   :: err_emf        ! the error for potential, in mV, per titration
-    real,    allocatable,         dimension(:)   :: err_vol        ! the error for volume, in mL, per titration
-    integer, allocatable,         dimension(:)   :: titr_size      ! the size in experimental points per titration
-    integer, allocatable,         dimension(:,:) :: P              ! the stoichiometry array
-    real,    allocatable, target, dimension(:)   :: tmp_lbeta
-    real,    allocatable, target, dimension(:,:) :: tmp_init
-    real,    allocatable, target, dimension(:,:) :: tmp_buret
-    real,    allocatable, target, dimension(:)   :: tmp_emf0
-    real,    allocatable, target, dimension(:)   :: tmp_slope
-    real,    allocatable, target, dimension(:,:) :: tmp_junction  ! junction potential in mV.mL/mmmol
-    real,    pointer,             dimension(:)   :: use_lbeta
-    real,    pointer,             dimension(:,:) :: use_init
-    real,    pointer,             dimension(:,:) :: use_buret
-    real,    pointer,             dimension(:)   :: use_emf0
-    real,    pointer,             dimension(:)   :: use_slope
-    real,    pointer,             dimension(:,:) :: use_junction
-    real,    allocatable,         dimension(:,:) :: T
-    logical, allocatable,         dimension(:)   :: update_titr    ! flag to know which titration must be updated
+    type(value_holder), allocatable, dimension(:)         :: variables
+    double precision,   allocatable, dimension(:), target :: xvalues
+    double precision,   allocatable, dimension(:,:)       :: W
+    double precision,   allocatable, dimension(:)         :: weights
+
+    ! public variables for after fitting
+    double precision, allocatable, public, protected, dimension(:,:) :: C           ! the free concentrations
+    double precision, allocatable, public, protected, dimension(:,:) :: covariance  ! the covatiance matrix
+    real, allocatable, target, public, protected, dimension(:)   :: electr_emf0   ! standard potential in mV
+    real, allocatable, target, public, protected, dimension(:)   :: electr_slope  ! nernstian slope in unit
+    real, allocatable, target, public, protected, dimension(:,:) :: titr_init     ! initial amount in mmol
+    real, allocatable, target, public, protected, dimension(:,:) :: titr_buret    ! buret concentration in mmol/mL
+    real, allocatable, target, public, protected, dimension(:)   :: lbeta         ! formation constants in log units
+    real, allocatable, target, public, protected, dimension(:,:) :: junctionp     ! junction potential in mV.mL/mmmol
+
+    ! private variables for internal use
+    real,    allocatable,  dimension(:)   :: V            ! titre in mL
+    real,    allocatable,  dimension(:)   :: V0           ! initial amount in mL
+    real,    allocatable,  dimension(:)   :: E            ! experimental emf in mV
+    integer, allocatable,  dimension(:,:) :: junctionc    ! indices of the components for the junction potential
+    integer, allocatable,  dimension(:,:) :: junctionf    ! refinement flags for the junction potential
+    integer, allocatable,  dimension(:)   :: eactive      ! indices of electroactive component
+    integer, allocatable,  dimension(:)   :: flag_beta    ! refinement flags for formation constants
+    integer, allocatable,  dimension(:,:) :: flag_init
+    integer, allocatable,  dimension(:,:) :: flag_buret
+    integer, allocatable,  dimension(:)   :: flag_emf0
+    integer, allocatable,  dimension(:)   :: flag_slope
+    real,    allocatable,  dimension(:)   :: err_emf      ! the error for potential, in mV, per titration
+    real,    allocatable,  dimension(:)   :: err_vol      ! the error for volume, in mL, per titration
+    integer, allocatable,  dimension(:)   :: titr_size    ! the size in experimental points per titration
+    integer, allocatable,  dimension(:,:) :: P            ! the stoichiometry array
+    real,    allocatable,  dimension(:,:) :: T            ! analytical concentration
+    logical, allocatable,  dimension(:)   :: update_titr  ! flag to know which titration must be updated
+
+    ! variables for handling customized refinement
+    real, target, allocatable, dimension(:)   :: tmp_lbeta
+    real, target, allocatable, dimension(:,:) :: tmp_init
+    real, target, allocatable, dimension(:,:) :: tmp_buret
+    real, target, allocatable, dimension(:)   :: tmp_emf0
+    real, target, allocatable, dimension(:)   :: tmp_slope
+    real, target, allocatable, dimension(:,:) :: tmp_junction  ! junction potential in mV.mL/mmmol
+    real, pointer,             dimension(:)   :: use_lbeta
+    real, pointer,             dimension(:,:) :: use_init
+    real, pointer,             dimension(:,:) :: use_buret
+    real, pointer,             dimension(:)   :: use_emf0
+    real, pointer,             dimension(:)   :: use_slope
+    real, pointer,             dimension(:,:) :: use_junction
+
     integer, public, protected :: NTT   ! number of titrations
     integer, public, protected :: NPT   ! number of titration points for all titrations
     integer, public, protected :: NCP   ! number of components
@@ -71,6 +86,7 @@ module emf
     real :: nernst
     integer :: tmp_loaded_titrs, tmp_space_left
 
+    ! internal constants
     integer, parameter :: RF_CONSTANT = 0
     integer, parameter :: RF_REFINE = 1
     integer, parameter :: J_LBETA = 1
@@ -81,7 +97,7 @@ module emf
     integer, parameter :: J_JUNCT = 6
     double precision, parameter :: LG10=LOG(10.0)
     
-    integer outu
+    integer outu  ! unit for writing output
 
     PUBLIC :: init_module, load_titration, finalize, fit_emf, set_weight_gradient, set_weight_unit
 
@@ -166,7 +182,7 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, n_junct, out
     allocate(junctionc(NTT,n_junct))
 
     P = stoich
-    lbeta = logbeta * LOG(10.0)     ! convert from log10 to ln
+    lbeta = REAL(logbeta * LG10)     ! convert from log10 to ln
     flag_beta = flgbeta
 
     tmp_loaded_titrs = 0
@@ -324,6 +340,7 @@ subroutine finalize()
     DEALLOCATE(T)
     DEALLOCATE(update_titr)
     DEALLOCATE(W)
+    DEALLOCATE(weights)
     deallocate(junctionp)
     deallocate(junctionf)
     deallocate(junctionc)
@@ -378,7 +395,7 @@ subroutine fit_emf(maxits, temp)
 
     call lm(maxits)
 
-    ! TODO post processing
+    ! post processing
     ! update values
     if (allocated(tmp_lbeta)) then
         lbeta = tmp_lbeta / REAL(LG10)
@@ -447,14 +464,14 @@ subroutine lm(maxits)
 
     integer :: NX ! number of variables to optimize
     integer iter  ! iteration number
-    !integer, parameter :: MAX_ITERS = 20
-    real,    parameter :: DAMPING_UPPER = 1e10
-    real,    parameter :: DAMPING_LOWER = 1e-12
-    real,    parameter :: DAMPING_UPF = 8.0
-    real,    parameter :: DAMPING_LOWF = 3.0
-    real,    parameter :: SIGMA_THRESHOLD= 1e-2
-    real,    parameter :: GRAD_THRESHOLD= 1e-2
-    real,    parameter :: STEP_THRESHOLD= 1e-5
+
+    real, parameter :: DAMPING_UPPER   = 1e10
+    real, parameter :: DAMPING_LOWER   = 1e-12
+    real, parameter :: DAMPING_UPF     = 8.0
+    real, parameter :: DAMPING_LOWF    = 3.0
+    real, parameter :: SIGMA_THRESHOLD = 1e-2
+    real, parameter :: GRAD_THRESHOLD  = 1e-2
+    real, parameter :: STEP_THRESHOLD  = 1e-5
     !double precision, PARAMETER :: RHO_THRESH = 1D-4
     double precision, allocatable, dimension(:,:) :: jac
     double precision, allocatable, dimension(:)   :: dx
@@ -511,7 +528,7 @@ subroutine lm(maxits)
         end if
 
         if (iter .eq. 0) then
-            iter = iter +1
+            iter = iter + 1
             cycle
         end if
 
