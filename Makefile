@@ -77,7 +77,7 @@ $(TEST_EMF): $(TESTDIR)/test_emf.f90 $(EMF_LIB)
 	      -L$(LIBDIR) -lemf -leq $(RPATH)
 
 temfd: $(TESTDIR)/test_emf.f90 $(EMF_OBJS) $(EQ_OBJS)
-	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $(TEST_EMF) $<  $(EMF_OBJS) $(EQ_OBJS) $(LLAPACK)
+	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $(TEST_EMF) $(TESTDIR)/case_hexaprotic.f90 $<  $(EMF_OBJS) $(EQ_OBJS) $(LLAPACK)
 
 run-tests: tests
 	@echo "Running tests..."

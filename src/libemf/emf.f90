@@ -186,9 +186,9 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
     real,    intent(in), dimension(size(titre)) :: emf         ! experiental emf in mV
     real,    intent(in), dimension(NCP,2)       :: titrparms   ! titration parameters; dim(1)-> component;
                                                                ! dim(2)=1 -> init in mmol; dim(2)=2 -> buret c in mmol/mL
-    real,    intent(in), dimension(:)                 :: junctionpot  ! the junction potential in mV for each active species
-    integer, intent(in), dimension(size(junctionpot)) :: junctioncom  ! the component index for the corresponding junction
-    integer, intent(in), dimension(size(junctionpot)) :: junctionflag ! refinament flag for the juntion
+    real,    intent(in), dimension(:)   :: junctionpot  ! the junction potential in mV for each active species
+    integer, intent(in), dimension(:)   :: junctioncom  ! the component index for the corresponding junction
+    integer, intent(in), dimension(:)   :: junctionflag ! refinament flag for the juntion
     integer, intent(in), dimension(NCP,2)             :: tflags       ! refinement flags for the titration parameters
     real,    intent(in) :: initV                 ! initial volume in mL
     real,    intent(in) :: nernst_slope          ! the nernstian slope in x1
@@ -332,10 +332,11 @@ subroutine finalize()
 end subroutine finalize
 
 
-subroutine fit_emf(temp)
+subroutine fit_emf(maxits, temp)
     use misc, only: calc_analc
     implicit none
-    real,   intent(in) :: temp
+    real,   intent(in) :: temp   ! in degrees Celsius
+    integer, intent(in) :: maxits
 
     real, parameter :: nernst_base = 0.08617333262 ! mV/K
     integer NX, NV
@@ -375,7 +376,7 @@ subroutine fit_emf(temp)
         end do
     end do
 
-    call lm()
+    call lm(maxits)
 
     ! TODO post processing
     ! update values
@@ -438,14 +439,15 @@ end subroutine fit_emf
 !----------------------------------------------------------------------------------------------------
 ! Run the Levenberg-Marquardt loop.
 !----------------------------------------------------------------------------------------------------
-subroutine lm()
+subroutine lm(maxits)
     ! routine for Levenberg-Marquardt iterations.
     use misc, only: fit_sigma, lesolve
     implicit none
+    integer, intent(in) :: maxits
 
     integer :: NX ! number of variables to optimize
     integer iter  ! iteration number
-    integer, parameter :: MAX_ITERS = 20
+    !integer, parameter :: MAX_ITERS = 20
     real,    parameter :: DAMPING_UPPER = 1e10
     real,    parameter :: DAMPING_LOWER = 1e-12
     real,    parameter :: DAMPING_UPF = 8.0
@@ -483,7 +485,7 @@ subroutine lm()
     trial_fvec = 0.0
 
     iter = 0
-    main_loop: do while (iter<MAX_ITERS)
+    main_loop: do while (iter < maxits)
         call try_step(dx)
 
         call update_equil()
@@ -652,12 +654,10 @@ subroutine calc_resid(fvec)
             hact = eactive(curr_titr)
         end if
         junction=0.0 
-        if (allocated(tmp_junction)) then
-            do j=1,size(use_junction)
-                curr_jcomp = junctionc(curr_titr,j)
-                junction=junction+use_junction(curr_titr,j)*C(i,curr_titr)
-            end do
-        end if
+        do j=1,size(use_junction,dim=2)
+            curr_jcomp = junctionc(curr_titr,j)
+            junction=junction+use_junction(curr_titr,j)*C(i,curr_titr)
+        end do
         calc_emf = use_emf0(curr_titr)  &
                  + use_slope(curr_titr) * nernst * LOG(C(i,hact))  & 
                  + junction
@@ -868,7 +868,7 @@ subroutine create_variables()
             call aux_create_variables(tmp_junction(i,:), junctionf(i,:), xcount, vcount, iref, vref, J_JUNCT, i)
         end do
     else
-        use_slope => electr_slope
+        use_junction => junctionp
     end if
 end subroutine create_variables
 
