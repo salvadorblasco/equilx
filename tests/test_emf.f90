@@ -79,7 +79,9 @@ subroutine test_hexaprotic1()
         call RANDOM_NUMBER(rnd)
         ini_logbeta(i) = ini_logbeta(i) + (rnd-0.5)
     end do
-    call init_module(mNPT, 6, mP, ini_logbeta, rlbflags, 1, output_unit)
+
+    open(unit=20, file='/dev/null', status='old')
+    call init_module(mNPT, 6, mP, ini_logbeta, rlbflags, 1, 20)
 
     titr_params(:,1) = titr_init0(1,:)
     titr_params(:,2) = [ 0.0, buret ]
@@ -139,7 +141,7 @@ subroutine test_hexaprotic1()
     end if
 
     !close(unit, iostat=ios)
-    !close(99)
+    close(20)
 
     call set_weight_gradient()
     call fit_emf(20, temp)
@@ -361,6 +363,7 @@ subroutine test_gradient()
     if (passed) call print_result(test_name, 'passed')
 
 end subroutine test_gradient
+
 
 subroutine print_result(test_name, result_tag)
     character(len=*), intent(in) :: result_tag, test_name

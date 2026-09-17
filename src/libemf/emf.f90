@@ -585,8 +585,8 @@ subroutine lm(maxits)
                 exit
             end if
             call lesolve(dampedM, F, dx, NX, CTRL)
-            print "(A,E14.4)", "damping = ", damping
-            print "(2(A,E14.4))", "trial sumsq=", trial_sumsq, " sumsq=", sumsq
+            write (outu, "(A,E14.4)") "damping = ", damping
+            !write (outu, "(2(A,E14.4))") "trial sumsq=", trial_sumsq, " sumsq=", sumsq
         end if
 
         dampedM = M
