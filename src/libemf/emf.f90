@@ -355,6 +355,7 @@ subroutine fit_emf(maxits, temp)
     real,   intent(in) :: temp   ! in degrees Celsius
     integer, intent(in) :: maxits
 
+    double precision :: cov
     real, parameter :: nernst_base = 0.08617333262 ! mV/K
     integer NX, NV
     integer i, j, blow, bhigh
@@ -431,20 +432,21 @@ subroutine fit_emf(maxits, temp)
     write (outu, "(/,A)") "REFINED VARIABLES"
     write (outu, "(A)") "  #  PARM       VALUE       ERROR"
     do i=1,size(variables)
+        cov = variables(i)%ratio*SQRT(covariance(variables(i)%origin_index,variables(i)%origin_index))
         select case (variables(i)%jtype)
             case (1)   ! log beta
-                write (outu, "(I3,A6,2F12.4,*(I4))") i, "LOGB", variables(i)%origin_value/LG10, SQRT(covariance(i,i))/LG10, &
+                write (outu, "(I3,A6,2F12.4,*(I4))") i, "LOGB", variables(i)%origin_value/LG10, cov/LG10, &
                     P(i,:)
             case (2)   ! initial amount
-                write (outu, "(I3,A6,2F12.4)") i, "init", variables(i)%destination_value, SQRT(covariance(i,i))
+                write (outu, "(I3,A6,2F12.4)") i, "init", variables(i)%destination_value, cov
             case (3)   ! buret concentration
-                write (outu, "(I3,A6,2F12.4)") i, "buret", variables(i)%destination_value, SQRT(covariance(i,i))
+                write (outu, "(I3,A6,2F12.4)") i, "buret", variables(i)%destination_value, cov
             case (4)   ! emf0
-                write (outu, "(I3,A6,2F12.4)") i, "emf0", variables(i)%destination_value, SQRT(covariance(i,i))
+                write (outu, "(I3,A6,2F12.4)") i, "emf0", variables(i)%destination_value, cov
             case (5)   ! slope
-                write (outu, "(I3,A6,2F12.4)") i, "slope", variables(i)%destination_value, SQRT(covariance(i,i))
+                write (outu, "(I3,A6,2F12.4)") i, "slope", variables(i)%destination_value, cov
             case (6)   ! slope
-                write (outu, "(I3,A6,2F12.4)") i, "junct", variables(i)%destination_value, SQRT(covariance(i,i))
+                write (outu, "(I3,A6,2F12.4)") i, "junct", variables(i)%destination_value, cov
         end select
     end do
 
@@ -537,10 +539,7 @@ subroutine lm(maxits)
         if (trial_sumsq < sumsq) then
             ! step accepted
             write(outu, '(/,A,I4,/)') "Iteration", iter
-            write(outu, '(A)') "   #    previous        step         new"
-            do i=1,NX
-                write(outu, '(I4,3F12.4)') i, xvalues(i)/LG10, dx(i)/LG10, (xvalues(i)+dx(i))/LG10
-            end do
+            call report_variables(dx)
 
             xvalues = xvalues + dx
             sumsq = trial_sumsq
@@ -553,7 +552,6 @@ subroutine lm(maxits)
             gradient_norm = NORM2(gradient)
             sigma = fit_sigma(fvec, weights, NPT, NX)
 
-            !write(outu, '(A,E14.6)') "   chisq", chisq
             write(outu, '(A,E14.6)') "   sumsq", sumsq
 
             ! Adaptive damping (very effective)
@@ -639,11 +637,13 @@ end subroutine update_equil
 subroutine try_step(step)
     double precision, intent(in), dimension(:) :: step
 
+    double precision :: istep
     integer i
 
     ! update tmp values
     do i=1,size(variables)
-        variables(i)%destination_value = real(variables(i)%ratio*(variables(i)%origin_value + step(i)))
+        istep = step(variables(i)%origin_index)
+        variables(i)%destination_value = real(variables(i)%ratio*(variables(i)%origin_value + istep))
     end do
 end subroutine try_step
 
@@ -699,6 +699,7 @@ subroutine calc_resid(fvec)
 end subroutine calc_resid
 
 
+!------------------------------------------------------------------------------------------------------------------------
 ! Compute the jacobian for the Levenberg-Marquardt iteration.
 ! The rows are the experimental points; the columns are the variables to be optimized in the
 ! following order: (1) equilibrium constants; (2) initial amounts; (3) buret concentrations;
@@ -732,7 +733,7 @@ subroutine jacobian_lm(jac)
 
     bsize = 0
     do i=1,size(variables)
-        if (variables(i)%jtype < 3) bsize = bsize + 1
+        if (variables(i)%jtype < 4) bsize = bsize + 1
     end do
     allocate(bvec(NCP,bsize))
 
@@ -927,6 +928,7 @@ subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref, jtype
                 variables(vcount)%origin_value => xvalues(iref(flags(i)))
                 variables(vcount)%destination_value => vector(i)
                 variables(vcount)%ratio = vref(flags(i))/vector(i)
+                variables(vcount)%origin_index = xcount
             end if
         end if
         variables(vcount)%id = flags(i)
@@ -984,7 +986,7 @@ subroutine sub_count_dof(vec, NX, NV, constr)
             NV = NV + 1
         else if (vec(i) > RF_REFINE) then
             NV = NV + 1
-            if (constr(i)) then
+            if (.not. constr(i)) then
                 NX = NX + 1
                 constr(i) = .true.
             end if
@@ -1064,5 +1066,24 @@ subroutine calc_covariance(H)
         end do
     end do
 end subroutine calc_covariance
+
+
+subroutine report_variables(step)
+    double precision, intent(in), dimension(:) :: step
+    double precision :: value_
+    double precision :: step_val
+    integer i
+
+    write(outu, '(A)') "   #    previous        step         new"
+    do i=1,size(variables)
+        value_ = variables(i)%origin_value
+        step_val = step(variables(i)%origin_index)
+        if (variables(i)%jtype .eq. J_LBETA) then
+            write(outu, '(I4,3F12.4)') i, value_/LG10, step_val/LG10, (value_+step_val)/LG10
+        else
+            write(outu, '(I4,3F12.4)') i, value_, step_val, (value_+step_val)
+        end if
+    end do
+end subroutine report_variables
 
 end module emf
