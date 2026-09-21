@@ -498,7 +498,7 @@ subroutine lm(maxits)
     dx = 0.0
     jac = 0.0
     fvec = 0.0
-    damping = 1D-2
+    damping = 1D+2
     sumsq = HUGE(1D1)
     trial_sumsq = 0.0
     trial_fvec = 0.0
