@@ -991,9 +991,9 @@ subroutine sub_count_dof(vec, NX, NV, constr)
             NV = NV + 1
         else if (vec(i) > RF_REFINE) then
             NV = NV + 1
-            if (.not. constr(i)) then
+            if (.not. constr(vec(i))) then
                 NX = NX + 1
-                constr(i) = .true.
+                constr(vec(i)) = .true.
             end if
         end if
     end do
