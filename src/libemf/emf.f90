@@ -438,15 +438,15 @@ subroutine fit_emf(maxits, temp)
                 write (outu, "(I3,A6,2F12.4,*(I4))") i, "LOGB", variables(i)%origin_value/LG10, cov/LG10, &
                     P(i,:)
             case (2)   ! initial amount
-                write (outu, "(I3,A6,2F12.4)") i, "init", variables(i)%destination_value, cov
+                write (outu, "(I3,A6,2F12.4)") i, "init", variables(i)%origin_value, cov
             case (3)   ! buret concentration
-                write (outu, "(I3,A6,2F12.4)") i, "buret", variables(i)%destination_value, cov
+                write (outu, "(I3,A6,2F12.4)") i, "buret", variables(i)%origin_value, cov
             case (4)   ! emf0
-                write (outu, "(I3,A6,2F12.4)") i, "emf0", variables(i)%destination_value, cov
+                write (outu, "(I3,A6,2F12.4)") i, "emf0", variables(i)%origin_value, cov
             case (5)   ! slope
-                write (outu, "(I3,A6,2F12.4)") i, "slope", variables(i)%destination_value, cov
+                write (outu, "(I3,A6,2F12.4)") i, "slope", variables(i)%origin_value, cov
             case (6)   ! slope
-                write (outu, "(I3,A6,2F12.4)") i, "junct", variables(i)%destination_value, cov
+                write (outu, "(I3,A6,2F12.4)") i, "junct", variables(i)%origin_value, cov
         end select
     end do
 
@@ -969,6 +969,11 @@ subroutine count_dof(NX, NV)
 
     ! V. count nernstian slopes
     call sub_count_dof(flag_slope, NX, NV, constr)
+
+    ! VI. count junction potentials
+    do i=1,size(junctionf, dim=1)
+        call sub_count_dof(junctionf(i,:), NX, NV, constr)
+    end do
 end subroutine count_dof
 
 
