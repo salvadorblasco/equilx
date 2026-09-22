@@ -324,7 +324,11 @@ subroutine include_ionic(charge, init_ions, buret_ions, actv_model, actv_params,
     ion_params = actv_params
 
     ALLOCATE(ion_flags(size(actv_params)))
-    ion_flags = flags
+    if (ion_model .eq. 0) then
+        ion_flags = 0    ! For constant I, flags must be ignored: set to constant
+    else
+        ion_flags = flags
+    end if
 end subroutine include_ionic
 
 
