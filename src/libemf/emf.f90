@@ -710,12 +710,14 @@ subroutine jacobian_lm(jac)
 
     double precision, DIMENSION(NCP, NCP) :: Am      ! the A-matrix
     double precision, allocatable, dimension(:,:) :: bvec
-    integer i, j, k, CTRL
+    integer i, j, k, l, CTRL
     integer curr_titr
     integer aux, eac
     integer bsize
     logical do_beta, do_init, do_buret, do_amatrix
-    integer, DIMENSION(5,size(variables)) :: filter_jtype
+    integer, DIMENSION(6,size(variables)) :: filter_jtype
+    double precision tmpd
+    integer tmpi
 
     jac = 0.0
     bsize = 0
@@ -725,7 +727,7 @@ subroutine jacobian_lm(jac)
     do_amatrix = do_beta .or. do_init .or. do_buret
 
     filter_jtype = 0
-    do i=1,5
+    do i=1,6
         do j=1,size(variables)
             if (variables(j)%jtype .eq. i) filter_jtype(i,j) = j
         end do
@@ -742,7 +744,6 @@ subroutine jacobian_lm(jac)
     do i=1,NPT
         if (do_amatrix) then
             call amatrix(Am, C(i,:), P, NCP, NEQ)
-            bsize = 0
 
             do j=1,size(variables)
                 if (variables(j)%jtype > 4) exit
@@ -789,7 +790,19 @@ subroutine jacobian_lm(jac)
             eac = eactive(curr_titr)
             aux = variables(j)%origin_index
             select case (variables(j)%jtype)
-                case (J_LBETA:J_TBURE)
+                case (J_LBETA)
+                    jac(i, aux) = jac(i, aux) - variables(j)%ratio*use_slope(curr_titr)*nernst*bvec(eac,j)
+                    do k=1,size(junctionp,dim=2)
+                        tmpi = junctionc(curr_titr,k)
+                        if (tmpi > NCP) then
+                            tmpd = DOT_PRODUCT(P(tmpi-NCP,:),bvec(:,j))
+                            if (j .eq. tmpi) tmpd = tmpd + 1.0
+                        else
+                            tmpd = use_junction(curr_titr,k)*C(i,tmpi)*bvec(tmpi,j)
+                        end if
+                        jac(i, aux) = jac(i, aux) + tmpd
+                    end do
+                case (J_TINIT:J_TBURE)
                     jac(i, aux) = jac(i, aux) - variables(j)%ratio*use_slope(curr_titr)*nernst*bvec(eac,j)
                 case (J_EMF0)
                     if (curr_titr .eq. variables(j)%destination_index1) then
@@ -798,6 +811,9 @@ subroutine jacobian_lm(jac)
                 case (J_SLOPE)
                     if (curr_titr .eq. variables(j)%destination_index1) then
                         jac(i, aux) = jac(i, aux) - variables(j)%ratio*nernst
+                    end if
+                case (J_JUNCT)
+                    if (curr_titr .eq. variables(j)%destination_index1) then
                     end if
             end select
         end do
