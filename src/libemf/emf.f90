@@ -803,7 +803,10 @@ subroutine jacobian_lm(jac)
                         jac(i, aux) = jac(i, aux) + tmpd
                     end do
                 case (J_TINIT:J_TBURE)
-                    jac(i, aux) = jac(i, aux) - variables(j)%ratio*use_slope(curr_titr)*nernst*bvec(eac,j)
+                    if (curr_titr .eq. variables(j)%destination_index2) then
+                        tmpd = - variables(j)%ratio*use_slope(curr_titr)*nernst*bvec(eac,j)
+                        jac(i, aux) = jac(i, aux) + tmpd
+                    end if
                 case (J_EMF0)
                     if (curr_titr .eq. variables(j)%destination_index1) then
                         jac(i, aux) = jac(i, aux) - variables(j)%ratio
@@ -813,7 +816,10 @@ subroutine jacobian_lm(jac)
                         jac(i, aux) = jac(i, aux) - variables(j)%ratio*nernst
                     end if
                 case (J_JUNCT)
-                    if (curr_titr .eq. variables(j)%destination_index1) then
+                    if (curr_titr .eq. variables(j)%destination_index2) then
+                        tmpi = junctionc(curr_titr,variables(j)%destination_index1)
+                        tmpd = - variables(j)%ratio*C(i,tmpi)
+                        jac(i, aux) = jac(i, aux) + tmpd
                     end if
             end select
         end do
