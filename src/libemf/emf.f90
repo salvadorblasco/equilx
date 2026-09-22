@@ -949,7 +949,7 @@ subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref, jtype
             else                                  ! constraint already set
                 variables(vcount)%origin_value => xvalues(iref(flags(i)))
                 variables(vcount)%destination_value => vector(i)
-                variables(vcount)%ratio = vref(flags(i))/vector(i)
+                variables(vcount)%ratio = vector(i)/vref(flags(i))
                 variables(vcount)%origin_index = xcount
             end if
         end if
@@ -1103,8 +1103,8 @@ subroutine report_variables(step)
 
     write(outu, '(A)') "   #    previous        step         new"
     do i=1,size(variables)
-        value_ = variables(i)%origin_value
-        step_val = step(variables(i)%origin_index)
+        value_ = variables(i)%ratio*variables(i)%origin_value
+        step_val = variables(i)%ratio*step(variables(i)%origin_index)
         select case (variables(i)%jtype)
             case (J_LBETA)
                 write(outu, '(I4,3F12.4)') i, value_/LG10, step_val/LG10, (value_+step_val)/LG10
