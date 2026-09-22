@@ -63,6 +63,11 @@ module emf
     integer, allocatable,  dimension(:,:) :: P            ! the stoichiometry array
     real,    allocatable,  dimension(:,:) :: T            ! analytical concentration
     logical, allocatable,  dimension(:)   :: update_titr  ! flag to know which titration must be updated
+    integer, allocatable,  dimension(:)   :: charges
+    real,    allocatable,  dimension(:)   :: ion_backg
+    real,    allocatable,  dimension(:)   :: ion_params
+    integer, allocatable,  dimension(:)   :: ion_flags
+    integer                               :: ion_model
 
     ! variables for handling customized refinement
     real, target, allocatable, dimension(:)   :: tmp_lbeta
@@ -82,7 +87,7 @@ module emf
     integer, public, protected :: NPT   ! number of titration points for all titrations
     integer, public, protected :: NCP   ! number of components
     integer, public, protected :: NEQ   ! number of equilibria
-    character(len=40), public, protected :: emf_diagnostic
+    character(len=45), public, protected :: emf_diagnostic
     real :: nernst
     integer :: tmp_loaded_titrs, tmp_space_left
 
@@ -269,6 +274,58 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
     write (outu, '(I4,A)') n, " points loaded"
     
 end subroutine load_titration
+
+
+subroutine include_ionic(charge, init_ions, buret_ions, actv_model, actv_params, flags)
+    integer, intent(in), dimension(:) :: charge
+    real,    intent(in), dimension(:) :: init_ions
+    real,    intent(in), dimension(:) :: buret_ions
+    real,    intent(in), dimension(:) :: actv_params
+    integer, intent(in), dimension(:) :: flags
+    integer, intent(in) :: actv_model
+
+    integer i
+    integer curr_titr
+
+    ion_model = actv_model
+
+    select case (ion_model)
+        case (0)
+            write (outu, *) "Ion model -> constant I"
+        case (1)
+            write (outu, *) "Ion model -> extended Debye-Huckel model"
+        case default
+            write (outu, "(A,I3)") "Invalid ion model", ion_model
+            emf_diagnostic = "Invalid ion model"
+            return
+    end select
+
+    if (size(actv_params) .ne. size(flags)) then
+        emf_diagnostic = "parameters and flags are not the same size"
+        return
+    end if
+
+    allocate(charges(NCP+NEQ))
+    charges(1:NCP) = charge
+    do i=1,NEQ
+        charges(NCP+i) = SUM(P(i,:)*charge)
+    end do
+
+    ALLOCATE(ion_backg(NPT))
+    curr_titr = 1
+    do i=1,NPT
+        if (i > sum(titr_size(1:curr_titr))) then
+            curr_titr = curr_titr + 1
+        end if
+        ion_backg(i) = (V(i)*buret_ions(curr_titr)+V0(curr_titr)*init_ions(curr_titr))/(V(i)+V0(curr_titr))
+    end do
+
+    ALLOCATE(ion_params(size(actv_params)))
+    ion_params = actv_params
+
+    ALLOCATE(ion_flags(size(actv_params)))
+    ion_flags = flags
+end subroutine include_ionic
 
 
 !----------------------------------------------------------------------------------------------------
