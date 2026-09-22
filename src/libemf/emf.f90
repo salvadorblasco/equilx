@@ -68,6 +68,7 @@ module emf
     real,    allocatable,  dimension(:)   :: ion_params
     integer, allocatable,  dimension(:)   :: ion_flags
     integer                               :: ion_model
+    real                                  :: ion_Iref
 
     ! variables for handling customized refinement
     real, target, allocatable, dimension(:)   :: tmp_lbeta
@@ -193,6 +194,8 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, n_junct, out
     tmp_loaded_titrs = 0
     tmp_space_left = NPT
 
+    ion_model = 0   ! constant ionic strength by default
+
     outu = outn
 end subroutine init_module
 
@@ -276,13 +279,14 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
 end subroutine load_titration
 
 
-subroutine include_ionic(charge, init_ions, buret_ions, actv_model, actv_params, flags)
+subroutine include_ionic(charge, Iref, init_ions, buret_ions, actv_model, actv_params, flags)
     integer, intent(in), dimension(:) :: charge
     real,    intent(in), dimension(:) :: init_ions
     real,    intent(in), dimension(:) :: buret_ions
     real,    intent(in), dimension(:) :: actv_params
     integer, intent(in), dimension(:) :: flags
     integer, intent(in) :: actv_model
+    real,    intent(in) :: Iref
 
     integer i
     integer curr_titr
@@ -300,6 +304,8 @@ subroutine include_ionic(charge, init_ions, buret_ions, actv_model, actv_params,
             return
     end select
 
+    ion_Iref = Iref
+    
     if (size(actv_params) .ne. size(flags)) then
         emf_diagnostic = "parameters and flags are not the same size"
         return
@@ -690,7 +696,14 @@ subroutine update_equil()
     do i=1,NTT
         call titr_bounds(i, blow, bhigh)
         if (update_titr(i)) call calc_analc(V(blow:bhigh), V0(i), use_init(i,:), use_buret(i,:), T(blow:bhigh,:))
-        call eq_000(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, CTRL, titr_size(i), NCP, NEQ)
+
+        select case (ion_model)
+            case (0)
+                call eq_000(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, CTRL, titr_size(i), NCP, NEQ)
+            case (1)
+                call eq_00i(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, ion_Iref, ion_backg(blow:bhigh), &
+                   charges, ion_params(1), ion_params(2), reshape(ion_params(3:), [NEQ, 3]), CTRL, (bhigh-blow+1), NCP, NEQ)
+        end select
     end do
 end subroutine update_equil
 
