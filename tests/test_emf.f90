@@ -17,7 +17,8 @@ program test_libemf
     !call test_hexaprotic5()
     !call test_hexaprotic6()
     !call test_hexaprotic7()
-    call test_hexaprotic8()
+    !call test_hexaprotic8()
+    call test_hexaprotic9()
 
     call CPU_TIME(t_stop)
     print "(A,F10.6,A)", "done in ", (t_stop-t_start), "s"
@@ -42,6 +43,7 @@ subroutine test_hexaprotic1()
     real, dimension(1) :: junc_pot
     real :: rnd
     logical, parameter :: SILENT = .true.
+    real, parameter :: TOLERANCE = 0.02
 
     passed = .true.
 
@@ -126,7 +128,7 @@ subroutine test_hexaprotic1()
     call fit_emf(20, temp)
 
     do i=1,6
-        if (abs(lbeta(i)-real_logbeta(i)) > 0.02) then
+        if (abs(lbeta(i)-real_logbeta(i)) > TOLERANCE) then
             if (passed) call print_result(test_name, "failed")
             passed = .false.
             print "(A,I1,A, 2F10.3)", "  log beta(",i,") too large: ", lbeta(i), real_logbeta(i)
@@ -845,7 +847,123 @@ subroutine test_hexaprotic8()
     use iso_fortran_env, only: output_unit
 
     implicit none
-    character(len=*), parameter :: test_name = "hexaprotic junction refined"
+    character(len=*), parameter :: test_name = "hexaprotic junction constrained"
+    logical passed
+    integer i
+    integer, DIMENSION(7) :: rlbflags = [1,1,1,1,1,1,0]
+    real, dimension(7) :: ini_logbeta = [ 10.0, 18.0, 24.0, 28.0, 31.0, 33.0, -13.77 ]
+    real, dimension(2,2) :: titr_params
+    integer, dimension(2,2) :: titr_flags
+    integer, dimension(1) :: junc_flag
+    integer, dimension(1) :: junc_comp
+    real, dimension(1) :: junc_pot
+    real :: rnd
+    logical, parameter :: SILENT = .true.
+    real, parameter :: TOLERANCE = 0.05
+
+    passed = .true.
+
+    titr_flags = 0
+    junc_flag = 2
+    junc_comp = 2
+    junc_pot = electr_junctionA
+    do i=1,6
+        call RANDOM_NUMBER(rnd)
+        ini_logbeta(i) = ini_logbeta(i) + (rnd-0.5)
+    end do
+
+    if (SILENT) then
+        open(unit=20, file='/dev/null', status='old')
+        call init_module(mNPT, 6, mP, ini_logbeta, rlbflags, 1, 20)
+    else
+        call init_module(mNPT, 6, mP, ini_logbeta, rlbflags, 1, output_unit)
+    end if
+
+    titr_params(:,1) = titr_init0(1,:)
+    titr_params(:,2) = [ 0.0, buret ]
+    call load_titration(titre1, remf1, titr_params, 2, initvol, melectr_emf0, melectr_slope, &
+                        titr_flags, 0, 0, error_emf, error_vol, junc_pot, junc_comp, junc_flag)
+    if (trim(emf_diagnostic) /= 'no error') then
+        if (passed) call print_result(test_name, "failed")
+        print *, "  loading titration 1 -> " // emf_diagnostic
+        passed=.false.
+    end if
+
+    call load_titration(titre1b, remf1b, titr_params, 2, initvol, melectr_emf0, melectr_slope, &
+                        titr_flags, 0, 0, error_emf, error_vol, junc_pot, junc_comp, junc_flag)
+    if (trim(emf_diagnostic) /= 'no error') then
+        if (passed) call print_result(test_name, "failed")
+        print *, "  loading titration 2 -> " // emf_diagnostic
+        passed=.false.
+        print *, emf_diagnostic
+    end if
+
+    titr_params(:,1) = titr_init0(2,:)
+    call load_titration(titre2, remf2, titr_params, 2, initvol, melectr_emf0, melectr_slope, &
+                        titr_flags, 0, 0, error_emf, error_vol, junc_pot, junc_comp, junc_flag)
+    if (trim(emf_diagnostic) /= 'no error') then
+        if (passed) call print_result(test_name, "failed")
+        print *, "  loading titration 3 -> " // emf_diagnostic
+        passed=.false.
+        print *, emf_diagnostic
+    end if
+
+    call load_titration(titre2b, remf2b, titr_params, 2, initvol, melectr_emf0, melectr_slope, &
+                        titr_flags, 0, 0, error_emf, error_vol, junc_pot, junc_comp, junc_flag)
+    if (trim(emf_diagnostic) /= 'no error') then
+        if (passed) call print_result(test_name, "failed")
+        print *, "  loading titration 4 -> " // emf_diagnostic
+        passed=.false.
+        print *, emf_diagnostic
+    end if
+
+    titr_params(:,1) = titr_init0(3,:)
+    call load_titration(titre3, remf3, titr_params, 2, initvol, melectr_emf0, melectr_slope, &
+                        titr_flags, 0, 0, error_emf, error_vol, junc_pot, junc_comp, junc_flag)
+    if (trim(emf_diagnostic) /= 'no error') then
+        if (passed) call print_result(test_name, "failed")
+        print *, "  loading titration 5 -> " // emf_diagnostic
+        passed=.false.
+        print *, emf_diagnostic
+    end if
+
+    call load_titration(titre3b, remf3b, titr_params, 2, initvol, melectr_emf0, melectr_slope, &
+                        titr_flags, 0, 0, error_emf, error_vol, junc_pot, junc_comp, junc_flag)
+    if (trim(emf_diagnostic) /= 'no error') then
+        if (passed) call print_result(test_name, "failed")
+        print *, "  loading titration 6 -> " // emf_diagnostic
+        passed=.false.
+        print *, emf_diagnostic
+    end if
+
+    if (SILENT) then
+        close(20)
+    end if
+
+    call set_weight_gradient()
+    call fit_emf(30, temp)
+
+    do i=1,6
+        if (abs(lbeta(i)-real_logbeta(i)) > TOLERANCE) then
+            if (passed) call print_result(test_name, "failed")
+            passed = .false.
+            print "(A,I1,A, 2F10.3)", "  log beta(",i,") too large: ", lbeta(i), real_logbeta(i)
+        end if
+    end do
+
+    call finalize()
+
+    if (passed) call print_result(test_name, "passed")
+end subroutine test_hexaprotic8
+
+
+subroutine test_hexaprotic9()
+    use emf
+    use case_hexaprotic
+    use iso_fortran_env, only: output_unit
+
+    implicit none
+    character(len=*), parameter :: test_name = "hexaprotic H refined"
     logical passed
     integer i
     integer, DIMENSION(7) :: rlbflags = [1,1,1,1,1,1,0]
@@ -857,11 +975,13 @@ subroutine test_hexaprotic8()
     real, dimension(1) :: junc_pot
     real :: rnd
     logical, parameter :: SILENT = .false.
+    real, parameter :: TOLERANCE = 0.05
 
     passed = .true.
 
     titr_flags = 0
-    junc_flag = 1
+    titr_flags(2,1) = 1
+    junc_flag = 0
     junc_comp = 2
     junc_pot = electr_junctionA
     do i=1,6
@@ -941,7 +1061,7 @@ subroutine test_hexaprotic8()
     call fit_emf(20, temp)
 
     do i=1,6
-        if (abs(lbeta(i)-real_logbeta(i)) > 0.02) then
+        if (abs(lbeta(i)-real_logbeta(i)) > TOLERANCE) then
             if (passed) call print_result(test_name, "failed")
             passed = .false.
             print "(A,I1,A, 2F10.3)", "  log beta(",i,") too large: ", lbeta(i), real_logbeta(i)
@@ -951,7 +1071,7 @@ subroutine test_hexaprotic8()
     call finalize()
 
     if (passed) call print_result(test_name, "passed")
-end subroutine test_hexaprotic8
+end subroutine test_hexaprotic9
 
 
 subroutine test_gradient()

@@ -438,7 +438,7 @@ subroutine fit_emf(maxits, temp)
                 write (outu, "(I3,A6,2F12.4,*(I4))") i, "LOGB", variables(i)%origin_value/LG10, cov/LG10, &
                     P(i,:)
             case (2)   ! initial amount
-                write (outu, "(I3,A6,2F12.4)") i, "init", variables(i)%origin_value, cov
+                write (outu, "(I3,A6,2E12.4)") i, "init", variables(i)%origin_value, cov
             case (3)   ! buret concentration
                 write (outu, "(I3,A6,2F12.4)") i, "buret", variables(i)%origin_value, cov
             case (4)   ! emf0
@@ -1105,11 +1105,14 @@ subroutine report_variables(step)
     do i=1,size(variables)
         value_ = variables(i)%origin_value
         step_val = step(variables(i)%origin_index)
-        if (variables(i)%jtype .eq. J_LBETA) then
-            write(outu, '(I4,3F12.4)') i, value_/LG10, step_val/LG10, (value_+step_val)/LG10
-        else
-            write(outu, '(I4,3F12.4)') i, value_, step_val, (value_+step_val)
-        end if
+        select case (variables(i)%jtype)
+            case (J_LBETA)
+                write(outu, '(I4,3F12.4)') i, value_/LG10, step_val/LG10, (value_+step_val)/LG10
+            case (J_TINIT)
+                write(outu, '(I4,3E12.4)') i, value_, step_val, (value_+step_val)
+            case default
+                write(outu, '(I4,3F12.4)') i, value_, step_val, (value_+step_val)
+        end select
     end do
 end subroutine report_variables
 
