@@ -6,12 +6,12 @@ program test_libemf
     print "(A)", "+-------------------------+"
     print *, ""
 
-    !call test_gradient()
-    !call test_hexaprotic1()
-    !call test_hexaprotic2()
-    !call test_hexaprotic3()
-    !call test_hexaprotic4()
-    !call test_hexaprotic5()
+    call test_gradient()
+    call test_hexaprotic1()
+    call test_hexaprotic2()
+    call test_hexaprotic3()
+    call test_hexaprotic4()
+    call test_hexaprotic5()
     call test_hexaprotic6()
 contains
 
@@ -619,7 +619,7 @@ subroutine test_hexaprotic6()
     real, dimension(1) :: junc_pot
     real :: rnd
     real, parameter :: TOLERANCE = 0.05
-    logical, parameter :: SILENT = .false.
+    logical, parameter :: SILENT = .true.
     real, parameter :: new_emf0 = 406.0
 
     passed = .true.
