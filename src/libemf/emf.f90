@@ -355,7 +355,7 @@ subroutine fit_emf(maxits, temp)
     real,   intent(in) :: temp   ! in degrees Celsius
     integer, intent(in) :: maxits
 
-    double precision :: cov
+    double precision :: cov, tmpval
     real, parameter :: nernst_base = 0.08617333262 ! mV/K
     integer NX, NV
     integer i, j, blow, bhigh
@@ -428,25 +428,28 @@ subroutine fit_emf(maxits, temp)
         deallocate(tmp_junction)
     end if
 
+    ! DO NOT USE tmp_ variables beyond this point. This includes the use of pointers
+    ! in variable(i)%destination_value
+
     ! print values
     write (outu, "(/,A)") "REFINED VARIABLES"
     write (outu, "(A)") "  #  PARM       VALUE       ERROR"
     do i=1,size(variables)
         cov = variables(i)%ratio*SQRT(covariance(variables(i)%origin_index,variables(i)%origin_index))
+        tmpval = variables(i)%origin_value*variables(i)%ratio
         select case (variables(i)%jtype)
             case (1)   ! log beta
-                write (outu, "(I3,A6,2F12.4,*(I4))") i, "LOGB", variables(i)%origin_value/LG10, cov/LG10, &
-                    P(i,:)
+                write (outu, "(I3,A6,2F12.4,*(I4))") i, "LOGB", tmpval/LG10, cov/LG10, P(i,:)
             case (2)   ! initial amount
-                write (outu, "(I3,A6,2E12.4)") i, "init", variables(i)%origin_value, cov
+                write (outu, "(I3,A6,2E12.4)") i, "init", tmpval, cov
             case (3)   ! buret concentration
-                write (outu, "(I3,A6,2F12.4)") i, "buret", variables(i)%origin_value, cov
+                write (outu, "(I3,A6,2F12.4)") i, "buret", tmpval, cov
             case (4)   ! emf0
-                write (outu, "(I3,A6,2F12.4)") i, "emf0", variables(i)%origin_value, cov
+                write (outu, "(I3,A6,2F12.4)") i, "emf0", tmpval, cov
             case (5)   ! slope
-                write (outu, "(I3,A6,2F12.4)") i, "slope", variables(i)%origin_value, cov
+                write (outu, "(I3,A6,2F12.4)") i, "slope", tmpval, cov
             case (6)   ! slope
-                write (outu, "(I3,A6,2F12.4)") i, "junct", variables(i)%origin_value, cov
+                write (outu, "(I3,A6,2F12.4)") i, "junct", tmpval, cov
         end select
     end do
 
