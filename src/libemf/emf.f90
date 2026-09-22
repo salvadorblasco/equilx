@@ -7,7 +7,9 @@
 ! HOW TO USE
 ! 1. call init_module with the parameters indicated
 ! 2. load the titrations one by one by calling load_titration
-! 3. set the weighting scheme by calling one of the set weights routine
+! 3. Optional additions
+!   3a. set the weighting scheme by calling one of the set weights routine
+!   3b. include variable ionic strength is aplicable with include_ionic
 ! 4. call fit_emf
 ! 5. copy the result from the public variables
 ! 6. call finalize to deallocate and cleanup
