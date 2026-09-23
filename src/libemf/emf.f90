@@ -71,6 +71,7 @@ module emf
     integer, allocatable,  dimension(:)   :: ion_flags
     integer                               :: ion_model
     real                                  :: ion_Iref
+    double precision, allocatable, dimension(:,:) :: ion_correction
 
     ! variables for handling customized refinement
     real, target, allocatable, dimension(:)   :: tmp_lbeta
@@ -108,6 +109,7 @@ module emf
     integer outu  ! unit for writing output
 
     PUBLIC :: init_module, load_titration, finalize, fit_emf, set_weight_gradient, set_weight_unit
+    public :: set_ionic_variable, set_ionic_constant, set_ionic_ignored
 
 contains
 
@@ -281,31 +283,69 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
 end subroutine load_titration
 
 
-subroutine include_ionic(charge, Iref, init_ions, buret_ions, actv_model, actv_params, flags)
+subroutine set_ionic_ignored()
+    ion_model = 0
+    write (outu, *) "Ion model -> ignore ionic strength"
+end subroutine set_ionic_ignored
+
+
+subroutine set_ionic_constant(charge, Iref, init_ions, buret_ions, actv_params)
+    integer, intent(in), dimension(:) :: charge
+    real,    intent(in), dimension(:) :: init_ions
+    real,    intent(in), dimension(:) :: buret_ions
+    real,    intent(in), dimension(:) :: actv_params
+    real,    intent(in) :: Iref
+
+    integer curr_titr
+    integer i
+    real, dimension(NCP) :: zstar
+    real, dimension(NEQ,3) :: params
+
+    external calc_activity_correction
+
+    ion_model = 1
+    ion_Iref = Iref
+
+    allocate(charges(NCP+NEQ))
+    charges(1:NCP) = charge
+    do i=1,NEQ
+        charges(NCP+i) = SUM(P(i,:)*charge)
+    end do
+    do i=1,NEQ
+        zstar(i) = -charges(NCP+i)**2 + sum(P(i,:)*charges(1:NCP)**2)
+    end do
+
+
+    params = reshape(actv_params(3:), [NEQ, 3])
+
+    ALLOCATE(ion_backg(NPT))
+    allocate(ion_correction(NEQ, NPT))
+    curr_titr = 1
+    do i=1,NPT
+        if (i > sum(titr_size(1:curr_titr))) then
+            curr_titr = curr_titr + 1
+        end if
+        ion_backg(i) = (V(i)*buret_ions(curr_titr)+V0(curr_titr)*init_ions(curr_titr))/(V(i)+V0(curr_titr))
+        call calc_activity_correction(ion_correction(:,i), ion_backg(i), ion_Iref, zstar, actv_params(1), actv_params(2),&
+            params(:,1), params(:,2), params(:,3))
+    end do
+
+    write (outu, *) "Ion model -> Debye-Huckel correction for constant I"
+end subroutine set_ionic_constant
+
+
+subroutine set_ionic_variable(charge, Iref, init_ions, buret_ions, actv_params, flags)
     integer, intent(in), dimension(:) :: charge
     real,    intent(in), dimension(:) :: init_ions
     real,    intent(in), dimension(:) :: buret_ions
     real,    intent(in), dimension(:) :: actv_params
     integer, intent(in), dimension(:) :: flags
-    integer, intent(in) :: actv_model
     real,    intent(in) :: Iref
 
     integer i
     integer curr_titr
 
-    ion_model = actv_model
-
-    select case (ion_model)
-        case (0)
-            write (outu, *) "Ion model -> constant I"
-        case (1)
-            write (outu, *) "Ion model -> extended Debye-Huckel model"
-        case default
-            write (outu, "(A,I3)") "Invalid ion model", ion_model
-            emf_diagnostic = "Invalid ion model"
-            return
-    end select
-
+    ion_model = 2
     ion_Iref = Iref
     
     if (size(actv_params) .ne. size(flags)) then
@@ -337,7 +377,9 @@ subroutine include_ionic(charge, Iref, init_ions, buret_ions, actv_model, actv_p
     else
         ion_flags = flags
     end if
-end subroutine include_ionic
+
+    write (outu, *) "Ion model -> Debye-Huckel correction for variable I"
+end subroutine set_ionic_variable
 
 
 !----------------------------------------------------------------------------------------------------
@@ -413,8 +455,12 @@ subroutine finalize()
     deallocate(junctionp)
     deallocate(junctionf)
     deallocate(junctionc)
-    if (allocated(variables)) deallocate(variables)
+    if (allocated(variables))  deallocate(variables)
     if (allocated(covariance)) deallocate(covariance)
+    if (allocated(charges))    deallocate(charges)
+    if (allocated(ion_backg))  deallocate(ion_backg)
+    if (allocated(ion_params)) deallocate(ion_params)
+    if (allocated(ion_flags))  deallocate(ion_flags)
 end subroutine finalize
 
 
@@ -703,6 +749,8 @@ subroutine update_equil()
             case (0)
                 call eq_000(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, CTRL, titr_size(i), NCP, NEQ)
             case (1)
+
+            case (2)
                 call eq_00i(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, ion_Iref, ion_backg(blow:bhigh), &
                    charges, ion_params(1), ion_params(2), reshape(ion_params(3:), [NEQ, 3]), CTRL, (bhigh-blow+1), NCP, NEQ)
         end select
