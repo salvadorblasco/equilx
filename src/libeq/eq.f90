@@ -109,6 +109,49 @@ subroutine eq_00i(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, 
 end subroutine eq_00i
 
 
+subroutine eq_00f(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
+    ! Solve equilibrium titration when no solids are present and ionic strengh is fixed.
+    ! The first initial value must be provided in C(1,1:NCP). The following 
+    ! points take as starting value the value of the last iteration.
+    implicit none
+    integer,          intent(in)    :: NPT                               ! number of titration points
+    integer,          intent(in)    :: NCP                               ! number of components
+    integer,          intent(in)    :: NEQ                               ! number of equilibria
+    integer,          intent(inout) :: CTRL                              ! control value. See return values in header of this file.
+    double precision, intent(inout), dimension(NPT, NEQ+NCP) :: C        ! initial estimates (in) and refined values (out)
+    double precision, intent(in),    dimension(NPT, NCP)     :: T        ! analytical concentration values
+    double precision, intent(in),    dimension(NEQ)          :: Bref     ! the equilibrium constants
+    DOUBLE PRECISION, INTENT(IN)                             :: Iref     ! reference ionic strength
+    DOUBLE PRECISION, INTENT(IN),    dimension(NPT)          :: Iback    ! background ionic strength
+    integer,          intent(in),    dimension(NEQ, NCP)     :: P        ! The stoichiometry array
+    integer,          INTENT(IN),    DIMENSION(NCP+NEQ)      :: charge   ! charge for every species
+    DOUBLE PRECISION, INTENT(IN)                             :: DHA, DHB ! Debye-Huckel parameters A and B
+    double precision, intent(in),    dimension(NEQ,3)        :: DHP      ! per-species DH parameters C, D and E
+  
+    integer i
+    DOUBLE PRECISION, dimension(NEQ) :: corr   ! the activity correction to the equilibrium constant
+    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2 
+  
+    do i=1,NEQ
+        zstar(i) = -charge(NCP+i)**2 + sum(P(i,:)*charge(1:NCP)**2)
+    end do
+
+    corr = 0.0 
+    CTRL = 0
+    do i=1,NPT
+        if (i .eq. 1) then
+            call solve_point(C(1,:), T(1,:), Bref+corr, P, CTRL, .true., NCP, NEQ)
+        else
+            C(i,:) = C(i-1,:)
+            call solve_point(C(i,:), T(i,:), Bref+corr, P, CTRL, .false., NCP, NEQ)
+        end if
+        if (CTRL > 50) exit  ! error unable to continue
+        call calc_activity_correction(corr, Iback(i), Iref, zstar, DHA, DHB, DHP(:,1), DHP(:,2), DHP(:,3), NEQ)
+        call nr(C(i,:), T(i,:), Bref+corr, P, ctrl, NCP, NEQ)
+    end do
+end subroutine eq_00f
+
+
 subroutine eq_0s0(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
     ! Solve titration equilibrium when solids are present. The first initial value must be provided
     ! in the first row of C. The following points take as starting value the value of 
