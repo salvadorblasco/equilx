@@ -298,8 +298,8 @@ subroutine set_ionic_constant(charge, Iref, init_ions, buret_ions, actv_params)
 
     integer curr_titr
     integer i
-    real, dimension(NCP) :: zstar
-    real, dimension(NEQ,3) :: params
+    integer, dimension(NEQ) :: zstar
+    double precision, dimension(NEQ,3) :: params
 
     external calc_activity_correction
 
@@ -316,7 +316,7 @@ subroutine set_ionic_constant(charge, Iref, init_ions, buret_ions, actv_params)
     end do
 
 
-    params = reshape(actv_params(3:), [NEQ, 3])
+    params = reshape(DBLE(actv_params(3:)), [NEQ, 3])
 
     ALLOCATE(ion_backg(NPT))
     allocate(ion_correction(NEQ, NPT))
@@ -326,20 +326,20 @@ subroutine set_ionic_constant(charge, Iref, init_ions, buret_ions, actv_params)
             curr_titr = curr_titr + 1
         end if
         ion_backg(i) = (V(i)*buret_ions(curr_titr)+V0(curr_titr)*init_ions(curr_titr))/(V(i)+V0(curr_titr))
-        call calc_activity_correction(ion_correction(:,i), ion_backg(i), ion_Iref, zstar, actv_params(1), actv_params(2),&
-            params(:,1), params(:,2), params(:,3))
+
+        call calc_activity_correction(ion_correction(:,i), DBLE(ion_backg(i)), DBLE(ion_Iref), zstar, DBLE(actv_params(1)), &
+            DBLE(actv_params(2)), params(:,1), params(:,2), params(:,3), NEQ)
     end do
 
     write (outu, *) "Ion model -> Debye-Huckel correction for constant I"
 end subroutine set_ionic_constant
 
 
-subroutine set_ionic_variable(charge, Iref, init_ions, buret_ions, actv_params, flags)
+subroutine set_ionic_variable(charge, Iref, init_ions, buret_ions, actv_params)
     integer, intent(in), dimension(:) :: charge
     real,    intent(in), dimension(:) :: init_ions
     real,    intent(in), dimension(:) :: buret_ions
     real,    intent(in), dimension(:) :: actv_params
-    integer, intent(in), dimension(:) :: flags
     real,    intent(in) :: Iref
 
     integer i
@@ -348,11 +348,6 @@ subroutine set_ionic_variable(charge, Iref, init_ions, buret_ions, actv_params, 
     ion_model = 2
     ion_Iref = Iref
     
-    if (size(actv_params) .ne. size(flags)) then
-        emf_diagnostic = "parameters and flags are not the same size"
-        return
-    end if
-
     allocate(charges(NCP+NEQ))
     charges(1:NCP) = charge
     do i=1,NEQ
@@ -371,12 +366,12 @@ subroutine set_ionic_variable(charge, Iref, init_ions, buret_ions, actv_params, 
     ALLOCATE(ion_params(size(actv_params)))
     ion_params = actv_params
 
-    ALLOCATE(ion_flags(size(actv_params)))
-    if (ion_model .eq. 0) then
-        ion_flags = 0    ! For constant I, flags must be ignored: set to constant
-    else
-        ion_flags = flags
-    end if
+    !ALLOCATE(ion_flags(size(actv_params)))
+    !if (ion_model .eq. 0) then
+    !    ion_flags = 0    ! For constant I, flags must be ignored: set to constant
+    !else
+    !    ion_flags = flags
+    !end if
 
     write (outu, *) "Ion model -> Debye-Huckel correction for variable I"
 end subroutine set_ionic_variable
@@ -741,6 +736,8 @@ subroutine update_equil()
     use misc, only: calc_analc
     integer i, blow, bhigh, CTRL
     external eq_000
+    external eq_00i
+    external eq_00f
     do i=1,NTT
         call titr_bounds(i, blow, bhigh)
         if (update_titr(i)) call calc_analc(V(blow:bhigh), V0(i), use_init(i,:), use_buret(i,:), T(blow:bhigh,:))
@@ -749,10 +746,14 @@ subroutine update_equil()
             case (0)
                 call eq_000(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, CTRL, titr_size(i), NCP, NEQ)
             case (1)
-
+                call eq_000(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta) + ion_correction(:,i)), P, CTRL, &
+                    titr_size(i), NCP, NEQ)
+                !call eq_00f(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, ion_Iref, ion_backg(blow:bhigh), &
+                !   charges, ion_params(1), ion_params(2), reshape(ion_params(3:), [NEQ, 3]), CTRL, (bhigh-blow+1), NCP, NEQ)
             case (2)
-                call eq_00i(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, ion_Iref, ion_backg(blow:bhigh), &
-                   charges, ion_params(1), ion_params(2), reshape(ion_params(3:), [NEQ, 3]), CTRL, (bhigh-blow+1), NCP, NEQ)
+                call eq_00i(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, DBLE(ion_Iref), &
+                    DBLE(ion_backg(blow:bhigh)), charges, DBLE(ion_params(1)), DBLE(ion_params(2)), &
+                    reshape(DBLE(ion_params(3:)), [NEQ, 3]), CTRL, (bhigh-blow+1), NCP, NEQ)
         end select
     end do
 end subroutine update_equil

@@ -6,7 +6,7 @@ TESTDIR=tests
 
 FC = gfortran
 RM = rm 
-FFLAGS = -Wall -O2 -fPIC
+#FFLAGS = -Wall -O2 -fPIC
 FFLAGS = -g -O0 -fPIC -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
 LDFLAGS = -shared
 RPATH   = -Wl,-rpath,'$$ORIGIN/../lib'
