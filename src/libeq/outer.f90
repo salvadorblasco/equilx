@@ -3,7 +3,7 @@
 
 subroutine outer(correction, C, charge, Bref, Iref, Iback, zstar, DHA, DHB, DHX, T, P, CTRL, NCP, NEQ)
     ! Outer point algorithm for fitting the activities, as described by Carrayrou (2021), 10.1002/aic.17391
-    ! For the activity correction an extended Debye-Huckel model is assumed as reported in 
+    ! For the activity correction an extended Debye-Huckel model is assumed as reported in
     ! Castellino (2023) 10.1016/j.chemolab.2023.104860
     implicit none
     integer, intent(in)          :: NCP     ! number of components
@@ -23,31 +23,35 @@ subroutine outer(correction, C, charge, Bref, Iref, Iback, zstar, DHA, DHB, DHX,
 
     DOUBLE PRECISION :: Icalc ! current ionic strength
     DOUBLE PRECISION :: calc_conc_ionic_strength
-    DOUBLE PRECISION, dimension(NEQ) :: previous_correction
+    DOUBLE PRECISION, dimension(NEQ) :: previous_logcorrection
+    DOUBLE PRECISION, dimension(NEQ) :: current_logcorrection
     double precision, parameter :: CORRECTION_TOLERANCE = 1e-5
+    double precision, dimension(NEQ)   :: Bcorr        ! corrected beta
 
-    integer its
+    integer :: its
     integer, parameter :: MAXITS = 100
 
-    previous_correction = correction
+    !previous_logcorrection = LOG10(correction)
 
     do its=1,MAXITS
       ! I. compute ionic strength
       Icalc = calc_conc_ionic_strength(C, charge, NCP+NEQ) + Iback
 
       ! II. compute activity coefficients
-      call calc_activity_correction(correction, Icalc, Iref, zstar, DHA, DHB, DHX(:,1), DHX(:,2), DHX(:,3), NEQ)
+      call calc_activity_correction(current_logcorrection, Icalc, Iref, zstar, DHA, DHB, DHX(:,1), DHX(:,2), DHX(:,3), NEQ)
       !print "(A, I5, A, 7E12.4)", "outer [", its, "]; correction = ", correction
 
       ! III. Solve NR
-      call nr(C, T, Bref+correction, P, ctrl, NCP, NEQ)
+      Bcorr = Bref * 10**current_logcorrection
+      call nr(C, T, Bcorr, P, ctrl, NCP, NEQ)
       if (CTRL > 50) return   ! non-recoverable error happened
 
       ! IV. test convergence
-      if (all(abs(correction-previous_correction) < CORRECTION_TOLERANCE)) then
+      if (all(abs(current_logcorrection-previous_logcorrection) < CORRECTION_TOLERANCE)) then
+          correction = 10**current_logcorrection
           return
       else
-          previous_correction = correction
+          previous_logcorrection = current_logcorrection
       end if
     end do
     CTRL = 4  ! outer point did not converge or lacked iterations to converge

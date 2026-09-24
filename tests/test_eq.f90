@@ -544,8 +544,8 @@ subroutine test_case_molybdate()
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-15
-    integer i, j, CTRL
-    logical passed
+    integer :: i, j, CTRL
+    logical :: passed
     character(len=*), parameter :: test_name = "case molybdate"
 
     passed = .true.

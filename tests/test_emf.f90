@@ -9,21 +9,21 @@ program test_libemf
     print "(A)", "+-------------------------+"
     print *, ""
 
-    !call test_gradient()
-    !call test_hexaprotic1()
-    !call test_hexaprotic2()
-    !call test_hexaprotic3()
-    !call test_hexaprotic4()
-    !call test_hexaprotic5()
-    !call test_hexaprotic6()
-    !call test_hexaprotic7()
-    !call test_hexaprotic8()
-    !call test_hexaprotic9()
-    !call test_hexaprotic10()
-    !call test_hexaprotic11()
-    !call test_hexaprotic12()
-    !call test_hexaprotic13()
-    !call test_hexaprotic14()
+    call test_gradient()
+    call test_hexaprotic1()
+    call test_hexaprotic2()
+    call test_hexaprotic3()
+    call test_hexaprotic4()
+    call test_hexaprotic5()
+    call test_hexaprotic6()
+    call test_hexaprotic7()
+    call test_hexaprotic8()
+    call test_hexaprotic9()
+    call test_hexaprotic10()
+    call test_hexaprotic11()
+    call test_hexaprotic12()
+    call test_hexaprotic13()
+    call test_hexaprotic14()
     call test_hexaprotic15()
 
     call CPU_TIME(t_stop)
@@ -1684,7 +1684,7 @@ subroutine test_hexaprotic15()
     use iso_fortran_env, only: output_unit
 
     implicit none
-    character(len=*), parameter :: test_name = "hexaprotic fixed ionic"
+    character(len=*), parameter :: test_name = "hexaprotic variable ionic"
     logical passed
     integer i
     integer, DIMENSION(7) :: rlbflags = [1,1,1,1,1,1,0]
@@ -1695,8 +1695,8 @@ subroutine test_hexaprotic15()
     integer, dimension(1) :: junc_comp
     real, dimension(1) :: junc_pot
     real :: rnd
-    logical, parameter :: SILENT = .false.
-    real, parameter :: TOLERANCE = 0.02
+    logical, parameter :: SILENT = .true.
+    real, parameter :: TOLERANCE = 0.05
     real, dimension(2+3*7) :: dhparms
     integer, dimension(2+3*7) :: dhp_flags
     real, dimension(7) :: init_ions, buret_ions

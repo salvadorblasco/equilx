@@ -87,24 +87,24 @@ subroutine eq_00i(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, 
     integer i
     DOUBLE PRECISION, dimension(NEQ) :: corr   ! the activity correction to the equilibrium constant
     integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2 
-  
+
     do i=1,NEQ
         zstar(i) = -charge(NCP+i)**2 + sum(P(i,:)*charge(1:NCP)**2)
     end do
 
-    corr = 0.0 
+    corr = 1.0
     CTRL = 0
     do i=1,NPT
         if (i .eq. 1) then
-            call solve_point(C(1,:), T(1,:), Bref+corr, P, CTRL, .true., NCP, NEQ)
+            call solve_point(C(1,:), T(1,:), Bref*corr, P, CTRL, .true., NCP, NEQ)
         else
             C(i,:) = C(i-1,:)
-            call solve_point(C(i,:), T(i,:), Bref+corr, P, CTRL, .false., NCP, NEQ)
+            call solve_point(C(i,:), T(i,:), Bref*corr, P, CTRL, .false., NCP, NEQ)
         end if
         if (CTRL > 50) exit  ! error unable to continue
         call outer(corr, C(i,:), charge, Bref, Iref, Iback(i), zstar, DHA, DHB, DHP, T(i,:), P, CTRL, NCP, NEQ)
         if (CTRL > 50) exit  ! error unable to continue
-        call nr(C(i,:), T(i,:), Bref+corr, P, ctrl, NCP, NEQ)
+        call nr(C(i,:), T(i,:), Bref*corr, P, ctrl, NCP, NEQ)
     end do
 end subroutine eq_00i
 
