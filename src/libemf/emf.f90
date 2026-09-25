@@ -158,15 +158,15 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, n_junct, out
     electr_slope = 1.00
     ALLOCATE(eactive(NTT))
     eactive = 0
-    ALLOCATE(titr_init(NTT,NCP)) 
+    ALLOCATE(titr_init(NTT,NCP))
     titr_init = 0.0
-    ALLOCATE(titr_buret(NTT,NCP)) 
+    ALLOCATE(titr_buret(NTT,NCP))
     titr_buret = 0.0
     ALLOCATE(lbeta(NEQ))
     ALLOCATE(flag_beta(NEQ))
-    ALLOCATE(flag_init(NTT,NCP)) 
+    ALLOCATE(flag_init(NTT,NCP))
     flag_init = 0
-    ALLOCATE(flag_buret(NTT,NCP)) 
+    ALLOCATE(flag_buret(NTT,NCP))
     flag_buret = 0
     ALLOCATE(flag_emf0(NTT))
     flag_emf0 = 0
@@ -431,14 +431,14 @@ subroutine finalize()
     DEALLOCATE(electr_emf0)
     DEALLOCATE(eactive)
     DEALLOCATE(electr_slope)
-    DEALLOCATE(titr_init) 
-    DEALLOCATE(titr_buret) 
+    DEALLOCATE(titr_init)
+    DEALLOCATE(titr_buret)
     DEALLOCATE(lbeta)
     DEALLOCATE(flag_beta)
-    DEALLOCATE(flag_init) 
-    DEALLOCATE(flag_buret) 
-    DEALLOCATE(flag_emf0) 
-    DEALLOCATE(flag_slope) 
+    DEALLOCATE(flag_init)
+    DEALLOCATE(flag_buret)
+    DEALLOCATE(flag_emf0)
+    DEALLOCATE(flag_slope)
     deallocate(err_emf)
     deallocate(err_vol)
     DEallocate(titr_size)
@@ -467,8 +467,8 @@ subroutine fit_emf(maxits, temp)
 
     double precision :: cov, tmpval
     real, parameter :: nernst_base = 0.08617333262 ! mV/K
-    integer NX, NV
-    integer i, j, blow, bhigh
+    integer :: NX, NV
+    integer :: i, j, blow, bhigh
     double precision, parameter :: TDAMP = 0.01
     double precision, parameter :: TMIN = 1D-10
     real, PARAMETER :: TOKELVIN = 273.15
