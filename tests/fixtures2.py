@@ -3,7 +3,7 @@
 import numpy as np
 
 from equilx.data_structure import EquilibriumData
-from equilx.solver.utils import make_titration
+from equilx.utils import make_titration
 
 def case_phosphoric():
     labels = ('H', 'FOS')

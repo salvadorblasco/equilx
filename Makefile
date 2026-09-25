@@ -1,11 +1,12 @@
 # EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
 # by Salvador Blasco <salvador.blasco@uv.es>
 
-MODNAME=fsolver
 TESTDIR=tests
 
 FC = gfortran
+F2PY = uv run f2py
 RM = rm 
+
 #FFLAGS = -Wall -O2 -fPIC
 FFLAGS = -g -O0 -fPIC -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
 LDFLAGS = -shared
@@ -33,6 +34,34 @@ TEST_EMF  = $(BINDIR)/test_emf
 
 .PHONY: all test 
 
+
+vars:
+	@echo $(EQ_SRCS) 
+	@echo $(EQ_OBJS) 
+
+
+#--------------------------------------------------------------------------------
+# common rules
+#
+%.o: %.f90
+	$(FC) $(FFLAGS) -c $< -o $@ 
+
+
+#--------------------------------------------------------------------------------
+# python module rule
+#
+
+PYMDIR = $(SRCDIR)/equilx
+MODNAME=fsolver
+SIGNATURE=$(PYMDIR)/$(MODNAME).pyf
+
+pymodule: $(EQ_SRCS) $(EMF_SRCS)
+	$(F2PY) -c $(SIGNATURE) -m $(MODNAME) $(EQ_SRCS) $^ $(LLAPACK)
+
+signature:
+	$(F2PU) --overwrite-signature -h $(SIGNATURE) eq.f90 
+
+
 #--------------------------------------------------------------------------------
 # libeq rules
 #
@@ -44,6 +73,9 @@ $(EQ_LIB): $(EQ_OBJS)
 
 $(BUILD)/libeq/%.o: $(SRCDIR)/libeq/%.f90
 	$(FC) $(FFLAGS) -J$(MODDIR) -c $< -o $@
+
+#$(EQ_OBJS): %.o: %.f90
+#	$(FC) $(FFLAGS) -J$(MODDIR) -c $< -o $@
 
 
 #--------------------------------------------------------------------------------
@@ -91,12 +123,6 @@ run-tests: tests
 #--------------------------------------------------------------------------------
 # other rules
 
-# pymodule: $(LIBEQ_SRCS)
-# 	uv run f2py -c $(MODNAME).pyf -m $(MODNAME) $^ $(LIBS) 
-# 
-# signature:
-# 	uv run f2py --overwrite-signature -h $(MODNAME).pyf eq.f90 
-# 
 # %.o: %.f90
 # 	$(FC) -c $< -o $@ $(FFLAGS)
 # 

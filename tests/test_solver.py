@@ -5,8 +5,8 @@ import unittest
 import numpy as np
 import numpy.testing as npt
 
-from equilx.solver import Eq
-from equilx.solver.utils import calc_saturation, make_titration, mass_action, species_concentration, unpack_eqsolve
+from equilx import Eq
+from equilx.utils import calc_saturation, make_titration, mass_action, species_concentration, unpack_eqsolve
 
 from fixtures2 import all_fixtures
 

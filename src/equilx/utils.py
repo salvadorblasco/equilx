@@ -1,7 +1,7 @@
 import numpy as np
 
-from ..mytypes import FArray
-from ..data_structure import EquilibriumData
+from equilx.mytypes import FArray
+from equilx.data_structure import EquilibriumData
 
 
 def unpack_eqsolve(concentration: FArray, equil: EquilibriumData) -> dict:

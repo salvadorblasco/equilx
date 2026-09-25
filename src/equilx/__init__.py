@@ -1,4 +1,3 @@
-from .solver.solver import Eq
+from .solver import Eq
 
-def hello() -> str:
-    return "Hello from equilx!"
+__all__ = [ 'Eq' ]

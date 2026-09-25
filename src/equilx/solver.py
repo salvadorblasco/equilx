@@ -7,8 +7,8 @@ import numpy as np
 from equilx.mytypes import FArray
 from equilx.data_structure import EquilibriumData, DebyeHuckelParameters
 
-from equilx.solver import fsolver
-from equilx.solver import utils
+from equilx import fsolver
+from equilx import utils
 
 
 
