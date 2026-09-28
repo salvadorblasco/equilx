@@ -22,3 +22,7 @@ where = ["src"]
 dev = [
     "matplotlib>=3.10.9",
 ]
+
+[check]
+line-length = 132
+ignore = ["S241"]

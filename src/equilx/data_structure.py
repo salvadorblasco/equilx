@@ -28,24 +28,26 @@ class DebyeHuckelParameters:
 
 @dataclass(kw_only=True)
 class _GenericTitration:
-    starting_volume: float                                         # in mL
-    titre_added: FArray                                            # in mL
-    starting_concentration: FArray                                 # in mol/L
-    buret_concentration: FArray                                    # in mol/L
+    starting_volume: float                                 # in mL
+    titre_added: FArray                                    # in mL
+    initial_amount: FArray                                 # in mmol
+    flags_initial: BArray | None
+    buret_concentration: FArray                            # in mol/L
+    flags_buret: BArray | None
     starting_background_concentration: FArray = field(init=False, default_factory=MISSING)  # in mol/L
     buret_background_concentration: FArray = field(init=False, default_factory=MISSING)     # in mol/L
     starting_concentration_flags: list[Flags]
     buret_concentration_flags: list[Flags]
     volume_error: float = 0.0
-    use_point: Optional[BArray] = None
+    use_point: BArray | None = None
     background_ions: FArray = field(default_factory=lambda: np.array([], dtype=float))
 
     def __post_init__(self):
         # type checking
         __assert_positivefloat(self.starting_volume, "starting volume")
-        __assert_floatarray(self.starting_concentration, "starting concentration", ndim=1)
+        __assert_floatarray(self.initial_amount, "initial amount", ndim=1)
 
-        number_components = len(self.starting_concentration)
+        number_components = len(self.initial_amount)
         __assert_floatarray(self.buret_concentration, "buret concentration", ndim=1)
         if len(self.buret_concentration) != number_components:
             raise ValueError("starting concentration and buret concentration have different length")
@@ -56,7 +58,7 @@ class _GenericTitration:
     def __background_init(self, what):
         array = getattr(self, what)
         if array is MISSING:
-            setattr(self, what, np.zeros_like(self.starting_concentration))
+            setattr(self, what, np.zeros_like(self.initial_amount))
         else:
             __assert_floatarray(array, what, ndim=1)
 
@@ -70,7 +72,7 @@ class _GenericTitration:
 
     @property
     def analytical_concentration(self) -> FArray:
-        return self.__build_titration(self.starting_concentration, self.buret_concentration)
+        return self.__build_titration(self.initial_amount, self.buret_concentration)
 
     @property
     def ionic_strength(self) -> FArray:
@@ -146,7 +148,13 @@ class PotentiometryTitration(_GenericTitration):
     emf_error: float
     slope: float
     electroactive: int
-    temperature: float = field(init=False, default=298.15)  # kelvin
+    temperature: float = field(init=False, default=25.0)  # Celsius
+    junction_potential: list[float] = field(default_factory=list)
+    junction_component: list[int] = field(default_factory=list)
+    flag_junction: list[int] = field(default_factory=list)
+
+    flag_emf0: int = Flags.CONSTANT
+    flag_slope: int = Flags.CONSTANT
 
     def __post_init__(self):
         super().__post_init__()

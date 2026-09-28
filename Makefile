@@ -56,7 +56,7 @@ MODNAME=fsolver
 SIGNATURE=$(PYMDIR)/$(MODNAME).pyf
 
 pymodule: $(EQ_SRCS) $(EMF_SRCS)
-	$(F2PY) -c $(SIGNATURE) -m $(MODNAME) $(EQ_SRCS) $^ $(LLAPACK)
+	$(F2PY) -c $(SIGNATURE) -m $(BINDIR)/$(MODNAME) $(EQ_SRCS) $^ $(LLAPACK)
 
 signature:
 	$(F2PU) --overwrite-signature -h $(SIGNATURE) eq.f90 

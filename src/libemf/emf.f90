@@ -16,20 +16,20 @@
 !----------------------------------------------------------------------------------------------------
 
 module emf
-    implicit none
+    implicit none (type, external)
 
     private
 
     ! variables for constraints
     type value_holder
-        double precision, pointer :: origin_value   ! points to value in xvalues
-        integer :: origin_index                     ! index of xvalues
-        real, pointer :: destination_value          ! points to value in tmp_*
-        integer :: destination_index1               ! index of EQ, CP or NT
-        integer :: destination_index2               ! index of EQ, CP or NT
+        double precision, pointer :: origin_value => NULL()  ! points to value in xvalues
+        integer :: origin_index                              ! index of xvalues
+        real, pointer :: destination_value  => NULL()        ! points to value in tmp_*
+        integer :: destination_index1                        ! index of EQ, CP or NT
+        integer :: destination_index2                        ! index of EQ, CP or NT
         integer :: id
-        integer :: jtype                            ! type of variable (beta, init, etc.)
-        double precision :: ratio                   ! 1.0 for free and reference; other for the rest
+        integer :: jtype                                     ! type of variable (beta, init, etc.)
+        double precision :: ratio                            ! 1.0 for free and reference; other for the rest
     end type value_holder
 
     type(value_holder), allocatable, dimension(:)         :: variables
@@ -40,12 +40,12 @@ module emf
     ! public variables for after fitting
     double precision, allocatable, public, protected, dimension(:,:) :: C           ! the free concentrations
     double precision, allocatable, public, protected, dimension(:,:) :: covariance  ! the covatiance matrix
-    real, allocatable, target, public, protected, dimension(:)   :: electr_emf0   ! standard potential in mV
-    real, allocatable, target, public, protected, dimension(:)   :: electr_slope  ! nernstian slope in unit
-    real, allocatable, target, public, protected, dimension(:,:) :: titr_init     ! initial amount in mmol
-    real, allocatable, target, public, protected, dimension(:,:) :: titr_buret    ! buret concentration in mmol/mL
-    real, allocatable, target, public, protected, dimension(:)   :: lbeta         ! formation constants in log units
-    real, allocatable, target, public, protected, dimension(:,:) :: junctionp     ! junction potential in mV.mL/mmmol
+    real, allocatable, target, public, protected, dimension(:)   :: electr_emf0     ! standard potential in mV
+    real, allocatable, target, public, protected, dimension(:)   :: electr_slope    ! nernstian slope in unit
+    real, allocatable, target, public, protected, dimension(:,:) :: titr_init       ! initial amount in mmol
+    real, allocatable, target, public, protected, dimension(:,:) :: titr_buret      ! buret concentration in mmol/mL
+    real, allocatable, target, public, protected, dimension(:)   :: lbeta           ! formation constants in log units
+    real, allocatable, target, public, protected, dimension(:,:) :: junctionp       ! junction potential in mV.mL/mmmol
 
     ! private variables for internal use
     real,    allocatable,  dimension(:)   :: V            ! titre in mL
@@ -105,8 +105,8 @@ module emf
     integer, parameter :: J_SLOPE = 5
     integer, parameter :: J_JUNCT = 6
     double precision, parameter :: LG10=LOG(10.0)
-    
-    integer outu  ! unit for writing output
+
+    integer :: outu  ! unit for writing output
 
     PUBLIC :: init_module, load_titration, finalize, fit_emf, set_weight_gradient, set_weight_unit
     public :: set_ionic_variable, set_ionic_constant, set_ionic_ignored
@@ -209,7 +209,6 @@ end subroutine init_module
 !----------------------------------------------------------------------------------------------------
 subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slope, tflags, emf0_flag, slope_flag, &
         error_emf, error_vol, junctionpot, junctioncom, junctionflag)
-    implicit none
     real,    intent(in), dimension(:)           :: titre       ! the titre in mL
     real,    intent(in), dimension(size(titre)) :: emf         ! experiental emf in mV
     real,    intent(in), dimension(NCP,2)       :: titrparms   ! titration parameters; dim(1)-> component;
@@ -226,14 +225,14 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
     real,    intent(in) :: error_emf             ! uncertainty for potential in mV
     real,    intent(in) :: error_vol             ! uncertainty for volume in mL
 
-    integer n, bottom
+    integer :: n, bottom
 
-    if (tmp_loaded_titrs .eq. NTT) then
+    if (tmp_loaded_titrs == NTT) then
         emf_diagnostic = "no room for more titrations"
         return
     end if
 
-    if (all(shape(titrparms) .ne. shape(tflags))) then
+    if (all(shape(titrparms) /= shape(tflags))) then
         emf_diagnostic = "titrparms has wrong shape"
         return
     end if
@@ -251,7 +250,7 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
 
     tmp_space_left = tmp_space_left - n
     tmp_loaded_titrs = tmp_loaded_titrs + 1
-    if (tmp_loaded_titrs .eq. 1) then
+    if (tmp_loaded_titrs == 1) then
         bottom = 1
     else
         bottom = 1+sum(titr_size(1:tmp_loaded_titrs-1))
@@ -296,12 +295,22 @@ subroutine set_ionic_constant(charge, Iref, init_ions, buret_ions, actv_params)
     real,    intent(in), dimension(:) :: actv_params
     real,    intent(in) :: Iref
 
-    integer curr_titr
-    integer i
+    integer :: curr_titr
+    integer :: i
     integer, dimension(NEQ) :: zstar
     double precision, dimension(NEQ,3) :: params
 
-    external calc_activity_correction
+    interface
+        subroutine calc_activity_correction(corr, Ix, Iref, zstarx, DHA, DHB, DHC, DHD, DHE, NEQx)
+            double precision, INTENT(OUT), dimension(NEQx) :: corr  ! the correction for log(beta) from I to Iref
+            double precision, intent(in) :: Ix                      ! the ionic strength to calculate the correction from
+            double precision, intent(in) :: Iref                   ! reference ionic strength
+            double precision, intent(in) :: DHA, DHB               ! debye-huckel parameters A and B
+            double precision, intent(in), dimension(NEQx) :: DHC, DHD, DHE ! per-species debye-huckel parameters C-E
+            integer, intent(in),  dimension(NEQx) :: zstarx  ! z*
+            integer, intent(in)          :: NEQx                     ! the number of equilibria
+        end subroutine calc_activity_correction
+    end interface
 
     ion_model = 1
     ion_Iref = Iref
@@ -342,12 +351,12 @@ subroutine set_ionic_variable(charge, Iref, init_ions, buret_ions, actv_params)
     real,    intent(in), dimension(:) :: actv_params
     real,    intent(in) :: Iref
 
-    integer i
-    integer curr_titr
+    integer :: i
+    integer :: curr_titr
 
     ion_model = 2
     ion_Iref = Iref
-    
+
     allocate(charges(NCP+NEQ))
     charges(1:NCP) = charge
     do i=1,NEQ
@@ -399,7 +408,7 @@ end subroutine set_weight_unit
 subroutine set_weight_gradient()
     use misc, only: derivative_1d
     real, allocatable, dimension(:) :: dy
-    integer i, j, blow, bhigh
+    integer :: i, j, blow, bhigh
 
 
     do i=1,NTT
@@ -461,7 +470,6 @@ end subroutine finalize
 
 subroutine fit_emf(maxits, temp)
     use misc, only: calc_analc
-    implicit none
     real,   intent(in) :: temp   ! in degrees Celsius
     integer, intent(in) :: maxits
 
@@ -560,6 +568,9 @@ subroutine fit_emf(maxits, temp)
                 write (outu, "(I3,A6,2F12.4)") i, "slope", tmpval, cov
             case (6)   ! slope
                 write (outu, "(I3,A6,2F12.4)") i, "junct", tmpval, cov
+            case default
+                emf_diagnostic = "variable type not recognized"
+                stop
         end select
     end do
 
@@ -574,11 +585,10 @@ end subroutine fit_emf
 subroutine lm(maxits)
     ! routine for Levenberg-Marquardt iterations.
     use misc, only: fit_sigma, lesolve
-    implicit none
     integer, intent(in) :: maxits
 
     integer :: NX ! number of variables to optimize
-    integer iter  ! iteration number
+    integer :: iter  ! iteration number
 
     real, parameter :: DAMPING_UPPER   = 1e10
     real, parameter :: DAMPING_LOWER   = 1e-12
@@ -595,8 +605,8 @@ subroutine lm(maxits)
     double precision, allocatable, dimension(:,:) :: M, dampedM
     double precision :: gradient_norm, sumsq, damping, trial_sumsq
     double precision :: sigma
-    integer i
-    integer CTRL
+    integer :: i
+    integer :: CTRL
 
     NX = size(xvalues)
     ALLOCATE(jac(NPT, NX))
@@ -624,7 +634,7 @@ subroutine lm(maxits)
         call calc_resid(fvec)
         trial_sumsq = SUM(weights*fvec**2)
 
-        if (iter .eq. 0) then
+        if (iter == 0) then
             sumsq = trial_sumsq
             call jacobian_lm(jac)
 
@@ -637,14 +647,14 @@ subroutine lm(maxits)
             call lesolve(dampedM, F, dx, NX, CTRL)
         end if
 
-        if (CTRL .ne. 0) then
+        if (CTRL /= 0) then
             emf_diagnostic="linear system could not be solved"
             return
         end if
 
-        if (iter .eq. 0) then
+        if (iter == 0) then
             iter = iter + 1
-            cycle
+            cycle main_loop
         end if
 
         !rho = calc_rho((chisq - trial_chisq), dx, gradient, M, damping)
@@ -680,7 +690,7 @@ subroutine lm(maxits)
             write(outu, '(A,E14.6)', advance='no') "   sigma", sigma
             if (sigma < SIGMA_THRESHOLD) then
                 write(outu, '(A)') " YES"
-                exit
+                exit main_loop
             else
                 write(outu, '(A)') " NO"
             end if
@@ -689,7 +699,7 @@ subroutine lm(maxits)
             write(outu, '(A,E14.6)', advance='no') "   gnorm", gradient_norm
             if (gradient_norm < GRAD_THRESHOLD) then
                 write(outu, '(A)') " YES"
-                exit
+                exit main_loop
             else
                 write(outu, '(A)') " NO"
             end if
@@ -699,7 +709,7 @@ subroutine lm(maxits)
             write(outu, '(A,E14.6)', advance='no') "   step ", dx(i)
             if (abs(dx(i)) < STEP_THRESHOLD) then
                 write(outu, '(A)') " YES"
-                exit
+                exit main_loop
             else
                 write(outu, '(A)') " NO"
             end if
@@ -710,7 +720,7 @@ subroutine lm(maxits)
             damping = damping*DAMPING_UPF
             if (damping > DAMPING_UPPER) then
                 emf_diagnostic="LM loop rejected too many steps"
-                exit
+                exit main_loop
             end if
             call lesolve(dampedM, F, dx, NX, CTRL)
             write (outu, "(A,E14.4)") "damping = ", damping
@@ -734,10 +744,35 @@ end subroutine lm
 !----------------------------------------------------------------------------------------------------
 subroutine update_equil()
     use misc, only: calc_analc
-    integer i, blow, bhigh, CTRL
-    external eq_000
-    external eq_00i
-    external eq_00f
+    integer :: i, blow, bhigh, CTRL
+    interface
+        subroutine eq_000(C, T, B, P, CTRL, NPT, NCP, NEQ)
+            integer, intent(in) :: NPT                                    ! number of titration points
+            integer, intent(in) :: NCP                                    ! number of components
+            integer, intent(in) :: NEQ                                    ! number of equilibria
+            integer, intent(inout) :: CTRL                                ! control value. See return values in header of this file.
+            integer, dimension(NEQ, NCP), intent(in) :: P                 ! The stoichiometry array
+            double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C ! initial estimates (in) and refined values (out)
+            double precision, dimension(NPT, NCP),     intent(in) :: T    ! analytical concentration values
+            double precision, dimension(NEQ),          intent(in) :: B    ! the equilibrium constants
+        end subroutine eq_000
+        subroutine eq_00i(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
+            integer,          intent(in)    :: NPT                               ! number of titration points
+            integer,          intent(in)    :: NCP                               ! number of components
+            integer,          intent(in)    :: NEQ                               ! number of equilibria
+            integer,          intent(inout) :: CTRL                              ! control value. See return values in header of this file.
+            double precision, intent(inout), dimension(NPT, NEQ+NCP) :: C        ! initial estimates (in) and refined values (out)
+            double precision, intent(in),    dimension(NPT, NCP)     :: T        ! analytical concentration values
+            double precision, intent(in),    dimension(NEQ)          :: Bref     ! the equilibrium constants
+            DOUBLE PRECISION, INTENT(IN)                             :: Iref     ! reference ionic strength
+            DOUBLE PRECISION, INTENT(IN),    dimension(NPT)          :: Iback    ! background ionic strength
+            integer,          intent(in),    dimension(NEQ, NCP)     :: P        ! The stoichiometry array
+            integer,          INTENT(IN),    DIMENSION(NCP+NEQ)      :: charge   ! charge for every species
+            DOUBLE PRECISION, INTENT(IN)                             :: DHA, DHB ! Debye-Huckel parameters A and B
+            double precision, intent(in),    dimension(NEQ,3)        :: DHP      ! per-species DH parameters C, D and E
+        end subroutine eq_00i
+    end interface
+
     do i=1,NTT
         call titr_bounds(i, blow, bhigh)
         if (update_titr(i)) call calc_analc(V(blow:bhigh), V0(i), use_init(i,:), use_buret(i,:), T(blow:bhigh,:))
@@ -754,6 +789,9 @@ subroutine update_equil()
                 call eq_00i(C(blow:bhigh,:), DBLE(T(blow:bhigh,:)), EXP(DBLE(use_lbeta)), P, DBLE(ion_Iref), &
                     DBLE(ion_backg(blow:bhigh)), charges, DBLE(ion_params(1)), DBLE(ion_params(2)), &
                     reshape(DBLE(ion_params(3:)), [NEQ, 3]), CTRL, (bhigh-blow+1), NCP, NEQ)
+            case default
+                emf_diagnostic = "ion model invalid"
+                stop
         end select
     end do
 end subroutine update_equil
@@ -766,7 +804,7 @@ subroutine try_step(step)
     double precision, intent(in), dimension(:) :: step
 
     double precision :: istep
-    integer i
+    integer :: i
 
     ! update tmp values
     do i=1,size(variables)
@@ -780,50 +818,32 @@ end subroutine try_step
 ! Compute residuals.
 !----------------------------------------------------------------------------------------------------
 subroutine calc_resid(fvec)
-    implicit none
     double precision, intent(out), DIMENSION(:) :: fvec
 
-    integer i, j
-    !integer lb, ub
-    integer hact
-    integer curr_titr
-    integer curr_jcomp
-    double precision calc_emf
-    double precision junction
+    integer :: i, j
+    integer :: hact
+    integer :: curr_titr
+    integer :: curr_jcomp
+    double precision :: calc_emf
+    double precision :: junction
 
     curr_titr = 0
 
     do i=1,NPT
-        if (i > sum(titr_size(1:curr_titr))) then             
+        if (i > sum(titr_size(1:curr_titr))) then
             curr_titr = curr_titr + 1
             hact = eactive(curr_titr)
         end if
-        junction=0.0 
+        junction=0.0
         do j=1,size(use_junction,dim=2)
             curr_jcomp = junctionc(curr_titr,j)
             junction=junction+use_junction(curr_titr,j)*C(i,curr_titr)
         end do
         calc_emf = use_emf0(curr_titr)  &
-                 + use_slope(curr_titr) * nernst * LOG(C(i,hact))  & 
+                 + use_slope(curr_titr) * nernst * LOG(C(i,hact))  &
                  + junction
         fvec(i) = E(i) - calc_emf
     end do
-
-    ! l_titr: do i=1,NTT
-    !     hact = eactive(i)
-    !     call titr_bounds(i, lb, ub)
-    !     fvec(lb:ub) = DBLE(                                 &
-    !         E(lb:ub) - (                                    &
-    !             use_emf0(i) +                               &
-    !             use_slope(i) * nernst * LOG(C(lb:ub,hact))  &
-    !             + sum(use_junction(i)*C(lb:ub,)
-    !         )                                               &
-    !     )
-    !     if (i > sum(titr_size(1:curr_titr))) then
-    !         curr_titr = curr_titr + 1
-    !     end if
-    ! end do l_titr
-
 end subroutine calc_resid
 
 
@@ -838,14 +858,25 @@ subroutine jacobian_lm(jac)
 
     double precision, DIMENSION(NCP, NCP) :: Am      ! the A-matrix
     double precision, allocatable, dimension(:,:) :: bvec
-    integer i, j, k, l, CTRL
-    integer curr_titr
-    integer aux, eac
-    integer bsize
-    logical do_beta, do_init, do_buret, do_amatrix
+    integer :: i, j, k, l, CTRL
+    integer :: curr_titr
+    integer :: aux, eac
+    integer :: bsize
+    logical :: do_beta, do_init, do_buret, do_amatrix
     integer, DIMENSION(6,size(variables)) :: filter_jtype
-    double precision tmpd
-    integer tmpi
+    double precision :: tmpd
+    integer :: tmpi
+
+    interface
+        subroutine amatrix(A, Cx, Px, NCPx, NEQx)
+          implicit none(type, external)
+          integer, intent(in) :: NCPx                             ! number of components
+          integer, intent(in) :: NEQx                             ! number of equilibria
+          integer, intent(in), dimension(NEQx, NCPx) :: Px          ! The soluble stoichiometry array
+          double precision, dimension(NCPx+NEQx), intent(in) :: Cx  ! free concentrations
+          double precision, dimension(NCPx,NCPx), intent(out) :: A ! output values of the A matrix
+        end subroutine amatrix
+    end interface
 
     jac = 0.0
     bsize = 0
@@ -857,7 +888,7 @@ subroutine jacobian_lm(jac)
     filter_jtype = 0
     do i=1,6
         do j=1,size(variables)
-            if (variables(j)%jtype .eq. i) filter_jtype(i,j) = j
+            if (variables(j)%jtype == i) filter_jtype(i,j) = j
         end do
     end do
 
@@ -882,24 +913,24 @@ subroutine jacobian_lm(jac)
                             bvec(k, j) = -P(aux,k)*C(i,aux+NCP)
                         end do
                     case (J_TINIT)
-                        if (variables(j)%destination_index2 .ne. curr_titr) then
+                        if (variables(j)%destination_index2 /= curr_titr) then
                             bvec(:,j) = 0.0
                             cycle
                         end if
                         do k=1,NCP
-                            if (aux .eq. k) then
+                            if (aux == k) then
                                 bvec(k, j) = 1.0/(V(i)+V0(curr_titr))
                             else
                                 bvec(k, j) = 0.0
                             end if
                         end do
                     case (J_TBURE)
-                        if (variables(j)%destination_index2 .ne. curr_titr) then
+                        if (variables(j)%destination_index2 /= curr_titr) then
                             bvec(:,j) = 0.0
                             cycle
                         end if
                         do k=1,NCP
-                            if (aux .eq. k) then
+                            if (aux == k) then
                                 bvec(k, j) = V(i)/(V(i)+V0(curr_titr))
                             else
                                 bvec(k, j) = 0.0
@@ -908,7 +939,7 @@ subroutine jacobian_lm(jac)
                 end select
             end do
             call msysolve(Am, bvec, CTRL)
-            if (CTRL .eq. 99) then
+            if (CTRL == 99) then
                 emf_diagnostic="Error computing jacobian"
                 return
             end if
@@ -924,27 +955,27 @@ subroutine jacobian_lm(jac)
                         tmpi = junctionc(curr_titr,k)
                         if (tmpi > NCP) then
                             tmpd = DOT_PRODUCT(P(tmpi-NCP,:),bvec(:,j))
-                            if (j .eq. tmpi) tmpd = tmpd + 1.0
+                            if (j == tmpi) tmpd = tmpd + 1.0
                         else
                             tmpd = use_junction(curr_titr,k)*C(i,tmpi)*bvec(tmpi,j)
                         end if
                         jac(i, aux) = jac(i, aux) + tmpd
                     end do
                 case (J_TINIT:J_TBURE)
-                    if (curr_titr .eq. variables(j)%destination_index2) then
+                    if (curr_titr == variables(j)%destination_index2) then
                         tmpd = - variables(j)%ratio*use_slope(curr_titr)*nernst*bvec(eac,j)
                         jac(i, aux) = jac(i, aux) + tmpd
                     end if
                 case (J_EMF0)
-                    if (curr_titr .eq. variables(j)%destination_index1) then
+                    if (curr_titr == variables(j)%destination_index1) then
                         jac(i, aux) = jac(i, aux) - variables(j)%ratio
                     end if
                 case (J_SLOPE)
-                    if (curr_titr .eq. variables(j)%destination_index1) then
+                    if (curr_titr == variables(j)%destination_index1) then
                         jac(i, aux) = jac(i, aux) - variables(j)%ratio*nernst
                     end if
                 case (J_JUNCT)
-                    if (curr_titr .eq. variables(j)%destination_index2) then
+                    if (curr_titr == variables(j)%destination_index2) then
                         tmpi = junctionc(curr_titr,variables(j)%destination_index1)
                         tmpd = - variables(j)%ratio*C(i,tmpi)
                         jac(i, aux) = jac(i, aux) + tmpd
@@ -962,9 +993,7 @@ end subroutine jacobian_lm
 
 
 subroutine create_variables()
-    implicit none
-
-    integer i, vcount, xcount
+    integer :: i, vcount, xcount
     real, dimension(2:9) :: vref
     integer, dimension(2:9) :: iref
 
@@ -982,7 +1011,7 @@ subroutine create_variables()
     else
         use_lbeta => lbeta
     end if
-    
+
     ! II. count initial amounts
     if (sum(flag_init) > 0) then        ! something to refine here
         allocate(tmp_init(NTT,NCP))
@@ -1026,7 +1055,7 @@ subroutine create_variables()
     else
         use_slope => electr_slope
     end if
-    
+
     ! VI. count junction potentials
     if (sum(junctionf) > 0) then        ! something to refine here
         allocate(tmp_junction(NTT,size(junctionp,dim=2)))
@@ -1050,7 +1079,7 @@ subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref, jtype
     integer, intent(in) :: jtype
     integer, intent(in) :: index2
 
-    integer i
+    integer :: i
     do i=1,size(flags)
         if (flags(i) == RF_CONSTANT) cycle
         if (flags(i) == RF_REFINE) then
@@ -1064,7 +1093,7 @@ subroutine aux_create_variables(vector, flags, xcount, vcount, iref, vref, jtype
         end if
         if (flags(i) > 1) then
             vcount = vcount + 1
-            if (iref(flags(i)) .eq. 0) then   ! constraint, first time
+            if (iref(flags(i)) == 0) then   ! constraint, first time
                 xcount = xcount + 1
                 xvalues(xcount) = vector(i)
                 variables(vcount)%origin_value => xvalues(xcount)
@@ -1091,12 +1120,11 @@ end subroutine aux_create_variables
 
 subroutine count_dof(NX, NV)
     ! count degrees of freedom
-    implicit none
     integer, intent(out) :: NX ! number of free variables
     integer, intent(out) :: NV ! total number of variables
 
-    logical constr(2:9)
-    integer i
+    logical :: constr(2:9)
+    integer :: i
     NX = 0
     NV = 0
     constr = .false.
@@ -1134,9 +1162,9 @@ subroutine sub_count_dof(vec, NX, NV, constr)
     logical, intent(inout) :: constr(:)
     integer, intent(in) :: vec(:)
 
-    integer i
+    integer :: i
     do i=1,size(vec)
-        if (vec(i) .eq. RF_REFINE) then
+        if (vec(i) == RF_REFINE) then
             NX = NX + 1
             NV = NV + 1
         else if (vec(i) > RF_REFINE) then
@@ -1159,7 +1187,6 @@ end subroutine titr_bounds
 
 
 function calc_chisq(resid, npars) result(chisq)
-    implicit none
     double precision, intent(in), dimension(:) :: resid
     integer, intent(in) :: npars
     double precision :: chisq
@@ -1179,7 +1206,7 @@ function calc_rho(descent, step, gradient, M, damping) result(rho)
     double precision :: predicted
     double precision, DIMENSION(size(M,dim=1)) :: D
 
-    integer i
+    integer :: i
 
     D = [ (M(i,i), i=1,size(M,dim=1)) ]
     predicted = -DOT_PRODUCT(step, gradient) &
@@ -1190,10 +1217,12 @@ end function calc_rho
 
 ! Given the Hessian matrix, calculate the covariance
 subroutine calc_covariance(H)
-    implicit none
     double precision, intent(in), dimension(:,:) :: H
 
-    integer n, info, i, j
+    integer :: n, info, i, j
+
+    external dpotrf
+    external dpotri
 
     n = size(H, dim=1)
     allocate(covariance(n,n))
@@ -1202,14 +1231,14 @@ subroutine calc_covariance(H)
 
     ! 1. LU factorization
     call DPOTRF('U', n, covariance, n, info)
-    if (info .ne. 0) then
+    if (info /= 0) then
         emf_diagnostic="COV could not be calculated"
         return
     end if
 
     ! 2. Invert using the factors
     call DPOTRI('U', n, covariance, n, info)
-    if (info .ne. 0) then
+    if (info /= 0) then
         emf_diagnostic="COV could not be calculated"
         return
     end if
@@ -1227,7 +1256,7 @@ subroutine report_variables(step)
     double precision, intent(in), dimension(:) :: step
     double precision :: value_
     double precision :: step_val
-    integer i
+    integer :: i
 
     write(outu, '(A)') "   #    previous        step         new"
     do i=1,size(variables)

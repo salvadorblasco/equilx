@@ -1,9 +1,7 @@
-
 "Module for potentiometry optimisation."
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Optional
 import os
 import io
 
@@ -18,7 +16,7 @@ def PotentiometryOpt(equil: EquilibriumData, emfdata: list[PotentiometryTitratio
                      weighting_scheme: str,
                      temperature: float = 25.0,
                      max_its: int = 20,
-                     output: io.StringIO|None = None):
+                     **kwargs):
     n_points = sum(p.n_points() for p in emfdata)
     len(p.junction_potential)
 
@@ -38,75 +36,41 @@ def PotentiometryOpt(equil: EquilibriumData, emfdata: list[PotentiometryTitratio
         else:
             raise ValueError("weighting_scheme unknown")
 
+        if 'debye_parameters' in kwargs:
+            if not isinstance(kwargs['debye_parameters'], DebyeHuckelParameters):
+                raise TypeError
+
+            fsolver.emf.include_ionic()
+
         fsolver.emf.fit_emf(max_its, temperature)
 
         # read variables and process them before finalizing
 
         fsolver.emf.finalize()
 
-    if output is not None:
+    if 'output' in kwargs:
+        output: io.StringIO = kwargs['output']
         output.write(captured)
 
 
-@dataclass
-class PotentiometricTitration:
-    emf_read: list[float]
-    titre: list[float]
-    init: list[float]
-    buret: list[float]
-    emf0: float
-    electro_active: int
-    starting_volume : float
-    slope: float = field(default=1.0)
-    error_emf: float = field(default=0.3)
-    error_vol: float = field(default=0.003)
-    junction_potential: list[float] = field(default_factory=list)
-    junction_component: list[int] = field(default_factory=list)
-    flag_init: list[int] = field(init=False)
-    flag_buret: list[int] = field(init=False)
-    flag_emf0: int = field(init=False,default=0)
-    flag_slope: int = field(init=False,default=0)
-    flag_junction: list[int] = field(default_factory=list)
+def load_data(ptit: PotentiometryTitration) -> tuple:
+    return (np.array(ptit.titre, order='F'),
+            np.array(ptit.emf_read, order='F'),
+            ptit.__titration_parms(),
+            ptit.electro_active,
+            ptit.starting_volume,
+            ptit.emf0,
+            ptit.slope,
+            ptit.__titration_flags(),
+            ptit.flag_emf0,
+            ptit.flag_slope,
+            ptit.error_emf,
+            ptit.error_vol,
+            np.array(ptit.junction_potential, order='F'),
+            np.array(ptit.junction_component, order='F'),
+            np.array(ptit.flag_junction, order='F'))
 
-    def __post_init__(self):
-        if len(self.emf_read) != len(self.titre):
-            raise ValueError("emf and titre size must match")
 
-        if len(self.init) != len(self.buret):
-            raise ValueError("init and buret size must match")
-
-    def add_junction(self, jpot: float, component: int, flag: int=0):
-        self.junction_potential.append(jpot)
-        self.junction_component.append(component)
-        self.flag_junction.append(flag)
-
-    def load_data(self) -> tuple:
-        return (np.array(self.titre, order='F'),
-                np.array(self.emf_read, order='F'),
-                self.__titration_parms(),
-                self.electro_active,
-                self.starting_volume,
-                self.emf0,
-                self.slope,
-                self.__titration_flags(),
-                self.flag_emf0,
-                self.flag_slope,
-                self.error_emf,
-                self.error_vol,
-                np.array(self.junction_potential, order='F'),
-                np.array(self.junction_component, order='F'),
-                np.array(self.flag_junction, order='F'))
-
-    def n_points(self) -> int:
-        return len(self.titre)
-
-    def __titration_parms(self):
-        aux = np.array([self.init, self.buret]).T
-        return np.asfortranarray(aux)
-
-    def __titration_flags(self):
-        aux = np.array([self.flag_init, self.flag_buret]).T
-        return np.asfortranarray(aux)
 
 @contextmanager
 def capture_fortran_stdout():

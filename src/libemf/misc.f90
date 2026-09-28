@@ -4,20 +4,9 @@
 ! Miscellaneous routines
 
 module misc
-
+    implicit none (type, external)
+    public
 contains
-
-! Calculate the fit's sigma value for a given set of residuals and weights.
-function fit_sigma(residuals, weights, npoints, nparams) result(sigma)
-    double precision, intent(in), dimension(npoints) :: residuals
-    double precision, intent(in), dimension(npoints) :: weights
-    integer, intent(in) :: npoints
-    integer, intent(in) :: nparams
-    double precision :: sigma
-
-    sigma = SQRT(sum(weights*residuals**2)/(sum(weights)*(npoints-nparams)))
-end function fit_sigma
-
 
 subroutine msysolve(A, b, CTRL)
     ! Solve lineal equations using LAPACK when A is symmetric. This is always the case when
@@ -28,7 +17,7 @@ subroutine msysolve(A, b, CTRL)
     double precision, dimension(:,:), intent(in) :: b   ! the n array of independent terms
     integer, intent(inout) :: CTRL                      ! control value. 0 on no error.
   
-    ! For DGELSY 
+    ! For DGELSY
     integer, dimension(size(A,1)) :: ipiv   ! pivot indices
     integer :: nrhs, lda, ldb, lwork, info
     double precision, allocatable, dimension(:) :: work
@@ -98,7 +87,7 @@ subroutine calc_analc(titre, init_vol, init, buret, analc)
     real, intent(out), dimension(:,:)  :: analc
     real, INTENT(IN) :: init_vol
 
-    integer i, j
+    integer :: i, j
 
     do i=1,size(titre)
         do j=1,size(init)
