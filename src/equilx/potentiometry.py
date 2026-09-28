@@ -27,7 +27,7 @@ def PotentiometryOpt(equil: EquilibriumData, emfdata: list[PotentiometryTitratio
                                 0, 6)
 
         for t in emfdata:
-            fsolver.emf.load_titration(*t.load_data())
+            fsolver.emf.load_titration(*load_data(t))
 
         if weighting_scheme == 'auto':
             fsolver.emf.set_weight_gradient()
@@ -36,11 +36,11 @@ def PotentiometryOpt(equil: EquilibriumData, emfdata: list[PotentiometryTitratio
         else:
             raise ValueError("weighting_scheme unknown")
 
-        if 'debye_parameters' in kwargs:
-            if not isinstance(kwargs['debye_parameters'], DebyeHuckelParameters):
-                raise TypeError
+        #if 'debye_parameters' in kwargs:
+        #    if not isinstance(kwargs['debye_parameters'], DebyeHuckelParameters):
+        #        raise TypeError
 
-            fsolver.emf.include_ionic()
+        #    fsolver.emf.include_ionic()
 
         fsolver.emf.fit_emf(max_its, temperature)
 
@@ -54,22 +54,27 @@ def PotentiometryOpt(equil: EquilibriumData, emfdata: list[PotentiometryTitratio
 
 
 def load_data(ptit: PotentiometryTitration) -> tuple:
-    return (np.array(ptit.titre, order='F'),
-            np.array(ptit.emf_read, order='F'),
-            ptit.__titration_parms(),
-            ptit.electro_active,
+    def titration_parms():
+        return np.asfortranarray(np.vstack([ptit.initial_amount,
+                                            ptit.buret_concentration]).T)
+    def titration_flags():
+        return np.asfortranarray(np.stack([ptit.flags_initial, ptit.flags_buret]).T)
+
+    return (np.asfortranarray(ptit.titre_added),
+            np.asfortranarray(ptit.emf),
+            titration_parms(),
+            ptit.electroactive,
             ptit.starting_volume,
             ptit.emf0,
             ptit.slope,
-            ptit.__titration_flags(),
+            titration_flags(),
             ptit.flag_emf0,
             ptit.flag_slope,
-            ptit.error_emf,
-            ptit.error_vol,
+            ptit.emf_error,
+            ptit.volume_error,
             np.array(ptit.junction_potential, order='F'),
             np.array(ptit.junction_component, order='F'),
             np.array(ptit.flag_junction, order='F'))
-
 
 
 @contextmanager

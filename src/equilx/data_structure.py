@@ -4,7 +4,7 @@ from functools import cached_property
 import itertools
 from enum import IntEnum, auto
 from typing import Optional
-from typing import Iterable
+from collections.abc import Iterable
 from collections.abc import Iterator
 
 import numpy as np
@@ -31,9 +31,9 @@ class _GenericTitration:
     starting_volume: float                                 # in mL
     titre_added: FArray                                    # in mL
     initial_amount: FArray                                 # in mmol
-    flags_initial: BArray | None
     buret_concentration: FArray                            # in mol/L
-    flags_buret: BArray | None
+    flags_initial: IArray = field(init=False, default_factory=MISSING)  # in mol/L
+    flags_buret: IArray = field(init=False, default_factory=MISSING)  # in mol/L
     starting_background_concentration: FArray = field(init=False, default_factory=MISSING)  # in mol/L
     buret_background_concentration: FArray = field(init=False, default_factory=MISSING)     # in mol/L
     starting_concentration_flags: list[Flags]
@@ -54,6 +54,11 @@ class _GenericTitration:
 
         self.__background_init("starting_background_concentration")
         self.__background_init("buret_background_concentration")
+
+        if self.flags_initial is MISSING:
+            self.flags_initial = np.full_like(self.initial_amount, fill_value=0, dtype=int)
+        if self.flags_buret is MISSING:
+            self.flags_buret = np.full_like(self.buret_concentration, fill_value=0, dtype=int)
 
     def __background_init(self, what):
         array = getattr(self, what)
