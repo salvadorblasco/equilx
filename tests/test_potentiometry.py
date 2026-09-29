@@ -3,6 +3,7 @@
 "Test collection for potentiometry data fitting."
 
 import unittest
+import io
 import random
 
 import numpy as np
@@ -36,9 +37,10 @@ class Test_ZnEDTA(unittest.TestCase):
     def test_noisy_beta(self):
         # @pytest.mark.parametrize("error", [0.1, 0.2, 0.5, 1.0])
         error = 0.1
-        sd = self.copy_data()
-        sd.log_beta[-4:-1] += error*2*(np.random.rand(3)-0.5)
-        result = PotentiometryOptimizer(sd, reporter=_dummy_reporter)
+        self.model.log_beta[-4:-1] += error*2*(np.random.rand(3)-0.5)
+        out = io.StringIO()
+        print(self.model)
+        result = PotentiometryOpt(self.model, self.data, output=out)
         calc_beta = result['final log beta'][-4:-1]
         npt.assert_allclose(calc_beta, self.true_beta, rtol=0.01)
 
@@ -59,3 +61,7 @@ class Test_ZnEDTA(unittest.TestCase):
 
 def _dummy_reporter(**kwargs):
     pass
+
+
+if __name__ == '__main__':
+    unittest.main()

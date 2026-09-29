@@ -32,44 +32,44 @@ class _GenericTitration:
     titre_added: FArray                                    # in mL
     initial_amount: FArray                                 # in mmol
     buret_concentration: FArray                            # in mol/L
-    flags_initial: IArray = field(init=False, default_factory=MISSING)  # in mol/L
-    flags_buret: IArray = field(init=False, default_factory=MISSING)  # in mol/L
-    starting_background_concentration: FArray = field(init=False, default_factory=MISSING)  # in mol/L
-    buret_background_concentration: FArray = field(init=False, default_factory=MISSING)     # in mol/L
-    starting_concentration_flags: list[Flags]
-    buret_concentration_flags: list[Flags]
     volume_error: float = 0.0
     use_point: BArray | None = None
     background_ions: FArray = field(default_factory=lambda: np.array([], dtype=float))
 
     def __post_init__(self):
         # type checking
-        __assert_positivefloat(self.starting_volume, "starting volume")
-        __assert_floatarray(self.initial_amount, "initial amount", ndim=1)
+        _assert_positivefloat(self.starting_volume, "starting volume")
+        _assert_floatarray(self.initial_amount, "initial amount", ndim=1)
 
         number_components = len(self.initial_amount)
-        __assert_floatarray(self.buret_concentration, "buret concentration", ndim=1)
+        _assert_floatarray(self.buret_concentration, "buret concentration", ndim=1)
         if len(self.buret_concentration) != number_components:
             raise ValueError("starting concentration and buret concentration have different length")
 
-        self.__background_init("starting_background_concentration")
-        self.__background_init("buret_background_concentration")
-
-        if self.flags_initial is MISSING:
-            self.flags_initial = np.full_like(self.initial_amount, fill_value=0, dtype=int)
-        if self.flags_buret is MISSING:
-            self.flags_buret = np.full_like(self.buret_concentration, fill_value=0, dtype=int)
-
-    def __background_init(self, what):
-        array = getattr(self, what)
-        if array is MISSING:
-            setattr(self, what, np.zeros_like(self.initial_amount))
+        if 'flags_initial' not in dir(self):
+            self.flags_initial = np.zeros_like(self.initial_amount)
         else:
-            __assert_floatarray(array, what, ndim=1)
+            _assert_floatarray(self.s, "flags_initial", ndim=1)
+
+        if 'flags_buret' not in dir(self):
+            self.flags_buret = np.zeros_like(self.initial_amount)
+        else:
+            _assert_floatarray(self.flags_buret, "flags_buret", ndim=1)
+
+        if 'initial_background_concentration' not in dir(self):
+            self.initial_background_concentration = np.zeros_like(self.initial_amount)
+        else:
+            _assert_floatarray(self.initial_background_concentration, "initial_background_concentration", ndim=1)
+
+        if 'buret_background_concentration' not in dir(self):
+            self.buret_background_concentration = np.zeros_like(self.initial_amount)
+        else:
+            _assert_floatarray(self.buret_background_concentration, "buret_background_concentration", ndim=1)
+
 
     def get_dof(self) -> int:
-        dof = np.count_nonzero(self.starting_concentration_flags == Flags.REFINE)
-        dof+= np.count_nonzero(self.buret_concentration_flags == Flags.REFINE)
+        dof: int = int(np.count_nonzero(self.flags_initial == Flags.REFINE))
+        dof+= int(np.count_nonzero(self.flags_buret == Flags.REFINE))
         return dof
 
     def get_titre(self) -> FArray:
@@ -109,14 +109,14 @@ class DistributionParameters(_SimulationParameters):
     number_of_points: int
 
     def __post_init__(self):
-        __assert_floatarray(self.starting_concentration, "starting concentration", ndim=1)
-        __assert_floatarray(self.final_concentration, "final concentration", ndim=1)
-        __assert_same_length(self.final_concentration,
+        _assert_floatarray(self.starting_concentration, "starting concentration", ndim=1)
+        _assert_floatarray(self.final_concentration, "final concentration", ndim=1)
+        _assert_same_length(self.final_concentration,
                              self.starting_concentration,
                              "final concentration")
         if not isinstance(self.logarithmic, Sequence):
             raise TypeError("logarithmic must be a sequence")
-        __assert_same_length(self.logarithmic, self.starting_concentration, "logarithmic")
+        _assert_same_length(self.logarithmic, self.starting_concentration, "logarithmic")
 
     def check(self) -> bool:
         "Return whether the data is complete and ready."
@@ -163,11 +163,11 @@ class PotentiometryTitration(_GenericTitration):
 
     def __post_init__(self):
         super().__post_init__()
-        __assert_floatarray(self.emf, "emf", ndim=1)
-        __assert_float(self.emf0, "emf0")
-        __assert_float(self.emf_error, "emf error")
-        __assert_float(self.slope, "slope")
-        __assert_same_length(self.titre_added, self.emf, "emf")
+        _assert_floatarray(self.emf, "emf", ndim=1)
+        _assert_float(self.emf0, "emf0")
+        _assert_float(self.emf_error, "emf error")
+        _assert_float(self.slope, "slope")
+        _assert_same_length(self.titre_added, self.emf, "emf")
 
     def get_emf(self) -> FArray:
         return np.extract(self.use_point, self.emf)
@@ -369,26 +369,26 @@ def _assert_dim(array: NDArray, dim:int):
         raise TypeError(f"Array must be {dim}-dimmensioned")
 
 
-def __assert_floatarray(array, description: str, ndim:int = 1):
+def _assert_floatarray(array, description: str, ndim:int = 1):
     if not isinstance(array, np.ndarray):
         raise TypeError(f"{description} must be an array")
-    if not array.dtype.kind != "f":
+    if not array.dtype.kind == "f":
         raise TypeError(f"{description} must be a float array")
     if not array.ndim == ndim:
         raise TypeError(f"{description} must have {ndim} dimension(s)")
 
 
-def __assert_float(number, description: str):
+def _assert_float(number, description: str):
     if not isinstance(number, float):
         raise TypeError(f"{description} must be a float")
 
 
-def __assert_positivefloat(number, description: str):
-    __assert_float(number, description)
+def _assert_positivefloat(number, description: str):
+    _assert_float(number, description)
     if number < 0.0:
         raise ValueError("{description} must no be negative")
 
 
-def __assert_same_length(seq1, seq2, description:str):
+def _assert_same_length(seq1, seq2, description:str):
     if len(seq1) != len(seq2):
         raise ValueError(f"{description} has wrong number of elements")
