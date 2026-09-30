@@ -117,13 +117,15 @@ contains
 ! Initiate module. Allocates variables and some data. Call this one first.
 !----------------------------------------------------------------------------------------------------
 subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, n_junct, outn)
-    integer, intent(in)                                 :: n_points  ! total number of experimental points
-    integer, intent(in)                                 :: n_titrs   ! number of titrations to be loaded
-    integer, intent(in), dimension(:,:)                 :: stoich    ! the stoichiometry array
+    integer, intent(in)                             :: n_points  ! total number of experimental points
+    integer, intent(in)                             :: n_titrs   ! number of titrations to be loaded
+    integer, intent(in), dimension(:,:)             :: stoich    ! the stoichiometry array
     real,    intent(in), dimension(size(stoich, 1)) :: logbeta   ! the log10 of the formation constants
     integer, intent(in), dimension(size(stoich, 1)) :: flgbeta   ! the refinement flags for the formation constants
-    integer, intent(in)                                 :: n_junct   ! number of junction components (usually zero)
-    integer, intent(in)                                 :: outn
+    integer, intent(in)                             :: n_junct   ! number of junction components (usually zero)
+    integer, intent(in)                             :: outn
+
+    integer :: i, j
 
     emf_diagnostic = "no error"
 
@@ -201,6 +203,19 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, n_junct, out
     ion_model = 0   ! constant ionic strength by default
 
     outu = outn
+    write (outu, '(A)') "Model loaded:"
+    do i=1,NEQ
+        write (outu, '(I3,F10.2,*(I3))', advance='no') i, lbeta(i)/LG10, P(i,:)
+        select case (flag_beta(i))
+            case (0)
+                write (outu, '(A)') ' CONSTANT'
+            case (1)
+                write (outu, '(A)') ' REFINE'
+            case default
+                write (outu, '(A,I1)') ' CONSTRAINT', flag_beta(i)
+        end select
+    end do
+    write (outu, *), ""
 end subroutine init_module
 
 
@@ -277,8 +292,8 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
     junctionc(tmp_loaded_titrs,:) = junctioncom
     junctionf(tmp_loaded_titrs,:) = junctionflag
 
-    write (outu, '(I4,A)') n, " points loaded"
-    
+    write (outu, '(A,I3,A,I4,A)') "titration #", tmp_loaded_titrs, " -> ", n, " points loaded"
+
 end subroutine load_titration
 
 

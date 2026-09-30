@@ -1904,6 +1904,7 @@ subroutine test_znedta1()
     junc_flag = 0
     junc_comp = 2
     junc_pot = electr_junctionA
+    ini_logbeta = real_logbeta
     do i=12,14
         call RANDOM_NUMBER(rnd)
         ini_logbeta(i) = real_logbeta(i) + (rnd-0.5)
