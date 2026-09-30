@@ -204,6 +204,7 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, n_junct, out
 
     outu = outn
     write (outu, '(A)') "Model loaded:"
+    write (outu, '(A)') "  #      logB"
     do i=1,NEQ
         write (outu, '(I3,F10.2,*(I3))', advance='no') i, lbeta(i)/LG10, P(i,:)
         select case (flag_beta(i))
@@ -293,13 +294,15 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
     junctionf(tmp_loaded_titrs,:) = junctionflag
 
     write (outu, '(A,I3,A,I4,A)') "titration #", tmp_loaded_titrs, " -> ", n, " points loaded"
+    write (outu, *) titre(1), titre(size(titre))
+    write (outu, *) emf(1), emf(size(emf))
 
 end subroutine load_titration
 
 
 subroutine set_ionic_ignored()
     ion_model = 0
-    write (outu, *) "Ion model -> ignore ionic strength"
+    write (outu, '(A)') "Ion model -> ignore ionic strength"
 end subroutine set_ionic_ignored
 
 
@@ -355,7 +358,7 @@ subroutine set_ionic_constant(charge, Iref, init_ions, buret_ions, actv_params)
             DBLE(actv_params(2)), params(:,1), params(:,2), params(:,3), NEQ)
     end do
 
-    write (outu, *) "Ion model -> Debye-Huckel correction for constant I"
+    write (outu, '(A)') "Ion model -> Debye-Huckel correction for constant I"
 end subroutine set_ionic_constant
 
 
@@ -397,7 +400,7 @@ subroutine set_ionic_variable(charge, Iref, init_ions, buret_ions, actv_params)
     !    ion_flags = flags
     !end if
 
-    write (outu, *) "Ion model -> Debye-Huckel correction for variable I"
+    write (outu, '(A)') "Ion model -> Debye-Huckel correction for variable I"
 end subroutine set_ionic_variable
 
 
@@ -405,7 +408,7 @@ end subroutine set_ionic_variable
 ! Select unit values as weight. The weight matrix will be a unit matrix.
 !----------------------------------------------------------------------------------------------------
 subroutine set_weight_unit()
-    integer i
+    integer :: i
     W = 0.0
     do i=1,NPT
         W(i,i) = 1.0
@@ -680,6 +683,7 @@ subroutine lm(maxits)
         if (trial_sumsq < sumsq) then
             ! step accepted
             write(outu, '(/,A,I4,/)') "Iteration", iter
+            write (outu, "(A,E14.4)") "   damping = ", damping
             call report_variables(dx)
 
             xvalues = xvalues + dx

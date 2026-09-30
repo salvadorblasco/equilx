@@ -1920,7 +1920,7 @@ subroutine test_znedta1()
     do i=1,4
         titr_params(:,1) = titr_init0(i,:)
         titr_params(:,2) = [ 0.0, 0.0, buret ]
-        call load_titration(titre1, remf(:,i), titr_params, 2, initvol, melectr_emf0, melectr_slope, &
+        call load_titration(titre1, remf(:,i), titr_params, 3, initvol, melectr_emf0, melectr_slope, &
                             titr_flags, 0, 0, error_emf, error_vol, junc_pot, junc_comp, junc_flag)
         if (trim(emf_diagnostic) /= 'no error') then
             if (passed) call print_result(test_name, "failed")
