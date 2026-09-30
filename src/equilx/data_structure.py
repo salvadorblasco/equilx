@@ -174,31 +174,9 @@ class PotentiometryTitration(_GenericTitration):
 
 
 @dataclass
-class ExperimentalData:
+class PotentiometryData:
     titrations: Sequence[PotentiometryTitration]
 
-    @property
-    def number_of_titrations(self) -> int:
-        return len(self.titrations)
-
-    @property
-    def total_experimental_points(self) -> int:
-        return sum(len(t) for t in self.titrations)
-
-    def get_dof(self) -> int:
-        return sum(t.get_dof() for t in self.titrations)
-
-    def get_slices(self) -> list[slice]:
-        slices: list[slice] = []
-        counter: int = 0
-        for tit in self.titrations:
-            slices.append(slice(counter, counter+tit.number_of_points))
-            counter += tit.number_of_points
-        return slices
-
-
-@dataclass
-class PotentiometryData(ExperimentalData):
     def __post_init__(self):
         if not all(isinstance(t, PotentiometryTitration) for t in self.titrations):
             raise TypeError("all instances of titration must be PotentiometryTitration")
@@ -222,6 +200,28 @@ class PotentiometryData(ExperimentalData):
     def get_collapsed_emf(self) -> FArray:
         return np.concatenate([t.get_emf() for t in self.titrations])
 
+    @property
+    def number_of_titrations(self) -> int:
+        return len(self.titrations)
+
+    @property
+    def total_experimental_points(self) -> int:
+        return sum(len(t) for t in self.titrations)
+
+    def get_dof(self) -> int:
+        return sum(t.get_dof() for t in self.titrations)
+
+    def get_slices(self) -> list[slice]:
+        slices: list[slice] = []
+        counter: int = 0
+        for tit in self.titrations:
+            slices.append(slice(counter, counter+tit.number_of_points))
+            counter += tit.number_of_points
+        return slices
+
+    def __iter__(self):
+        yield from self.titrations
+
 
 class PyESModes(IntEnum):
     DISTRIBUTION = auto()
@@ -233,13 +233,13 @@ class PyESModes(IntEnum):
 class _EquilCommon:
     log_beta: FArray
     stoichiometry: IArray
-    log_ks: FArray = field(default_factory=lambda : np.array([], dtype=float))
+    error_log_beta: FArray | None = None
     solid_stoichiometry: IArray = field(default_factory=lambda: np.array([[]], dtype=int))
-    error_log_beta: Optional[FArray] = None
-    error_log_ks: Optional[FArray] = None
+    log_ks: FArray = field(default_factory=lambda : np.array([], dtype=float))
+    error_log_ks: FArray | None = None
     reference_ionic: float = 0.0
-    charges: Optional[IArray] = None
-    component_labels: Optional[Sequence[str]] = None
+    charges: IArray | None = None
+    component_labels: Sequence[str] | None = None
 
     def __post_init__(self):
         if self.charges is None:

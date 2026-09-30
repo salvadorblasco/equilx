@@ -1,56 +1,75 @@
 "Module for potentiometry optimisation."
 
 from contextlib import contextmanager
-from dataclasses import dataclass, field
 import os
 import io
+import itertools
 
 import numpy as np
 
 from equilx import fsolver
-from equilx.data_structure import EquilibriumData, DebyeHuckelParameters, PotentiometryTitration
+from equilx.data_structure import ModelData, DebyeHuckelParameters, PotentiometryData, PotentiometryTitration
 
 
-def PotentiometryOpt(equil: EquilibriumData, emfdata: list[PotentiometryTitration],
-                     flags_beta: list[int],
+def PotentiometryOpt(equil: ModelData, emfdata: PotentiometryData,
                      weighting_scheme: str,
                      temperature: float = 25.0,
-                     max_its: int = 20,
-                     **kwargs):
-    n_points = sum(p.n_points() for p in emfdata)
-    len(p.junction_potential)
+                     max_its: int = 20):
 
-    with capture_fortran_stdout() as captured:
-        fsolver.emf.init_module(n_points, len(emfdata), np.asfortranarray(equil.stoichiometry),
-                                np.asfortranarray(equil.log_beta),
-                                np.array(flags_beta, order='F'),
-                                0, 6)
+    n_points = [p.number_of_points for p in emfdata]
+    total_points = sum(n_points)
+    slices = list(itertools.accumulate(n_points))
+    slices.pop()
 
-        for t in emfdata:
-            fsolver.emf.load_titration(*load_data(t))
+    #with capture_fortran_stdout() as captured:
+    print("inititating")
+    fsolver.emf.init_module(total_points,
+                            emfdata.number_of_titrations,
+                            np.asfortranarray(equil.stoichiometry),
+                            np.asfortranarray(equil.log_beta),
+                            np.array(equil.log_beta_flags, order='F'),
+                            0, 6)
 
-        if weighting_scheme == 'auto':
-            fsolver.emf.set_weight_gradient()
-        elif weighting_scheme == 'unit':
-            fsolver.emf.set_weight_unit()
-        else:
-            raise ValueError("weighting_scheme unknown")
+    for n, t in enumerate(emfdata):
+        print(f"Loading titration #{n}")
+        fsolver.emf.load_titration(*load_data(t))
 
-        #if 'debye_parameters' in kwargs:
-        #    if not isinstance(kwargs['debye_parameters'], DebyeHuckelParameters):
-        #        raise TypeError
+    if weighting_scheme == 'auto':
+        fsolver.emf.set_weight_gradient()
+    elif weighting_scheme == 'unit':
+        fsolver.emf.set_weight_unit()
+    else:
+        raise ValueError("weighting_scheme unknown")
 
-        #    fsolver.emf.include_ionic()
+    #if 'debye_parameters' in kwargs:
+    #    if not isinstance(kwargs['debye_parameters'], DebyeHuckelParameters):
+    #        raise TypeError
 
-        fsolver.emf.fit_emf(max_its, temperature)
+    #    fsolver.emf.include_ionic()
 
-        # read variables and process them before finalizing
+    fsolver.emf.fit_emf(max_its, temperature)
 
-        fsolver.emf.finalize()
+    # read variables and process them before finalizing
+    result = {
+        'free_concs': np.array_split(fsolver.emf.C, slices, axis=0),
+        'log_beta': fsolver.emf.lbeta,
+        'titr_init': fsolver.emf.titr_init,
+        'titr_buret': fsolver.emf.titr_buret,
+        'electr_emf0': fsolver.emf.electr_emf0,
+        'electr_slope': fsolver.emf.electr_slope,
+        'electr_junction': fsolver.emf.junctionp,
+        'covariance': fsolver.emf.covariance,
+        'message': fsolver.emf.emf_diagnostic
+    }
 
-    if 'output' in kwargs:
-        output: io.StringIO = kwargs['output']
-        output.write(captured)
+    fsolver.emf.finalize()
+
+    output = io.StringIO()
+    output.write(captured)
+    result['output'] = output
+
+    print(result)
+    return result
 
 
 def load_data(ptit: PotentiometryTitration) -> tuple:

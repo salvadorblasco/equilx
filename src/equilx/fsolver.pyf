@@ -179,8 +179,162 @@ subroutine solve_point_solid(c,cs,t,b,p,ks,q,ctrl,is_first,neq,ncp,nsl) ! in eq.
     integer, optional,intent(in),check(shape(cs, 0) == nsl),depend(cs) :: nsl=shape(cs, 0)
 end subroutine solve_point_solid
 
-! This file was auto-generated with f2py (version:2.4.2).
-! See:
-! https://web.archive.org/web/20140822061353/http://cens.ioc.ee/projects/f2py2e
+module emf ! in ../libemf/emf.f90
+    real, private :: value_holder
+    type(value_holder), private,allocatable,dimension(:) :: variables
+    double precision, private,target,allocatable,dimension(:) :: xvalues
+    double precision, private,allocatable,dimension(:,:) :: w
+    double precision, private,allocatable,dimension(:) :: weights
+    double precision, protected,public,allocatable,dimension(:,:) :: c
+    double precision, protected,public,allocatable,dimension(:,:) :: covariance
+    real, protected,public,target,allocatable,dimension(:) :: electr_emf0
+    real, protected,public,target,allocatable,dimension(:) :: electr_slope
+    real, protected,public,target,allocatable,dimension(:,:) :: titr_init
+    real, protected,public,target,allocatable,dimension(:,:) :: titr_buret
+    real, protected,public,target,allocatable,dimension(:) :: lbeta
+    real, protected,public,target,allocatable,dimension(:,:) :: junctionp
+    real, private,allocatable,dimension(:) :: v
+    real, private,allocatable,dimension(:) :: v0
+    real, private,allocatable,dimension(:) :: e
+    integer, private,allocatable,dimension(:,:) :: junctionc
+    integer, private,allocatable,dimension(:,:) :: junctionf
+    integer, private,allocatable,dimension(:) :: eactive
+    integer, private,allocatable,dimension(:) :: flag_beta
+    integer, private,allocatable,dimension(:,:) :: flag_init
+    integer, private,allocatable,dimension(:,:) :: flag_buret
+    integer, private,allocatable,dimension(:) :: flag_emf0
+    integer, private,allocatable,dimension(:) :: flag_slope
+    real, private,allocatable,dimension(:) :: err_emf
+    real, private,allocatable,dimension(:) :: err_vol
+    integer, private,allocatable,dimension(:) :: titr_size
+    integer, private,allocatable,dimension(:,:) :: p
+    real, private,allocatable,dimension(:,:) :: t
+    logical, private,allocatable,dimension(:) :: update_titr
+    integer, private,allocatable,dimension(:) :: charges
+    real, private,allocatable,dimension(:) :: ion_backg
+    real, private,allocatable,dimension(:) :: ion_params
+    integer, private,allocatable,dimension(:) :: ion_flags
+    integer, private :: ion_model
+    real, private :: ion_iref
+    double precision, private,allocatable,dimension(:,:) :: ion_correction
+    real, private,allocatable,target,dimension(:) :: tmp_lbeta
+    real, private,allocatable,target,dimension(:,:) :: tmp_init
+    real, private,allocatable,target,dimension(:,:) :: tmp_buret
+    real, private,allocatable,target,dimension(:) :: tmp_emf0
+    real, private,allocatable,target,dimension(:) :: tmp_slope
+    real, private,allocatable,target,dimension(:,:) :: tmp_junction
+    real, private,pointer,dimension(:) :: use_lbeta
+    real, private,pointer,dimension(:,:) :: use_init
+    real, private,pointer,dimension(:,:) :: use_buret
+    real, private,pointer,dimension(:) :: use_emf0
+    real, private,pointer,dimension(:) :: use_slope
+    real, private,pointer,dimension(:,:) :: use_junction
+    integer, protected,public :: ntt
+    integer, protected,public :: npt
+    integer, protected,public :: ncp
+    integer, protected,public :: neq
+    character(len=45), protected,public :: emf_diagnostic
+    real, private :: nernst
+    integer, private :: tmp_loaded_titrs
+    integer, private :: tmp_space_left
+    integer, private,parameter,optional :: rf_constant=0
+    integer, private,parameter,optional :: rf_refine=1
+    integer, private,parameter,optional :: j_lbeta=1
+    integer, private,parameter,optional :: j_tinit=2
+    integer, private,parameter,optional :: j_tbure=3
+    integer, private,parameter,optional :: j_emf0=4
+    integer, private,parameter,optional :: j_slope=5
+    integer, private,parameter,optional :: j_junct=6
+    double precision, private,parameter,optional :: lg10=log(10.0)
+    integer, private :: outu
+    integer, public :: init_module
+    integer, public :: load_titration
+    real, public :: finalize
+    real, public :: fit_emf
+    real, public :: set_weight_gradient
+    real, public :: set_weight_unit
+    real, public :: set_ionic_variable
+    real, public :: set_ionic_constant
+    real, public :: set_ionic_ignored
+    real, private :: aux_create_variables
+    real, private :: update_equil
+    real, private :: try_step
+    real, private :: calc_resid
+    integer, private :: jacobian_lm
+    real, private :: calc_chisq
+    real, private :: create_variables
+    real, private :: titr_bounds
+    real, private :: sub_count_dof
+    real, private :: count_dof
+    real, private :: calc_covariance
+    real, private :: report_variables
+    integer, private :: lm
+    real, private :: calc_rho
+    type value_holder ! in ../libemf/emf.f90:emf
+        double precision, pointer,optional :: origin_value=>
+        double precision, pointer :: null
+        integer :: origin_index
+        real, pointer,optional :: destination_value=>
+        double precision, pointer :: null
+        integer :: destination_index1
+        integer :: destination_index2
+        integer :: id
+        integer :: jtype
+        double precision :: ratio
+    end type value_holder
+    subroutine init_module(n_points,n_titrs,stoich,logbeta,flgbeta,n_junct,outn) ! in ../libemf/emf.f90:emf
+        integer intent(in) :: n_points
+        integer intent(in) :: n_titrs
+        integer, required,dimension(:,:),intent(in) :: stoich
+        real dimension(size(stoich, 1)),intent(in),check(shape(logbeta, 0) == size(stoich, 1)),depend(stoich) :: logbeta
+        integer dimension(size(stoich, 1)),intent(in),check(shape(flgbeta, 0) == size(stoich, 1)),depend(stoich) :: flgbeta
+        integer intent(in) :: n_junct
+        integer intent(in) :: outn
+    end subroutine init_module
+    subroutine load_titration(titre,emf,titrparms,active,initv,emf0,nernst_slope,tflags,emf0_flag,slope_flag,error_emf,error_vol,junctionpot,junctioncom,junctionflag) ! in ../libemf/emf.f90:emf
+        real, required,dimension(:),intent(in) :: titre
+        real dimension(size(titre)),intent(in),check(shape(emf, 0) == size(titre)),depend(titre) :: emf
+        real dimension(:,2),intent(in) :: titrparms
+        integer intent(in) :: active
+        real intent(in) :: initv
+        real intent(in) :: emf0
+        real intent(in) :: nernst_slope
+        integer dimension(:,2),intent(in) :: tflags
+        integer intent(in) :: emf0_flag
+        integer intent(in) :: slope_flag
+        real intent(in) :: error_emf
+        real intent(in) :: error_vol
+        real dimension(:),intent(in) :: junctionpot
+        integer dimension(:),intent(in) :: junctioncom
+        integer dimension(:),intent(in) :: junctionflag
+    end subroutine load_titration
+    subroutine set_ionic_ignored ! in ../libemf/emf.f90:emf
+    end subroutine set_ionic_ignored
+    subroutine set_ionic_constant(charge,iref,init_ions,buret_ions,actv_params) ! in ../libemf/emf.f90:emf
+        integer dimension(:),intent(in) :: charge
+        real intent(in) :: iref
+        real dimension(:),intent(in) :: init_ions
+        real dimension(:),intent(in) :: buret_ions
+        real dimension(:),intent(in) :: actv_params
+    end subroutine set_ionic_constant
+    subroutine set_ionic_variable(charge,iref,init_ions,buret_ions,actv_params) ! in ../libemf/emf.f90:emf
+        integer dimension(:),intent(in) :: charge
+        real intent(in) :: iref
+        real dimension(:),intent(in) :: init_ions
+        real dimension(:),intent(in) :: buret_ions
+        real dimension(:),intent(in) :: actv_params
+    end subroutine set_ionic_variable
+    subroutine set_weight_unit ! in ../libemf/emf.f90:emf
+    end subroutine set_weight_unit
+    subroutine set_weight_gradient ! in ../libemf/emf.f90:emf
+        use misc, only: derivative_1d
+    end subroutine set_weight_gradient
+    subroutine finalize ! in ../libemf/emf.f90:emf
+    end subroutine finalize
+    subroutine fit_emf(maxits,temp) ! in ../libemf/emf.f90:emf
+        integer intent(in) :: maxits
+        real intent(in) :: temp
+    end subroutine fit_emf
+end module emf
 end interface
 end python module fsolver

@@ -10,6 +10,7 @@ import numpy as np
 import numpy.testing as npt
 
 from equilx.potentiometry import PotentiometryOpt
+from equilx.consts import Flags
 
 from fixtures_potentiometry import case_znedta
 
@@ -38,10 +39,9 @@ class Test_ZnEDTA(unittest.TestCase):
         # @pytest.mark.parametrize("error", [0.1, 0.2, 0.5, 1.0])
         error = 0.1
         self.model.log_beta[-4:-1] += error*2*(np.random.rand(3)-0.5)
-        out = io.StringIO()
-        print(self.model)
-        result = PotentiometryOpt(self.model, self.data, output=out)
-        calc_beta = result['final log beta'][-4:-1]
+        result = PotentiometryOpt(self.model, self.data,
+                                  weighting_scheme='auto')
+        calc_beta = result['log_beta'][-4:-1]
         npt.assert_allclose(calc_beta, self.true_beta, rtol=0.01)
 
     # @pytest.mark.parametrize("error", [0.0002, 0.0005, 0.001, 0.002])

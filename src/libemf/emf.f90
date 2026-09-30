@@ -38,14 +38,14 @@ module emf
     double precision,   allocatable, dimension(:)         :: weights
 
     ! public variables for after fitting
-    double precision, allocatable, public, protected, dimension(:,:) :: C           ! the free concentrations
-    double precision, allocatable, public, protected, dimension(:,:) :: covariance  ! the covatiance matrix
-    real, allocatable, target, public, protected, dimension(:)   :: electr_emf0     ! standard potential in mV
-    real, allocatable, target, public, protected, dimension(:)   :: electr_slope    ! nernstian slope in unit
-    real, allocatable, target, public, protected, dimension(:,:) :: titr_init       ! initial amount in mmol
-    real, allocatable, target, public, protected, dimension(:,:) :: titr_buret      ! buret concentration in mmol/mL
-    real, allocatable, target, public, protected, dimension(:)   :: lbeta           ! formation constants in log units
-    real, allocatable, target, public, protected, dimension(:,:) :: junctionp       ! junction potential in mV.mL/mmmol
+    double precision, allocatable, public, dimension(:,:) :: C           ! the free concentrations
+    double precision, allocatable, public, dimension(:,:) :: covariance  ! the covatiance matrix
+    real, allocatable, target, public, dimension(:)   :: electr_emf0     ! standard potential in mV
+    real, allocatable, target, public, dimension(:)   :: electr_slope    ! nernstian slope in unit
+    real, allocatable, target, public, dimension(:,:) :: titr_init       ! initial amount in mmol
+    real, allocatable, target, public, dimension(:,:) :: titr_buret      ! buret concentration in mmol/mL
+    real, allocatable, target, public, dimension(:)   :: lbeta           ! formation constants in log units
+    real, allocatable, target, public, dimension(:,:) :: junctionp       ! junction potential in mV.mL/mmmol
 
     ! private variables for internal use
     real,    allocatable,  dimension(:)   :: V            ! titre in mL
@@ -120,8 +120,8 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, n_junct, out
     integer, intent(in)                                 :: n_points  ! total number of experimental points
     integer, intent(in)                                 :: n_titrs   ! number of titrations to be loaded
     integer, intent(in), dimension(:,:)                 :: stoich    ! the stoichiometry array
-    real,    intent(in), dimension(size(stoich, dim=1)) :: logbeta   ! the log10 of the formation constants
-    integer, intent(in), dimension(size(stoich, dim=1)) :: flgbeta   ! the refinement flags for the formation constants
+    real,    intent(in), dimension(size(stoich, 1)) :: logbeta   ! the log10 of the formation constants
+    integer, intent(in), dimension(size(stoich, 1)) :: flgbeta   ! the refinement flags for the formation constants
     integer, intent(in)                                 :: n_junct   ! number of junction components (usually zero)
     integer, intent(in)                                 :: outn
 
@@ -486,9 +486,11 @@ subroutine fit_emf(maxits, temp)
     nernst = nernst_base*(temp+TOKELVIN)  ! mV
 
     ! create constraints
+    NX = 0
+    NV = 0
     call count_dof(NX, NV)
 
-    write (outu, '(2(A,I3),A)') "Fitting ", NX, " degrees of freedom and ", NV, " variables"
+    write (outu, '(2(A,I5),A)') "Fitting ", NX, " degrees of freedom and ", NV, " variables"
 
     allocate(xvalues(NX))
     allocate(variables(NV))
@@ -584,7 +586,8 @@ end subroutine fit_emf
 !----------------------------------------------------------------------------------------------------
 subroutine lm(maxits)
     ! routine for Levenberg-Marquardt iterations.
-    use misc, only: fit_sigma, lesolve
+    use misc, only: lesolve
+    use stat, only: fit_sigma
     integer, intent(in) :: maxits
 
     integer :: NX ! number of variables to optimize
@@ -858,7 +861,7 @@ subroutine jacobian_lm(jac)
 
     double precision, DIMENSION(NCP, NCP) :: Am      ! the A-matrix
     double precision, allocatable, dimension(:,:) :: bvec
-    integer :: i, j, k, l, CTRL
+    integer :: i, j, k, CTRL
     integer :: curr_titr
     integer :: aux, eac
     integer :: bsize

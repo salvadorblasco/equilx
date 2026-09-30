@@ -19,6 +19,7 @@ BUILD   = build
 LIBDIR  = $(BUILD)/lib
 BINDIR  = $(BUILD)/bin
 MODDIR  = $(BUILD)/include
+PYMDIR  = $(SRCDIR)/equilx
 
 # cpluss.f90 mb.f90 si.f90 nr.f90 pcf.f90 outer.f90 eq.f90 err.f90
 EQ_SRCS = $(wildcard $(SRCDIR)/libeq/*.f90)
@@ -57,6 +58,7 @@ SIGNATURE=$(PYMDIR)/$(MODNAME).pyf
 
 pymodule: $(EQ_SRCS) $(EMF_SRCS)
 	$(F2PY) -c $(SIGNATURE) -m $(BINDIR)/$(MODNAME) $(EQ_SRCS) $^ $(LLAPACK)
+	mv $(MODNAME)*.so $(PYMDIR)
 
 signature:
 	$(F2PU) --overwrite-signature -h $(SIGNATURE) eq.f90 
@@ -93,6 +95,8 @@ $(BUILD)/libemf/%.o: $(SRCDIR)/libemf/%.f90
 #--------------------------------------------------------------------------------
 # tests rules
 
+TESTCASES:=$(wildcard $(TESTDIR)/case*.f90)
+
 
 tests: $(TEST_EQ) $(TEST_EMF)
 
@@ -109,7 +113,7 @@ $(TEST_EMF): $(TESTDIR)/test_emf.f90 $(EMF_LIB)
 	      -L$(LIBDIR) -lemf -leq $(RPATH)
 
 temfd: $(TESTDIR)/test_emf.f90 $(EMF_OBJS) $(EQ_OBJS)
-	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $(TEST_EMF) $(TESTDIR)/case_hexaprotic.f90 $<  $(EMF_OBJS) $(EQ_OBJS) $(LLAPACK)
+	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $(TEST_EMF) $(TESTCASES) $<  $(EMF_OBJS) $(EQ_OBJS) $(LLAPACK)
 
 run-tests: tests
 	@echo "Running tests..."

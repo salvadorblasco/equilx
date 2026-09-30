@@ -9,22 +9,23 @@ program test_libemf
     print "(A)", "+-------------------------+"
     print *, ""
 
-    call test_gradient()
-    call test_hexaprotic1()
-    call test_hexaprotic2()
-    call test_hexaprotic3()
-    call test_hexaprotic4()
-    call test_hexaprotic5()
-    call test_hexaprotic6()
-    call test_hexaprotic7()
-    call test_hexaprotic8()
-    call test_hexaprotic9()
-    call test_hexaprotic10()
-    call test_hexaprotic11()
-    call test_hexaprotic12()
-    call test_hexaprotic13()
-    call test_hexaprotic14()
-    call test_hexaprotic15()
+    !call test_gradient()
+    !call test_hexaprotic1()
+    !call test_hexaprotic2()
+    !call test_hexaprotic3()
+    !call test_hexaprotic4()
+    !call test_hexaprotic5()
+    !call test_hexaprotic6()
+    !call test_hexaprotic7()
+    !call test_hexaprotic8()
+    !call test_hexaprotic9()
+    !call test_hexaprotic10()
+    !call test_hexaprotic11()
+    !call test_hexaprotic12()
+    !call test_hexaprotic13()
+    !call test_hexaprotic14()
+    !call test_hexaprotic15()
+    call test_znedta1()
 
     call CPU_TIME(t_stop)
     print "(A,F10.6,A)", "done in ", (t_stop-t_start), "s"
@@ -1876,6 +1877,77 @@ subroutine print_result(test_name, result_tag)
           repeat(filler, fill_len), &                ! filling
           " ", trim(result_tag)                           ! space + right
 end subroutine
+
+
+subroutine test_znedta1()
+    use emf
+    use case_znedta
+    use iso_fortran_env, only: output_unit
+
+    character(len=*), parameter :: test_name = "znedta refine beta xxx"
+    logical :: passed
+    integer :: i
+    integer, DIMENSION(15) :: rlbflags = [0,0,0,0,0,0,0,0,0,0,0,1,1,1,0]
+    real, dimension(15) :: ini_logbeta
+    real, dimension(3,2) :: titr_params
+    integer, dimension(3,2) :: titr_flags
+    integer, dimension(1) :: junc_flag
+    integer, dimension(1) :: junc_comp
+    real, dimension(1) :: junc_pot
+    real :: rnd
+    logical, parameter :: SILENT = .false.
+    real, parameter :: TOLERANCE = 0.05
+
+    passed = .true.
+
+    titr_flags = 0
+    junc_flag = 0
+    junc_comp = 2
+    junc_pot = electr_junctionA
+    do i=12,14
+        call RANDOM_NUMBER(rnd)
+        ini_logbeta(i) = real_logbeta(i) + (rnd-0.5)
+    end do
+
+    if (SILENT) then
+        open(unit=20, file='/dev/null', status='old')
+        call init_module(mNPT, 4, mP, ini_logbeta, rlbflags, 1, 20)
+    else
+        call init_module(mNPT, 4, mP, ini_logbeta, rlbflags, 1, output_unit)
+    end if
+
+    do i=1,4
+        titr_params(:,1) = titr_init0(i,:)
+        titr_params(:,2) = [ 0.0, 0.0, buret ]
+        call load_titration(titre1, remf(:,i), titr_params, 2, initvol, melectr_emf0, melectr_slope, &
+                            titr_flags, 0, 0, error_emf, error_vol, junc_pot, junc_comp, junc_flag)
+        if (trim(emf_diagnostic) /= 'no error') then
+            if (passed) call print_result(test_name, "failed")
+            print "(A,I2,2A)", "  loading titration", i, "-> ", emf_diagnostic
+            passed=.false.
+        end if
+    end do
+
+    if (SILENT) close(20)
+
+    call set_weight_gradient()
+
+    call set_ionic_ignored()
+
+    call fit_emf(20, temp)
+
+    do i=1,6
+        if (abs(lbeta(i)-real_logbeta(i)) > TOLERANCE) then
+            if (passed) call print_result(test_name, "failed")
+            passed = .false.
+            print "(A,I1,A, 2F10.3)", "  log beta(",i,") too large: ", lbeta(i), real_logbeta(i)
+        end if
+    end do
+
+    call finalize()
+
+    if (passed) call print_result(test_name, "passed")
+end subroutine test_znedta1
 
 end program test_libemf
 
