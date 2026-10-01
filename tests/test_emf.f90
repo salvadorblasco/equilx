@@ -11,8 +11,8 @@ program test_libemf
 
     !call test_gradient()
     !call test_hexaprotic1()
-    call test_hexaprotic2()
-    !call test_hexaprotic3()
+    !call test_hexaprotic2()
+    call test_hexaprotic3()
     !call test_hexaprotic4()
     !call test_hexaprotic5()
     !call test_hexaprotic6()
@@ -279,7 +279,7 @@ subroutine test_hexaprotic3()
     real, dimension(1) :: junc_pot
     real :: rnd
     real, parameter :: TOLERANCE = 0.05
-    logical, parameter :: SILENT = .true.
+    logical, parameter :: SILENT = .false.
 
     passed = .true.
 
