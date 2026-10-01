@@ -1,6 +1,6 @@
 program test_libemf
-    implicit none
-    real t_start, t_stop
+    implicit none (type, external)
+    real :: t_start, t_stop
 
     call CPU_TIME(t_start)
 
@@ -11,7 +11,7 @@ program test_libemf
 
     !call test_gradient()
     !call test_hexaprotic1()
-    !call test_hexaprotic2()
+    call test_hexaprotic2()
     !call test_hexaprotic3()
     !call test_hexaprotic4()
     !call test_hexaprotic5()
@@ -25,22 +25,20 @@ program test_libemf
     !call test_hexaprotic13()
     !call test_hexaprotic14()
     !call test_hexaprotic15()
-    call test_znedta1()
+    !call test_znedta1()
 
     call CPU_TIME(t_stop)
     print "(A,F10.6,A)", "done in ", (t_stop-t_start), "s"
 contains
-
 
 subroutine test_hexaprotic1()
     use emf
     use case_hexaprotic
     use iso_fortran_env, only: output_unit
 
-    implicit none
     character(len=*), parameter :: test_name = "hexaprotic simu1"
-    logical passed
-    integer i
+    logical :: passed
+    integer :: i
     integer, DIMENSION(7) :: rlbflags = [1,1,1,1,1,1,0]
     real, dimension(7) :: ini_logbeta = [ 10.0, 18.0, 24.0, 28.0, 31.0, 33.0, -13.77 ]
     real, dimension(2,2) :: titr_params
@@ -153,10 +151,9 @@ subroutine test_hexaprotic2()
     use case_hexaprotic
     use iso_fortran_env, only: output_unit
 
-    implicit none
     character(len=*), parameter :: test_name = "hexaprotic free buret"
-    logical passed
-    integer i
+    logical :: passed
+    integer :: i
     integer, DIMENSION(7) :: rlbflags = [1,1,1,1,1,1,0]
     real, dimension(7) :: ini_logbeta = [ 10.0, 18.0, 24.0, 28.0, 31.0, 33.0, -13.77 ]
     real, dimension(2,2) :: titr_params
@@ -165,7 +162,7 @@ subroutine test_hexaprotic2()
     integer, dimension(1) :: junc_comp
     real, dimension(1) :: junc_pot
     real :: rnd
-    logical, parameter :: SILENT = .true.
+    logical, parameter :: SILENT = .false.
     real, parameter :: TOLERANCE = 0.05
 
     passed = .true.
@@ -270,10 +267,9 @@ subroutine test_hexaprotic3()
     use case_hexaprotic
     use iso_fortran_env, only: output_unit
 
-    implicit none
     character(len=*), parameter :: test_name = "hexaprotic constr buret"
-    logical passed
-    integer i
+    logical :: passed
+    integer :: i
     integer, DIMENSION(7) :: rlbflags = [1,1,1,1,1,1,0]
     real, dimension(7) :: ini_logbeta = [ 10.0, 18.0, 24.0, 28.0, 31.0, 33.0, -13.77 ]
     real, dimension(2,2) :: titr_params
@@ -1884,26 +1880,26 @@ subroutine test_znedta1()
     use case_znedta
     use iso_fortran_env, only: output_unit
 
-    character(len=*), parameter :: test_name = "znedta refine beta xxx"
+    character(len=*), parameter :: test_name = "znedta refine beta, no jH"
     logical :: passed
     integer :: i
     integer, DIMENSION(15) :: rlbflags = [0,0,0,0,0,0,0,0,0,0,0,1,1,1,0]
     real, dimension(15) :: ini_logbeta
     real, dimension(3,2) :: titr_params
     integer, dimension(3,2) :: titr_flags
-    integer, dimension(1) :: junc_flag
-    integer, dimension(1) :: junc_comp
-    real, dimension(1) :: junc_pot
+    integer, dimension(0) :: junc_flag
+    integer, dimension(0) :: junc_comp
+    real, dimension(0) :: junc_pot
     real :: rnd
-    logical, parameter :: SILENT = .false.
+    logical, parameter :: SILENT = .true.
     real, parameter :: TOLERANCE = 0.05
 
     passed = .true.
 
     titr_flags = 0
-    junc_flag = 0
-    junc_comp = 2
-    junc_pot = electr_junctionA
+    !junc_flag = 0
+    !junc_comp = 2
+    !junc_pot = electr_junctionA
     ini_logbeta = real_logbeta
     do i=12,14
         call RANDOM_NUMBER(rnd)
@@ -1912,15 +1908,15 @@ subroutine test_znedta1()
 
     if (SILENT) then
         open(unit=20, file='/dev/null', status='old')
-        call init_module(mNPT, 4, mP, ini_logbeta, rlbflags, 1, 20)
+        call init_module(mNPT, 4, mP, ini_logbeta, rlbflags, 0, 20)
     else
-        call init_module(mNPT, 4, mP, ini_logbeta, rlbflags, 1, output_unit)
+        call init_module(mNPT, 4, mP, ini_logbeta, rlbflags, 0, output_unit)
     end if
 
     do i=1,4
         titr_params(:,1) = titr_init0(i,:)
         titr_params(:,2) = [ 0.0, 0.0, buret ]
-        call load_titration(titre1, remf(:,i), titr_params, 3, initvol, melectr_emf0, melectr_slope, &
+        call load_titration(titre1, remf_nja(:,i), titr_params, 3, initvol, melectr_emf0, melectr_slope, &
                             titr_flags, 0, 0, error_emf, error_vol, junc_pot, junc_comp, junc_flag)
         if (trim(emf_diagnostic) /= 'no error') then
             if (passed) call print_result(test_name, "failed")
@@ -1937,11 +1933,11 @@ subroutine test_znedta1()
 
     call fit_emf(20, temp)
 
-    do i=1,6
+    do i=12,14
         if (abs(lbeta(i)-real_logbeta(i)) > TOLERANCE) then
             if (passed) call print_result(test_name, "failed")
             passed = .false.
-            print "(A,I1,A, 2F10.3)", "  log beta(",i,") too large: ", lbeta(i), real_logbeta(i)
+            print "(A,I3,A, 2F10.3)", "  log beta(",i,") too large: ", lbeta(i), real_logbeta(i)
         end if
     end do
 

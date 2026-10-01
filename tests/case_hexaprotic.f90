@@ -102,8 +102,8 @@ real, parameter :: buret = -0.1
 real, parameter :: temp = 25.0
 real, parameter :: ionic = 0.1
 real, dimension(3,2) :: titr_init0 = reshape([0.125, 0.05, 0.1, 0.75, 0.3, 0.6], [3,2])
-real, parameter :: error_emf = 0.3
-real, parameter :: error_vol = 0.003
+real, parameter :: error_emf = 0.1
+real, parameter :: error_vol = 0.006
 integer, dimension(2) :: charge = [-3, 1]
 
 contains

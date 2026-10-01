@@ -25,4 +25,4 @@ dev = [
 
 [check]
 line-length = 132
-ignore = ["S101"]
+ignore = ["S001"]

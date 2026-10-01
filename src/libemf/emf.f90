@@ -294,8 +294,8 @@ subroutine load_titration(titre, emf, titrparms, active, initV, emf0, nernst_slo
     junctionf(tmp_loaded_titrs,:) = junctionflag
 
     write (outu, '(A,I3,A,I4,A)') "titration #", tmp_loaded_titrs, " -> ", n, " points loaded"
-    write (outu, *) titre(1), titre(size(titre))
-    write (outu, *) emf(1), emf(size(emf))
+    !write (outu, *) titre(1), titre(size(titre))
+    !write (outu, *) emf(1), emf(size(emf))
 
 end subroutine load_titration
 
@@ -615,9 +615,9 @@ subroutine lm(maxits)
     real, parameter :: DAMPING_LOWER   = 1e-12
     real, parameter :: DAMPING_UPF     = 8.0
     real, parameter :: DAMPING_LOWF    = 3.0
-    real, parameter :: SIGMA_THRESHOLD = 1e-2
+    real, parameter :: SIGMA_THRESHOLD = 1e-4
     real, parameter :: GRAD_THRESHOLD  = 1e-2
-    real, parameter :: STEP_THRESHOLD  = 1e-5
+    real, parameter :: STEP_THRESHOLD  = 1e-6
     !double precision, PARAMETER :: RHO_THRESH = 1D-4
     double precision, allocatable, dimension(:,:) :: jac
     double precision, allocatable, dimension(:)   :: dx
@@ -652,6 +652,13 @@ subroutine lm(maxits)
         call try_step(dx)
 
         call update_equil()
+
+        !do i=1,NPT
+        !!    print "(*(E12.4))", C(i,:)
+        !    print "(*(F14.4))", V(i), -LOG10(C(i,3))
+        !end do
+        !stop
+
         call calc_resid(fvec)
         trial_sumsq = SUM(weights*fvec**2)
 
@@ -864,6 +871,7 @@ subroutine calc_resid(fvec)
         calc_emf = use_emf0(curr_titr)  &
                  + use_slope(curr_titr) * nernst * LOG(C(i,hact))  &
                  + junction
+        !print "(I4,F12.4)", i, calc_emf
         fvec(i) = E(i) - calc_emf
     end do
 end subroutine calc_resid
