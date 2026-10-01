@@ -618,6 +618,7 @@ subroutine lm(maxits)
     real, parameter :: SIGMA_THRESHOLD = 1e-4
     real, parameter :: GRAD_THRESHOLD  = 1e-2
     real, parameter :: STEP_THRESHOLD  = 1e-6
+    double precision, parameter :: THRESHOLD  = 1e-10
     !double precision, PARAMETER :: RHO_THRESH = 1D-4
     double precision, allocatable, dimension(:,:) :: jac
     double precision, allocatable, dimension(:)   :: dx
@@ -628,6 +629,10 @@ subroutine lm(maxits)
     double precision :: sigma
     integer :: i
     integer :: CTRL
+    logical :: exit_condition
+    double precision :: relative_step
+    double precision :: relative_grad
+    double precision :: relative_sumsq
 
     NX = size(xvalues)
     ALLOCATE(jac(NPT, NX))
@@ -715,33 +720,41 @@ subroutine lm(maxits)
             damping = max(damping / DAMPING_LOWF, DAMPING_LOWER)
 
             ! Exit check
+            relative_step = NORM2(dx) / (1.0d0 + NORM2(xvalues))
+            relative_grad = MAXVAL(ABS(gradient)) / (1.0d0 + ABS(sumsq))
+            relative_sumsq = ABS(sumsq - trial_sumsq) / (1.0d0 + sumsq)
+
             ! Sigma check
-            write(outu, '(A,E14.6)', advance='no') "   sigma", sigma
-            if (sigma < SIGMA_THRESHOLD) then
+            write(outu, '(A,E14.6)', advance='no') "   sumsq", relative_sumsq
+            if (relative_sumsq < THRESHOLD) then
                 write(outu, '(A)') " YES"
-                exit main_loop
+                exit_condition = .true.
             else
                 write(outu, '(A)') " NO"
+                exit_condition = .false.
             end if
 
             ! Gradient norm check
-            write(outu, '(A,E14.6)', advance='no') "   gnorm", gradient_norm
-            if (gradient_norm < GRAD_THRESHOLD) then
+            write(outu, '(A,E14.6)', advance='no') "   gradn", relative_grad
+            if (relative_grad < THRESHOLD) then
                 write(outu, '(A)') " YES"
-                exit main_loop
+                exit_condition = exit_condition .and. .true.
             else
                 write(outu, '(A)') " NO"
+                exit_condition = exit_condition .and. .false.
             end if
 
             ! step length check
-            i = MAXLOC(abs(dx), dim=1)
-            write(outu, '(A,E14.6)', advance='no') "   step ", dx(i)
-            if (abs(dx(i)) < STEP_THRESHOLD) then
+            write(outu, '(A,E14.6)', advance='no') "   step ", relative_step
+            if (relative_step < THRESHOLD) then
                 write(outu, '(A)') " YES"
-                exit main_loop
+                exit_condition = exit_condition .and. .true.
             else
                 write(outu, '(A)') " NO"
+                exit_condition = exit_condition .and. .true.
             end if
+
+            if (exit_condition) exit main_loop
 
             iter = iter + 1
         else
