@@ -216,7 +216,7 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, n_junct, out
                 write (outu, '(A,I1)') ' CONSTRAINT', flag_beta(i)
         end select
     end do
-    write (outu, *), ""
+    write (outu, *) ""
 end subroutine init_module
 
 
@@ -626,6 +626,7 @@ subroutine lm(maxits)
     double precision, allocatable, dimension(:)   :: gradient
     double precision, allocatable, dimension(:,:) :: M, dampedM
     double precision :: gradient_norm, sumsq, damping, trial_sumsq
+    double precision :: predicted, actual, rho
     double precision :: sigma
     integer :: i
     integer :: CTRL
@@ -692,7 +693,24 @@ subroutine lm(maxits)
 
         !rho = calc_rho((chisq - trial_chisq), dx, gradient, M, damping)
         !if (abs(rho) > RHO_THRESH) then                     ! sometimes rho can be negative very close to the solution
-        if (trial_sumsq < sumsq) then
+
+        ! predicted reduction (quadratic model)
+        ! gradient = 2 * J^T W r   (you already compute it this way)
+        ! M        = J^T W J
+        predicted = 0.5d0 * DOT_PRODUCT(dx, damping*dx - gradient)   ! simplest form
+        ! or the more accurate form that uses the full normal matrix:
+        !predicted = 0.5d0 * DOT_PRODUCT(dx, MATMUL(M,dx) + damping*dx - gradient)
+
+        actual     = sumsq - trial_sumsq          ! positive when the step is good
+
+        if (predicted > 10.0d0 * EPSILON(1.0d0) * (1.0d0 + abs(sumsq))) then
+            rho = actual / predicted
+        else
+            rho = -1.0d0          ! model is not decreasing → force rejection
+        end if
+        print "(2(A,E12.4))", "predicted=", predicted, " actual=", actual
+
+        if (rho > 0.0) then
             ! step accepted
             write(outu, '(/,A,I4,/)') "Iteration", iter
             write (outu, "(A,E14.4)") "   damping = ", damping
@@ -710,14 +728,6 @@ subroutine lm(maxits)
             sigma = fit_sigma(fvec, weights, NPT, NX)
 
             write(outu, '(A,E14.6)') "   sumsq", sumsq
-
-            ! Adaptive damping (very effective)
-            !if (rho > 0.75) then
-            !    damping = max(damping / 2*DAMPING_LOWF, DAMPING_LOWER)
-            !else
-            !    damping = max(damping / DAMPING_LOWF, DAMPING_LOWER)
-            !end if
-            damping = max(damping / DAMPING_LOWF, DAMPING_LOWER)
 
             ! Exit check
             relative_step = NORM2(dx) / (1.0d0 + NORM2(xvalues))
@@ -757,16 +767,32 @@ subroutine lm(maxits)
             if (exit_condition) exit main_loop
 
             iter = iter + 1
-        else
+        !else
             ! step rejected
-            damping = damping*DAMPING_UPF
-            if (damping > DAMPING_UPPER) then
-                emf_diagnostic="LM loop rejected too many steps"
-                exit main_loop
-            end if
-            call lesolve(dampedM, F, dx, NX, CTRL)
-            write (outu, "(A,E14.4)") "damping = ", damping
+            !damping = damping*DAMPING_UPF
+            !if (damping > DAMPING_UPPER) then
+            !    emf_diagnostic="LM loop rejected too many steps"
+            !    exit main_loop
+            !end if
+            !call lesolve(dampedM, F, dx, NX, CTRL)
+            !write (outu, "(A,E14.4)") "damping = ", damping
             !write (outu, "(2(A,E14.4))") "trial sumsq=", trial_sumsq, " sumsq=", sumsq
+        end if
+
+        if (rho > 0.75d0) then
+            damping = max(damping / 3.0d0, DAMPING_LOWER)   ! strong decrease
+        else if (rho > 0.25d0) then
+            damping = max(damping / 2.0d0, DAMPING_LOWER)   ! mild decrease
+        else
+            damping = damping * 2.0d0   ! increase
+        end if
+
+        write (outu, "(A,E14.4)") "damping = ", damping
+
+        if (damping >= DAMPING_UPPER * 0.99d0) then
+            emf_diagnostic = "LM stalled at maximum damping"
+            write (outu, "(A)") emf_diagnostic
+            exit main_loop
         end if
 
         dampedM = M
