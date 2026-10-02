@@ -195,7 +195,7 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
     call mb_soluble(fvec, C, P, T, NCP, NEQ)
 
     ! test for convergence on relative values
-    call is_converged(dx, fvec, NCP, converged)
+    call is_converged(dx, fvec, x, NCP, converged)
     if (converged) then
        ctrl = 0  ! normal exit
        return
@@ -281,7 +281,7 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
     fvec(NCP+1:NX) = pack(full_fvec(NCP+1:NCP+NSL), do_solids)
 
     ! test for convergence on relative values
-    call is_converged(dx, fvec, NX, converged)
+    call is_converged(dx, fvec, x, NX, converged)
     if (converged) then
        ctrl = 0  ! normal exit
        return
@@ -291,32 +291,38 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
 end subroutine nr_solids
 
 
-subroutine is_converged(dx, fvec, fsize, retval)
+subroutine is_converged(dx, fvec, x, fsize, retval)
     ! test for convergence on relative values
     implicit none
     integer,          intent(in)                   :: fsize
-    double precision, intent(in), dimension(fsize) :: dx, fvec
+    double precision, intent(in), dimension(fsize) :: dx, fvec, x
     logical,          intent(inout)                :: retval
 
-    double precision :: test, max_step
-    double precision, parameter :: STEP_TOLERANCE = 1.0D-16
-    double precision, parameter :: FVEC_TOLERANCE = 1.0D-20
+    double precision, parameter :: REL_TOL  = 1.0d-15   ! relative step
+    double precision, parameter :: ABS_TOL  = 1.0d-17   ! absolute step floor
+    double precision, parameter :: FRES_TOL = 1.0d-15   ! residual (RMS or max-norm)
+
+    double precision :: max_rel_step, max_abs_res
 
     integer :: i
 
     retval = .false.
-    test = sum(fvec**2)
-    if (test <= FVEC_TOLERANCE) then
+
+    ! residual test
+    max_abs_res = maxval(abs(fvec))
+    if (max_abs_res <= FRES_TOL) then
         retval = .true.
         return
     end if
-    max_step = 0.0
-    do i=1,fsize
-        if (fvec(i) > tiny(fvec)) then
-            max_step = max(abs(dx(i)/fvec(i)), max_step)
-        end if
+
+    ! mixed relative/absolute step test
+    max_rel_step = 0.0d0
+    do i = 1, fsize
+        max_rel_step = max( max_rel_step, &
+                            abs(dx(i)) / (abs(x(i)) + ABS_TOL) )
     end do
-    if (max_step <= STEP_TOLERANCE) then
+
+    if (max_rel_step <= REL_TOL) then
         retval = .true.
     end if
 end subroutine is_converged
