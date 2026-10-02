@@ -4,9 +4,8 @@
 ! testing for the library
 
 program test
-
     implicit none
-    real t_start, t_stop
+    real :: t_start, t_stop
 
     call CPU_TIME(t_start)
 
@@ -39,19 +38,18 @@ program test
 
     call CPU_TIME(t_stop)
     print "(A,F10.6,A)", "done in ", (t_stop-t_start), "s"
-contains
 
+contains
 
 subroutine test_case_caco3()
     use calcium_carbonate
-    implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NCP+NSL) :: F
     double precision, dimension(NSL) :: SI
     double precision, dimension(NPT,NSL)     :: CS
     double precision, PARAMETER :: TOLERANCE = 1D-12
-    integer i, j, CTRL
-    logical passed
+    integer :: i, j, CTRL
+    logical :: passed
     character(len=*), parameter :: test_name = "case Ca carbonate"
 
     passed = .true.
@@ -468,18 +466,17 @@ end subroutine test_solve1
 
 subroutine test_case_hexaprotic()
     use hexaprotic
-    implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NCP) :: F
-    double precision, PARAMETER :: TOLERANCE = 1D-10
-    integer i, j, CTRL
-    logical passed
+    double precision, PARAMETER :: TOLERANCE = 1D-12
+    integer :: i, j, CTRL
+    logical :: passed
     character(len=*), parameter :: test_name = "case hexaprotic"
     passed = .true.
     call initialize()
     call initial_guess(C, T, NPT, NCP, NEQ)
     call eq_000(C, T, B, P, CTRL, NPT, NCP, NEQ)
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         if (passed) then
             passed = .false.
             call print_result(test_name, "failed")

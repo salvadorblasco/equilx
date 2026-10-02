@@ -75,7 +75,6 @@ module simple2
 end module simple2
 
 
-
 module hexaprotic
     implicit none
 
@@ -90,14 +89,14 @@ module hexaprotic
     10.80, 10.92, 11.28, 11.64, 12.00 /)
     double precision :: V0 = 25
     double precision, dimension(NPT, NCP) :: T
-    DOUBLE PRECISION, DIMENSION(NEQ) :: B 
-    DOUBLE PRECISION, DIMENSION(NEQ) :: logB = (/ 10.0, 18.0, 24.0, 28.0, 31.0, 33.0, -13.77 /) 
-    integer, dimension(NEQ, NCP) :: P = reshape((/ 1,1,1,1,1,1,0, 1,2,3,4,5,6,-1 /), &
-                                                shape=(/ NEQ, NCP /))
+    DOUBLE PRECISION, DIMENSION(NEQ) :: B
+    DOUBLE PRECISION, DIMENSION(NEQ) :: logB = [10.0, 18.0, 24.0, 28.0, 31.0, 33.0, -13.77]
+    integer, dimension(NEQ, NCP) :: P = reshape([1,1,1,1,1,1,0, 1,2,3,4,5,6,-1], &
+                                                shape=[NEQ, NCP])
 contains
 
 subroutine initialize()
-    integer i
+    integer :: i
     do i=1,NPT
         T(i,1) = 5.0E-3*V0 / (V(i) + V0)
         T(i,2) = (30.0E-3*V0 - 0.1* V(i))/ (V(i) + V0)

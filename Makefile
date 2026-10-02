@@ -112,6 +112,10 @@ $(TEST_EMF): $(TESTDIR)/test_emf.f90 $(EMF_LIB)
 	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $@ $< \
 	      -L$(LIBDIR) -lemf -leq $(RPATH)
 
+teqd: $(TESTDIR)/test_eq.f90 $(TESTDIR)/test_cases.f90 $(EQ_OBJS)
+	$(FC) $(FFLAGS) -J$(MODDIR) -c $(TESTDIR)/test_cases.f90 -o $(TESTDIR)/test_cases.o
+	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $(TEST_EQ) $(TESTCASES) $(TESTDIR)/test_cases.o $(EQ_OBJS) $< $(LLAPACK)
+
 temfd: $(TESTDIR)/test_emf.f90 $(EMF_OBJS) $(EQ_OBJS)
 	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $(TEST_EMF) $(TESTCASES) $<  $(EMF_OBJS) $(EQ_OBJS) $(LLAPACK)
 

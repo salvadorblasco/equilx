@@ -152,7 +152,7 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
   implicit none
   integer, intent(in) :: NCP                               ! number of components
   integer, intent(in) :: NEQ                               ! number of equilibria
-  integer, intent(inout) :: ctrl                           ! ctrl -> control value. 
+  integer, intent(inout) :: ctrl                           ! ctrl -> control value.
   integer, dimension(NEQ, NCP), intent(in) :: P            ! stoichiometry array
   double precision, dimension(NCP+NEQ), intent(inout) :: C ! initial estimates (in) and refined values (out)
   double precision, dimension(NCP), intent(in) :: T        ! analytical concentration values
@@ -163,10 +163,10 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
   double precision, dimension(NCP)      :: fvec
   double precision, dimension(NCP, NCP) :: jac
   double precision, dimension(NCP)      :: dx
-  logical check, converged
-  integer MAXITS
+  logical :: check, converged
+  integer :: MAXITS
   parameter (MAXITS=100)
-  
+
   X(:) = LOG(C(1:NCP))
 
   call cpluss(C, B, P, NCP, NEQ)
@@ -179,7 +179,7 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
     return
   end if
 
-  ! Main loopC(i) - 
+  ! Main loopC(i) -
   do its=1,MAXITS
     call jacobian_soluble(jac, C, P, NCP, NEQ)
 
@@ -230,7 +230,7 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
   double precision, dimension(NX, NX)   :: jac
   double precision, dimension(NX)       :: dx
   double precision, dimension(NSL)      :: SI
-  logical check, converged
+  logical :: check, converged
   integer, parameter :: MAXITS=100
   
   X(1:NCP) = LOG(C(1:NCP))  ! initialise C in log space
@@ -298,11 +298,11 @@ subroutine is_converged(dx, fvec, fsize, retval)
     double precision, intent(in), dimension(fsize) :: dx, fvec
     logical,          intent(inout)                :: retval
 
-    double precision test, max_step
+    double precision :: test, max_step
     double precision, parameter :: STEP_TOLERANCE = 1.0D-16
     double precision, parameter :: FVEC_TOLERANCE = 1.0D-20
 
-    integer i
+    integer :: i
 
     retval = .false.
     test = sum(fvec**2)
@@ -327,8 +327,8 @@ subroutine scale(M, V, D, N)
     DOUBLE PRECISION, INTENT(INOUT), DIMENSION(N) :: V
     DOUBLE PRECISION, INTENT(INOUT), DIMENSION(N) :: D
     INTEGER, INTENT(IN) :: N
-  
-    integer i, j
+
+    integer :: i, j
     do i=1,N
       D(i) = abs(M(i,i))
     end do
@@ -352,15 +352,15 @@ subroutine is_root(fvec, NCP, check)
   integer, intent(in) :: NCP     ! number of components
   logical, intent(inout) :: check
 
-  DOUBLE PRECISION test
-  integer i
+  double precision :: test
+  integer :: i
 
   check = .false.
   test=0.
   do i=1,NCP
-    if (abs(fvec(i)) .gt. test) test=abs(fvec(i))
+    if (abs(fvec(i)) > test) test=abs(fvec(i))
   end do
-  if (test .lt. 1D-25) then
+  if (test < 1D-25) then
     check=.true.
   end if
 end subroutine is_root
@@ -375,7 +375,7 @@ subroutine update_solids(do_solids, si, NSL)
     integer,          intent(in) :: NSL                           ! the number of solids
     double precision, parameter :: SOLUBILITY_TOLERANCE = 1.0E-6
 
-    integer idx
+    integer :: idx
 
     if (any(si < 1.0 + SOLUBILITY_TOLERANCE)) then    ! Any undersaturated minerals in the system?
         idx = minloc(si, dim=1)                       ! remove most undersaturated component
