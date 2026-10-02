@@ -732,7 +732,7 @@ subroutine lm(maxits)
             ! Exit check
             relative_step = NORM2(dx) / (1.0d0 + NORM2(xvalues))
             relative_grad = MAXVAL(ABS(gradient)) / (1.0d0 + ABS(sumsq))
-            relative_sumsq = ABS(sumsq - trial_sumsq) / (1.0d0 + sumsq)
+            relative_sumsq = ABS(actual) / (1.0d0 + sumsq)
 
             ! Sigma check
             write(outu, '(A,E14.6)', advance='no') "   sumsq", relative_sumsq
@@ -744,16 +744,6 @@ subroutine lm(maxits)
                 exit_condition = .false.
             end if
 
-            ! Gradient norm check
-            write(outu, '(A,E14.6)', advance='no') "   gradn", relative_grad
-            if (relative_grad < THRESHOLD) then
-                write(outu, '(A)') " YES"
-                exit_condition = exit_condition .and. .true.
-            else
-                write(outu, '(A)') " NO"
-                exit_condition = exit_condition .and. .false.
-            end if
-
             ! step length check
             write(outu, '(A,E14.6)', advance='no') "   step ", relative_step
             if (relative_step < THRESHOLD) then
@@ -763,6 +753,18 @@ subroutine lm(maxits)
                 write(outu, '(A)') " NO"
                 exit_condition = exit_condition .and. .true.
             end if
+
+            ! Gradient norm check
+            ! NOTE seems to be useless
+            write(outu, '(A,E14.6)', advance='no') "   gradn", relative_grad
+            if (relative_grad < THRESHOLD) then
+                write(outu, '(A)') " YES"
+                !exit_condition = exit_condition .and. .true.
+            else
+                write(outu, '(A)') " NO"
+                !exit_condition = exit_condition .and. .false.
+            end if
+
 
             if (exit_condition) exit main_loop
 
