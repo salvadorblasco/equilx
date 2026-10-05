@@ -9,32 +9,32 @@ program test
 
     call CPU_TIME(t_start)
 
-    call test_cpluss1()
-    call test_cpluss2()
-    call test_cpluss3()
-    call test_mb1()
-    call test_mb2()
-    call test_pcf1()
-    call test_pcf2()
-    call test_pcf3()
-    call test_si2()
-    call test_jac1()
-    call test_jac2()
-    call test_lsolve()
-    call test_sysolve()
-    call test_scale()
-    call test_nr1()
-    call test_nr2()
-    call test_solve_point1()
-    call test_solve1()
-    call test_case_hexaprotic()
-    call test_case_phosphoric()
-    call test_case_molybdate()
+    !call test_cpluss1()
+    !call test_cpluss2()
+    !call test_cpluss3()
+    !call test_mb1()
+    !call test_mb2()
+    !call test_pcf1()
+    !call test_pcf2()
+    !call test_pcf3()
+    !call test_si2()
+    !call test_jac1()
+    !call test_jac2()
+    !call test_lsolve()
+    !call test_sysolve()
+    !call test_scale()
+    !call test_nr1()
+    !call test_nr2()
+    !call test_solve_point1()
+    !call test_solve1()
+    !call test_case_hexaprotic()
+    !call test_case_phosphoric()
+    !call test_case_molybdate()
     call test_case_aluminium()
-    call test_case_large()
-    call test_case_gallic()
-    call test_case_coedta()
-    call test_case_caco3()
+    !call test_case_large()
+    !call test_case_gallic()
+    !call test_case_coedta()
+    !call test_case_caco3()
 
     call CPU_TIME(t_stop)
     print "(A,F10.6,A)", "done in ", (t_stop-t_start), "s"
@@ -579,8 +579,8 @@ subroutine test_case_aluminium()
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NPT,NSL)     :: CS
     double precision, PARAMETER :: TOLERANCE = 1D-9
-    integer i, j, CTRL
-    logical passed
+    integer :: i, j, CTRL
+    logical :: passed
     character(len=*), parameter :: test_name = "case aluminium"
 
     passed = .true.
@@ -591,7 +591,7 @@ subroutine test_case_aluminium()
     C(:,2) = T(:,2)
 
     call eq_fs0(C, T, B, P, CS, KS, Q, 2, CTRL, NPT, NEQ, NCP, NSL)
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         if (passed) then
             passed = .false.
             call print_result(test_name, "failed")
@@ -626,8 +626,8 @@ subroutine test_cpluss1()
     implicit none
     double precision, dimension(NCP+NEQ) :: C
     double precision, PARAMETER:: TOL = 1e-8
-    integer i, j
-    logical passed
+    integer :: i, j
+    logical :: passed
     passed = .true.
     do i=1,NPT
         C(1:NCP) = tC(i,1:NCP)

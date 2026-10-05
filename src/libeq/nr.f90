@@ -97,16 +97,16 @@ subroutine jacobian_solid(JC, C, CS, KS, P, Q, NCP, NEQ, NSL, NX, do_solids)
   integer, intent(in) :: NEQ                                ! number of equilibria
   integer, intent(in) :: NSL                                ! number of solids
   integer, intent(IN) ::  NX
-  integer,          intent(in),  dimension(NEQ, NCP)  :: P  ! The soluble stoichiometry array
-  integer,          intent(in),  dimension(NSL, NCP)  :: Q  ! The solids stoichiometry array
-  double precision, intent(in),  dimension(NEQ+NCP)   :: C  ! free concentation initial estimates (in) and refined values (out)
-  double precision, intent(in),  dimension(NSL)       :: KS ! the solubility product
-  double precision, intent(in),  dimension(NSL)       :: CS
-  double precision, INTENT(OUT), dimension(NX, NX)    :: JC  ! jacobian
-  logical,          intent(in),  dimension(NSL)       :: do_solids
+  integer,          intent(in),  dimension(NEQ, NCP) :: P  ! The soluble stoichiometry array
+  integer,          intent(in),  dimension(NSL, NCP) :: Q  ! The solids stoichiometry array
+  double precision, intent(in),  dimension(NEQ+NCP)  :: C  ! free concentation initial estimates (in) and refined values (out)
+  double precision, intent(in),  dimension(NSL)      :: KS ! the solubility product
+  double precision, intent(in),  dimension(NSL)      :: CS
+  double precision, INTENT(OUT), dimension(NX, NX)   :: JC  ! jacobian
+  logical,          intent(in),  dimension(NSL)      :: do_solids
 
-  integer i, j, k
-  double PRECISION aux
+  integer :: i, j, k
+  double precision :: aux
   JC(:,:) = 0.0
   call jacobian_soluble(JC(1:NCP,1:NCP), C, P, NCP, NEQ)
   k = 0
@@ -132,7 +132,7 @@ subroutine amatrix(A, C, P, NCP, NEQ)
   integer :: i, j
   do i=1,NCP
     do j=1,NCP
-      if (i .eq. j) then
+      if (i == j) then
         A(i,j) = C(i)
       else
         A(i,j) = 0.0
@@ -232,7 +232,7 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
   double precision, dimension(NSL)      :: SI
   logical :: check, converged
   integer, parameter :: MAXITS=100
-  
+
   X(1:NCP) = LOG(C(1:NCP))  ! initialise C in log space
   X(NCP+1:NX) = LOG(pack(CS, do_solids)) ! and CS in linear space
 
@@ -258,6 +258,9 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
     call lesolve(jac, fvec, dx, nx, CTRL)
     if (CTRL == 99) return
 
+    ! if one of the solids concentration wants to go very very low, it may make the jacobian
+    ! singular.
+
     call limit_step(dx, nx)
 
     x = x - dx
@@ -269,7 +272,7 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
     ! if one of the solids concentrations goes 0 we cannot continue because the jacobian
     ! would be singular in the next iteration. Best option is to finish iteration and
     ! let the caller function to change the do_solids flags.
-    if (any((CS .eq. 0.0) .and. do_solids)) then
+    if (any((CS == 0.0) .and. do_solids)) then
         CTRL = 6
         return
     end if

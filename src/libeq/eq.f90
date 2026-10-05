@@ -294,7 +294,7 @@ end subroutine eq_f00
 subroutine eq_fs0(C, T, B, P, CS, KS, Q, REF, CTRL, NPT, NEQ, NCP, NSL)
     ! Perform Newton-Raphson iterations per point when the beta matrix
     ! is 1D and solids are present. The first initial value must be provided
-    ! in the first row of C. The following points take as starting value the value of 
+    ! in the first row of C. The following points take as starting value the value of
     ! the last iteration.
 
     implicit none
@@ -315,7 +315,7 @@ subroutine eq_fs0(C, T, B, P, CS, KS, Q, REF, CTRL, NPT, NEQ, NCP, NSL)
     !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
     !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
     !f2py integer, intent(hide), depend(q) :: nsl = shape(q,0)
-  
+
     double precision :: Cref
     double precision, dimension(NEQ)        :: fB  ! the frozen equilibrium constants
     double precision, dimension(NSL)        :: fKS ! the frozen equilibrium constants
@@ -323,19 +323,19 @@ subroutine eq_fs0(C, T, B, P, CS, KS, Q, REF, CTRL, NPT, NEQ, NCP, NSL)
     integer,          dimension(NEQ, NCP-1) :: fP  ! The frozen stoichiometry array
     double precision, dimension(NEQ+NCP-1)  :: fC  ! frozen initial estimates (in) and refined values (out)
     double precision, dimension(NCP-1)      :: fT  ! frozen analytical concentration values
-    integer i, j
+    integer :: i, j
 
     CTRL = 0
     call freeze_stoich(P, fP, REF, NCP, NEQ)
     call freeze_stoich(Q, fQ, REF, NCP, NSL)
-  
+
     ! solve point-wise
     point_loop: do i=1,NPT
         Cref = C(i,REF)
         ! Freeze component
         call freeze_component(Cref, B, fB, T(i,:), fT, P, REF, NCP, NEQ)
         call freeze_component_solid(Cref, Q, KS, fKS, REF, NCP, NSL)
-  
+
         ! Solve point
         if (i == 1) then
             do j=1,NCP     ! copy first point to frozenC
@@ -616,7 +616,7 @@ subroutine solve_point_solid(C, CS, T, B, P, KS, Q, CTRL, is_first, NEQ, NCP, NS
     double precision, intent(in),    dimension(NEQ)       :: B  ! the equilibrium constants
     integer,          intent(in),    dimension(NSL, NCP)  :: Q  ! the equilibrium constants
     double precision, intent(in),    dimension(NSL)       :: KS ! the precipitation constants
-  
+
     DOUBLE PRECISION, PARAMETER :: si_tolerance = 1e-6
     double PRECISION, dimension(NSL) :: si
     double PRECISION, dimension(NCP+NSL) :: F
