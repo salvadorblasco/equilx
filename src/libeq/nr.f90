@@ -45,7 +45,7 @@ subroutine sysolve(A, b, x, n, CTRL)
     double precision, dimension(n),   intent(in) :: b   ! the n array of independent terms
     double precision, dimension(n),   intent(out) :: x  ! the n array where the result is returned
     integer, intent(inout) :: CTRL                      ! control value. 0 on no error.
-  
+
     ! For DGELSY 
     integer, dimension(n) :: ipiv   ! pivot indices
     integer :: nrhs, lda, ldb, lwork, info
@@ -212,7 +212,7 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
   integer, intent(in)    :: NCP                            ! number of components
   integer, intent(in)    :: NEQ                            ! number of equilibria
   integer, intent(in)    :: NSL                            ! number of solids
-  integer, INTENT(IN)    :: NX                             ! number of refined variables
+  integer, INTENT(INOUT)    :: NX                             ! number of refined variables
   integer, intent(inout) :: ctrl                           ! control value
   integer,          intent(in),    dimension(NEQ, NCP) :: P         ! stoichiometry array
   double precision, intent(inout), dimension(NCP+NEQ)  :: C         ! initial estimates (in) and refined values (out)
@@ -223,7 +223,7 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
   double precision, intent(in),    dimension(NSL)      :: KS        ! the equilibrium constants
   logical,          intent(inout), dimension(NSL)      :: do_solids ! which solids are in the model
 
-  integer its
+  integer :: its
   double precision, dimension(NX)       :: X  ! 1:NCP -> concentrations in log space
   double precision, dimension(NCP+NSL)  :: full_fvec
   double precision, dimension(NX)       :: fvec
@@ -232,6 +232,7 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
   double precision, dimension(NSL)      :: SI
   logical :: check, converged
   integer, parameter :: MAXITS=100
+  integer :: i, k
 
   X(1:NCP) = LOG(C(1:NCP))  ! initialise C in log space
   X(NCP+1:NX) = LOG(pack(CS, do_solids)) ! and CS in linear space
@@ -272,10 +273,24 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
     ! if one of the solids concentrations goes 0 we cannot continue because the jacobian
     ! would be singular in the next iteration. Best option is to finish iteration and
     ! let the caller function to change the do_solids flags.
-    if (any((CS == 0.0) .and. do_solids)) then
-        CTRL = 6
-        return
-    end if
+    do i=1,NSL
+        k = 0
+        if (do_solids(i)) then
+            k=k+1
+            if (CS(i) < 1D-45 .and. SI(i) < 1D0 .and. dx(NCP+k)>10.0) then
+                do_solids(i) = .false.
+                NX = NX - 1
+                CTRL = 6
+                return
+            end if
+            if (CS(i) < 1D-45 .and. SI(i) > 1D0) then
+                do_solids(i) = .true.
+                NX = NX + 1
+                CTRL = 6
+                return
+            end if
+        end if
+    end do
 
     call mb_solids(full_fvec, C, P, T, Q, CS, NCP, NEQ, NSL)
     call saturation_product(C, Q, NCP, NSL, SI)
@@ -375,13 +390,16 @@ subroutine is_root(fvec, NCP, check)
 end subroutine is_root
 
 
-subroutine update_solids(do_solids, si, NSL)
+subroutine update_solids(CTRL, do_solids, si, CS, dx, NSL, NX)
     ! update the solids that are accounted for in the model according to the procedure outlined
     ! in GEOCHEMICAL AND BIOGEOCHEMICAL REACTION MODELING, 2nd ed. CRAIG M. BETHKE 4.4.3p69
     implicit none
+    integer, intent(out) :: CTRL
     double precision, intent(in),    dimension(NSL) :: si         ! the solubility index
+    double precision, intent(in),    dimension(NSL) :: CS         ! concentration of solids
+    double precision, intent(in),    dimension(NX) ::  dx         ! concentration of solids
     logical,          intent(inout), dimension(NSL) :: do_solids  ! the solids to be included
-    integer,          intent(in) :: NSL                           ! the number of solids
+    integer,          intent(in) :: NSL, NX                       ! the number of solids
     double precision, parameter :: SOLUBILITY_TOLERANCE = 1.0E-6
 
     integer :: idx
@@ -406,7 +424,7 @@ subroutine limit_step(incrx, n)
     ! largest step is the max step allowed and the rest are scaled accordingly.
     integer, intent(in) :: n   ! the size of the vector
     DOUBLE PRECISION, intent(inout), dimension(n) :: incrx  ! the vector to be scaled
-    double precision, parameter :: MAX_STEP = 10.0
+    double precision, parameter :: MAX_STEP = 20.0
 
     if (any(abs(incrx) > MAX_STEP)) then
         incrx = incrx * MAX_STEP / MAXVAL(abs(incrx))

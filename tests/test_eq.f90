@@ -9,32 +9,32 @@ program test
 
     call CPU_TIME(t_start)
 
-    !call test_cpluss1()
-    !call test_cpluss2()
-    !call test_cpluss3()
-    !call test_mb1()
-    !call test_mb2()
-    !call test_pcf1()
-    !call test_pcf2()
-    !call test_pcf3()
-    !call test_si2()
-    !call test_jac1()
-    !call test_jac2()
-    !call test_lsolve()
-    !call test_sysolve()
-    !call test_scale()
-    !call test_nr1()
-    !call test_nr2()
-    !call test_solve_point1()
-    !call test_solve1()
-    !call test_case_hexaprotic()
-    !call test_case_phosphoric()
-    !call test_case_molybdate()
+    call test_cpluss1()
+    call test_cpluss2()
+    call test_cpluss3()
+    call test_mb1()
+    call test_mb2()
+    call test_pcf1()
+    call test_pcf2()
+    call test_pcf3()
+    call test_si2()
+    call test_jac1()
+    call test_jac2()
+    call test_lsolve()
+    call test_sysolve()
+    call test_scale()
+    call test_nr1()
+    call test_nr2()
+    call test_solve_point1()
+    call test_solve1()
+    call test_case_hexaprotic()
+    call test_case_phosphoric()
+    call test_case_molybdate()
     call test_case_aluminium()
-    !call test_case_large()
-    !call test_case_gallic()
-    !call test_case_coedta()
-    !call test_case_caco3()
+    call test_case_large()
+    call test_case_gallic()
+    call test_case_coedta()
+    call test_case_caco3()
 
     call CPU_TIME(t_stop)
     print "(A,F10.6,A)", "done in ", (t_stop-t_start), "s"
@@ -578,6 +578,7 @@ subroutine test_case_aluminium()
     implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NPT,NSL)     :: CS
+    double precision, dimension(NCP+NSL)     :: F
     double precision, PARAMETER :: TOLERANCE = 1D-9
     integer :: i, j, CTRL
     logical :: passed
@@ -599,7 +600,7 @@ subroutine test_case_aluminium()
        print *, "  control value returned ", CTRL
     end if
     do i=1,NPT
-        !call mb_solids(F, C(i,:), P, T(i,:), Q, CS(i,:), NCP, NEQ, NSL)
+        call mb_solids(F, C(i,:), P, T(i,:), Q, CS(i,:), NCP, NEQ, NSL)
         do j=1,NCP+NEQ
             if (abs(C(i,j)-tC(i,j)) > TOLERANCE) then
                 if (passed) call print_result(test_name, "failed")

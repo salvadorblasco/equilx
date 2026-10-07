@@ -110,7 +110,6 @@ module emf
 
     PUBLIC :: init_module, load_titration, finalize, fit_emf, set_weight_gradient, set_weight_unit
     public :: set_ionic_variable, set_ionic_constant, set_ionic_ignored
-
 contains
 
 !----------------------------------------------------------------------------------------------------
@@ -708,7 +707,7 @@ subroutine lm(maxits)
         else
             rho = -1.0d0          ! model is not decreasing → force rejection
         end if
-        print "(2(A,E12.4))", "predicted=", predicted, " actual=", actual
+        !print "(2(A,E12.4))", "predicted=", predicted, " actual=", actual
 
         if (rho > 0.0) then
             ! step accepted
@@ -941,19 +940,19 @@ subroutine jacobian_lm(jac)
     interface
         subroutine amatrix(A, Cx, Px, NCPx, NEQx)
           implicit none(type, external)
-          integer, intent(in) :: NCPx                             ! number of components
-          integer, intent(in) :: NEQx                             ! number of equilibria
-          integer, intent(in), dimension(NEQx, NCPx) :: Px          ! The soluble stoichiometry array
-          double precision, dimension(NCPx+NEQx), intent(in) :: Cx  ! free concentrations
+          integer, intent(in) :: NCPx                              ! number of components
+          integer, intent(in) :: NEQx                              ! number of equilibria
+          integer, intent(in), dimension(NEQx, NCPx) :: Px         ! The soluble stoichiometry array
+          double precision, dimension(NCPx+NEQx), intent(in) :: Cx ! free concentrations
           double precision, dimension(NCPx,NCPx), intent(out) :: A ! output values of the A matrix
         end subroutine amatrix
     end interface
 
-    jac = 0.0
+    jac = 0.0       ! NOTE initialise jacobian
     bsize = 0
-    do_beta = allocated(tmp_lbeta)
-    do_init = allocated(tmp_init)
-    do_buret = allocated(tmp_buret)
+    do_beta = allocated(tmp_lbeta)   ! true means that we must compute dlogch/dlogB and dlogc[junct]/dlogB
+    do_init = allocated(tmp_init)    ! true means that we must compute dlogch/dt and dlogc[junct]/dt
+    do_buret = allocated(tmp_buret)  ! true means that we must compute dlogch/db and dlogc[junct]/db
     do_amatrix = do_beta .or. do_init .or. do_buret
 
     filter_jtype = 0
@@ -972,12 +971,15 @@ subroutine jacobian_lm(jac)
     curr_titr = 1       ! track which titration are we currently in
 
     do i=1,NPT
+        ! Calculate the dlogc/dparm that are needed for the betas, init and buret.
+        ! The calculations for dE/dlogB, dE/dt and dE/db require to solve a collection of linear systems
+        ! that can be solved in one go. We put the required ones in the bvec.
         if (do_amatrix) then
             call amatrix(Am, C(i,:), P, NCP, NEQ)
 
             do j=1,size(variables)
-                if (variables(j)%jtype > 4) exit
-                aux = variables(j)%destination_index1
+                if (variables(j)%jtype > 4) exit       ! only needed for lbeta, titr_init and titr_buret
+                aux = variables(j)%destination_index1  ! titration index to which this is referred
                 select case (variables(j)%jtype)
                     case (J_LBETA)
                         do k=1,NCP
@@ -1054,7 +1056,7 @@ subroutine jacobian_lm(jac)
             end select
         end do
 
-        if (i > sum(titr_size(1:curr_titr))) then
+        if (i >= sum(titr_size(1:curr_titr))) then
             curr_titr = curr_titr + 1
         end if
     end do

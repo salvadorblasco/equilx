@@ -622,7 +622,7 @@ subroutine solve_point_solid(C, CS, T, B, P, KS, Q, CTRL, is_first, NEQ, NCP, NS
     double PRECISION, dimension(NCP+NSL) :: F
     logical, dimension(NSL) :: do_solid
     integer :: i, its, NX
-    DOUBLE PRECISION, parameter :: PCF_TOLERANCE = 0.25
+    DOUBLE PRECISION, parameter :: PCF_TOLERANCE = 0.10
     DOUBLE PRECISION, parameter :: PCF_TOLERANCE_FIRST = 1D-9
     integer, PARAMETER :: MAXITS=100
     do_solid(:) = .true.
@@ -632,30 +632,31 @@ subroutine solve_point_solid(C, CS, T, B, P, KS, Q, CTRL, is_first, NEQ, NCP, NS
     else
         call pcf_solids(C, CS, T, B, KS, P, Q, PCF_TOLERANCE, NCP, NEQ, NSL)
     end if
+
     do its=1,MAXITS
-      call saturation_product(C, Q, NCP, NSL, si)
-      SI = SI/KS
-      do i=1,NSL
-        if (si(i) < 1.0 + si_tolerance) then
-            if (.not. do_solid(i)) then
-                CS(i) = 0.0     ! if there is no solid, make CS=0.0
-              end if
-          do_solid(i) = .false.  ! remove from model
-          F(NCP+i) = 0.0
-          cycle
-        end if
-        if (si(i) > 1.0 + si_tolerance) then
-          do_solid(i) = .true.
-          if (CS(i) .eq. 0.0) then
-              CS(i) = 1e-8
-          end if
-          F(NCP+i) = 1-SI(i)
-          cycle
-        end if
-      end do
-      NX = NCP + count(do_solid)
-      call nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solid, NCP, NEQ, NSL, NX)
-      call mb_solids(F, C, P, T, Q, CS, NCP, NEQ, NSL)
-      if (.not. any(do_solid) .and. maxval(abs(F)) < 1e-20) exit    ! no solids to do
+        call saturation_product(C, Q, NCP, NSL, si)
+        SI = SI/KS
+        do i=1,NSL
+            if (si(i) < 1.0 + si_tolerance) then
+                if (.not. do_solid(i)) then
+                    CS(i) = 0.0     ! if there is no solid, make CS=0.0
+                end if
+                do_solid(i) = .false.  ! remove from model
+                F(NCP+i) = 0.0
+                cycle
+            end if
+            if (si(i) > 1.0 + si_tolerance) then
+                do_solid(i) = .true.
+                if (CS(i) == 0.0) then
+                    CS(i) = 1e-8
+                end if
+                F(NCP+i) = 1-SI(i)
+                cycle
+            end if
+        end do
+        NX = NCP + count(do_solid)
+        call nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solid, NCP, NEQ, NSL, NX)
+        call mb_solids(F, C, P, T, Q, CS, NCP, NEQ, NSL)
+        if (.not. any(do_solid) .and. maxval(abs(F)) < 1e-30) exit    ! no solids to do
     end do
 end subroutine solve_point_solid

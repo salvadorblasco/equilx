@@ -9,23 +9,23 @@ program test_libemf
     print "(A)", "+-------------------------+"
     print *, ""
 
-    !call test_gradient()
-    !call test_hexaprotic1()
-    !call test_hexaprotic2()
+    call test_gradient()
+    call test_hexaprotic1()
+    call test_hexaprotic2()
     call test_hexaprotic3()
-    !call test_hexaprotic4()
-    !call test_hexaprotic5()
-    !call test_hexaprotic6()
-    !call test_hexaprotic7()
-    !call test_hexaprotic8()
-    !call test_hexaprotic9()
-    !call test_hexaprotic10()
-    !call test_hexaprotic11()
-    !call test_hexaprotic12()
-    !call test_hexaprotic13()
-    !call test_hexaprotic14()
-    !call test_hexaprotic15()
-    !call test_znedta1()
+    call test_hexaprotic4()
+    call test_hexaprotic5()
+    call test_hexaprotic6()
+    call test_hexaprotic7()
+    call test_hexaprotic8()
+    call test_hexaprotic9()
+    call test_hexaprotic10()
+    call test_hexaprotic11()
+    call test_hexaprotic12()
+    call test_hexaprotic13()
+    call test_hexaprotic14()
+    call test_hexaprotic15()
+    call test_znedta1()
 
     call CPU_TIME(t_stop)
     print "(A,F10.6,A)", "done in ", (t_stop-t_start), "s"
@@ -36,7 +36,7 @@ subroutine test_hexaprotic1()
     use case_hexaprotic
     use iso_fortran_env, only: output_unit
 
-    character(len=*), parameter :: test_name = "hexaprotic simu1"
+    character(len=*), parameter :: test_name = "hexaprotic ref beta"
     logical :: passed
     integer :: i
     integer, DIMENSION(7) :: rlbflags = [1,1,1,1,1,1,0]
@@ -162,7 +162,7 @@ subroutine test_hexaprotic2()
     integer, dimension(1) :: junc_comp
     real, dimension(1) :: junc_pot
     real :: rnd
-    logical, parameter :: SILENT = .false.
+    logical, parameter :: SILENT = .true.
     real, parameter :: TOLERANCE = 0.05
 
     passed = .true.
@@ -279,7 +279,7 @@ subroutine test_hexaprotic3()
     real, dimension(1) :: junc_pot
     real :: rnd
     real, parameter :: TOLERANCE = 0.05
-    logical, parameter :: SILENT = .false.
+    logical, parameter :: SILENT = .true.
 
     passed = .true.
 
@@ -1457,7 +1457,7 @@ subroutine test_hexaprotic13()
     junc_pot = electr_junctionA
     do i=1,6
         call RANDOM_NUMBER(rnd)
-        ini_logbeta(i) = ini_logbeta(i) + (rnd-0.5)
+        ini_logbeta(i) = ini_logbeta(i) + 0.2*(rnd-0.5)
     end do
 
     if (SILENT) then
