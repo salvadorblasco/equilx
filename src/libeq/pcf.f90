@@ -34,6 +34,7 @@ subroutine pcf(C, T, B, P, THRESH, NCP, NEQ)
     ! calculate sump and sumr
     do i=1,NCP
         call calc_sum(i, T, C, P, sump, sumr, NCP, NEQ)
+        if (sumr == 0.0) call fix_zero_sumr(i, T, C, P, sump, sumr, NCP, NEQ)
         convaux(i) = check_convergence(sumr, sump)
         theta = calc_theta(sumr, sump)
         C(i) = theta * C(i) * (sump/sumr)**expn(i) + (1-theta)*C(i)
@@ -164,6 +165,37 @@ subroutine calc_sum(comp, T, C, P, sump, sumr, NCP, NEQ)
       end if
     end do
 end subroutine calc_sum
+
+
+subroutine fix_zero_sumr(comp, T, C, P, sump, sumr, NCP, NEQ)
+    ! if sumr i zero it probably means that one or more starting concentrations are zero that shouldn't be.
+    ! One possible solution is to initialise all components with C=0 whose T is nonzero.
+    ! The recalculate sumr
+    integer,          intent(in) :: NCP                        ! number of species
+    integer,          intent(in) :: NEQ                        ! number of equilibria
+    integer, intent(in) :: comp
+    double precision, intent(inout) :: sump, sumr
+    double precision, intent(inout), dimension(NCP+NEQ) :: C
+    integer,          intent(in),    dimension(NEQ, NCP) :: P  ! stoichiometry matrix
+    double precision, intent(in),    dimension(NCP)      :: T  ! the analytical concentration
+
+    integer :: j
+
+    do j=1,NCP
+        if (C(j) == 0.0 .and. T(j) /= 0.0) then
+            if (T(j) > 0.0) then
+                C(j) = 0.001*T(j)
+            else
+                C(j) = 1e-12
+            end if
+            sumr = sumr + C(j)
+        end if
+    end do
+
+    ! recalculate sumr, sump
+    call calc_sum(comp, T, C, P, sump, sumr, NCP, NEQ)
+end subroutine fix_zero_sumr
+
 
 
 subroutine calc_sum_solids(comp, T, C, CS, P, Q, sump, sumr, NCP, NEQ, NSL)
