@@ -33,7 +33,6 @@ program test
     call test_nr1()
     call test_nr2()
     call test_solve_point1()
-    call test_solve1()
     call test_case_hexaprotic()
     call test_case_phosphoric()
     call test_case_molybdate()
@@ -227,16 +226,15 @@ end subroutine test_case_large
 
 subroutine test_nr1()
     use simple1
-    implicit none
     double precision, dimension(NCP+NEQ) :: C
     double precision, PARAMETER :: TOLERANCE = 1D-7
-    integer i, CTRL
+    integer :: i, CTRL
     integer, PARAMETER :: POINT=5
     passed = .true.
     C = 0.99*tC(POINT,:)
     C(1) = 1e-12
     call nr(C, T(POINT,:), B, P, CTRL, NCP, NEQ)
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         if (passed) call print_result("nr1", "failed")
         passed = .false.
         print *, "  control value returned ", CTRL
@@ -246,7 +244,7 @@ subroutine test_nr1()
         if (abs(tC(POINT, i) - C(i))  > TOLERANCE) then
             if (passed) call print_result("nr1", "failed")
             passed = .false.
-            print "(A I2 2(A,F10.4))", "  SP=", i, " calc=", C(i), "true=", tC(POINT, i) 
+            print "(A I2 2(A,F10.4))", "  SP=", i, " calc=", C(i), "true=", tC(POINT, i)
         end if
     end do
     if (passed) then
@@ -257,20 +255,20 @@ end subroutine test_nr1
 
 subroutine test_nr2()
     use simple2
-    implicit none
     double precision, dimension(NCP+NEQ) :: C
     double precision, dimension(NSL)     :: CS
     double precision, PARAMETER :: TOLERANCE = 1D-6
     integer :: i, CTRL, NX
-    logical, dimension(NSL) :: do_solids = [ .true. ]
+    logical, dimension(NSL) :: do_solids
     integer, PARAMETER :: POINT=3
     passed = .true.
+    do_solids = [ .true. ]
     C = 0.9*tC(POINT,:)
     CS = .9*tCS(POINT,:)
     CTRL=0
     NX = NCP + 1
     call nr_solids(C, CS, T(POINT,:), B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         if (passed) call print_result("nr2", "failed")
         passed = .false.
         print *, "  control value returned ", CTRL
@@ -280,14 +278,14 @@ subroutine test_nr2()
         if (abs(tC(POINT, i) - C(i))  > TOLERANCE) then
             if (passed) call print_result("nr2", "failed")
             passed = .false.
-            print "(A,I2,2(A,E12.6))", "  SP=", i, " calc=", C(i), "true=", tC(POINT, i) 
+            print "(A,I2,2(A,E12.6))", "  SP=", i, " calc=", C(i), "true=", tC(POINT, i)
         end if
     end do
     do i = 1,NSL
         if (abs(tCS(POINT, i) - CS(i))  > TOLERANCE) then
             if (passed) call print_result("nr2", "failed")
             passed = .false.
-            print "(A,I2,2(A,E12.6))", "  SL=", i, " calc=", CS(i), "true=", tCS(POINT, i) 
+            print "(A,I2,2(A,E12.6))", "  SL=", i, " calc=", CS(i), "true=", tCS(POINT, i)
         end if
     end do
     if (passed) then
@@ -366,10 +364,9 @@ end subroutine test_pcf2
 
 subroutine test_pcf3()
     use hexaprotic
-    implicit none
     double precision, dimension(NCP+NEQ) :: C
     double precision, dimension(NCP) :: fprev, fpost
-    integer i, j
+    integer :: i, j
     double precision, PARAMETER :: TOLERANCE = 0.95
     passed = .true.
     call initialize()
@@ -403,7 +400,6 @@ end subroutine test_pcf3
 
 subroutine test_solve_point1()
     use simple1
-    implicit none
     double precision, dimension(NCP+NEQ) :: C
     double precision, PARAMETER :: TOLERANCE = 1D-8
     integer :: i, CTRL
@@ -434,28 +430,6 @@ subroutine test_solve_point1()
         call print_result("solve_point1", "passed")
     end if
 end subroutine test_solve_point1
-
-
-subroutine test_solve1()
-    use simple1
-    implicit none
-    double precision, dimension(NPT, NCP+NEQ) :: C
-    double precision, PARAMETER :: TOLERANCE = 1D-6
-    integer :: i, j, CTRL
-    passed = .true.
-    call initial_guess(C, T, NPT, NCP, NEQ)
-    call eq_000(C, T, B, P, CTRL, NPT, NCP, NEQ)
-    do i=1,NPT
-        do j=1,NCP+NEQ
-            if (abs(C(i,j) - tC(i,j)) > TOLERANCE) then
-                if (passed) call print_result("solve1", "failed")
-                passed = .false.
-                print "(A,I4,2(A,E14.8))","   CP", i, "  ", tC(i,j)," != ", C(i,j)
-            end if
-        end do
-    end do
-    if (passed) call print_result("solve1", "passed")
-end subroutine test_solve1
 
 
 subroutine test_case_hexaprotic()
@@ -494,17 +468,16 @@ end subroutine test_case_hexaprotic
 
 subroutine test_case_phosphoric()
     use phosphoric
-    implicit none
     double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-10
-    integer i, j, CTRL
+    integer :: i, j, CTRL
     character(len=*), parameter :: test_name = "case phosphoric"
 
     passed = .true.
     call initialize()
     C(1,1) = 1e-10
     call eq_f00(C, T, B, P, 2, CTRL, NPT, NCP, NEQ)
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         if (passed) then
             passed = .false.
             call print_result(test_name, "failed")
@@ -529,7 +502,6 @@ end subroutine test_case_phosphoric
 
 subroutine test_case_molybdate()
     use molybdate
-    implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-15
@@ -541,7 +513,7 @@ subroutine test_case_molybdate()
     call initial_guess(C, T, NPT, NCP, NEQ)
 
     call eq_00i(C, T, B, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         if (passed) then
             passed = .false.
             call print_result(test_name, "failed")
@@ -566,7 +538,6 @@ end subroutine test_case_molybdate
 
 subroutine test_case_aluminium()
     use aluminium
-    implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NPT,NSL)     :: CS
     double precision, dimension(NCP+NSL)     :: F
@@ -614,7 +585,6 @@ end subroutine test_case_aluminium
 
 subroutine test_cpluss1()
     use simple1
-    implicit none
     double precision, dimension(NCP+NEQ) :: C
     double precision, PARAMETER:: TOL = 1e-8
     integer :: i, j
@@ -636,17 +606,17 @@ end subroutine test_cpluss1
 
 subroutine test_cpluss2()
     use simple2
-    implicit none
     double precision, dimension(NCP+NEQ) :: C
     double precision, PARAMETER:: TOL = 1e-8
-    integer i, j
+    integer :: i, j
     passed = .true.
     do i=1,NPT
         C(1:NCP) = tC(i,1:NCP)
         call cpluss(C, B, P, NCP, NEQ)
         do j=1,(NCP+NEQ)
             if (abs(tC(i,j)-C(j)) > TOL) then
-                print *, "test cpluss2 ....... failed at ", i, tC(i,j), C(j)
+                if (passed) call print_result("cpluss2", "failed")
+                print *, "  at ", i, tC(i,j), C(j)
                 passed = .false.
             end if
         end do
@@ -657,20 +627,20 @@ end subroutine test_cpluss2
 
 subroutine test_cpluss3()
     use hexaprotic
-    implicit none
     double precision, dimension(NCP+NEQ) :: C
-    double precision, dimension(NCP+NEQ) :: tC = (/4.4289E-22, 3.7200E-03, 1.6476E-14, 6.1291E-09, 2.2800E-05, & 
-                                                   8.4818E-04, 3.1553E-03, 1.1738E-03, 4.5651E-12/)
+    double precision, dimension(NCP+NEQ) :: tC
     double precision, PARAMETER:: TOL = 1e-6
-    integer j
+    integer :: j
     call initialize()
     passed = .true.
-    C(1:2) = (/ 4.4289D-22, 3.7200D-03 /)
+    C(1:2) = [ 4.4289D-22, 3.7200D-03 ]
+    tC = [4.4289E-22, 3.7200E-03, 1.6476E-14, 6.1291E-09, 2.2800E-05, 8.4818E-04, 3.1553E-03, 1.1738E-03, 4.5651E-12]
 
     call cpluss(C, B, P, NCP, NEQ)
     do j=1,(NCP+NEQ)
         if (abs(tC(j)-C(j)) > TOL) then
-            print *, "test cpluss3 ....... failed at ", j, tC(j), C(j)
+            if (passed) call print_result("cpluss3", "failed")
+            print *, "  at ", j, tC(j), C(j)
             passed = .false.
         end if
     end do
@@ -680,10 +650,9 @@ end subroutine test_cpluss3
 
 subroutine test_mb1()
     use simple1
-    implicit none
     double precision, dimension(NPT,NCP) :: F
     double precision, PARAMETER:: TOL = 1e-7
-    integer i,j
+    integer :: i,j
     passed = .true.
     do i=1,NPT
         call mb_soluble(F(i,:), tC(i,:), P, T(i,:), NCP, NEQ)
@@ -700,10 +669,9 @@ end subroutine test_mb1
 
 subroutine test_mb2()
     use simple2
-    implicit none
     double precision, dimension(NPT,NCP) :: F
     double precision, PARAMETER:: TOL = 1e-7
-    integer i,j
+    integer :: i,j
     passed = .true.
     do i=1,NPT
         call mb_solids(F(i,:), tC(i,:), P, T(i,:), Q, tCS(i,:), NCP, NEQ, NSL)
@@ -720,12 +688,12 @@ end subroutine test_mb2
 
 subroutine test_si2()
     use simple2
-    implicit none
     double precision, dimension(NPT, NSL) :: SI
-    double precision, dimension(NPT) :: tSI = (/0.0, 0.92650466, 1.0, 0.92650466, 0.0 /)
+    double precision, dimension(NPT) :: tSI
     double precision, PARAMETER:: TOL = 1e-7
-    integer i
+    integer :: i
     passed = .true.
+    tSI = [0.0, 0.92650466, 1.0, 0.92650466, 0.0 ]
     do i=1,NPT
         call saturation_product(tC(i,:), Q, NCP, NSL, SI(i,:))
         SI(i,1) = SI(i,1) / KS(1)
@@ -740,9 +708,8 @@ end subroutine test_si2
 
 subroutine test_jac1()
     use simple1
-    implicit none
     DOUBLE PRECISION, DIMENSION(NCP, NCP) :: Jac
-    integer i, j, k
+    integer :: i, j, k
     double precision, PARAMETER:: TOL = 1D-7
     passed = .true.
     do i=1,NPT
@@ -764,11 +731,11 @@ end subroutine test_jac1
 
 subroutine test_jac2()
     use simple2
-    implicit none
     DOUBLE PRECISION, DIMENSION(NCP+NSL, NCP+NSL) :: Jac
-    integer i, j, k, nx
+    integer :: i, j, k, nx
     double precision, PARAMETER:: TOL = 1D-6
-    logical, dimension(NSL) :: do_solids = (/.true./)
+    logical, dimension(NSL) :: do_solids
+    do_solids = [.true.]
     passed = .true.
     nx = NCP + 1
     do i=1,NPT
@@ -790,19 +757,21 @@ end subroutine test_jac2
 subroutine test_lsolve()
     character(len=*), parameter :: test_name = "lesolve"
     integer, parameter :: N=5
-    double PRECISION, dimension(N,N) :: A = reshape( &
-     (/0.05877024, 0.28411459, 0.40437397, 0.06793575, 0.03309539, &
-       0.5086304 , 0.16324818, 0.41410313, 0.92346009, 0.22741105, &
-       0.19705674, 0.08176619, 0.95449347, 0.14038565, 0.51148029, &
-       0.43147132, 0.07351833, 0.67603311, 0.53159246, 0.1574564 , &
-       0.50511729, 0.63200965, 0.53917495, 0.35968986, 0.79263917/), (/N,N/), order=[2,1])
-    double PRECISION, dimension(N) :: b = (/0.20798025, 0.47081858, 0.30973142, 0.46441424, 0.38044028/)
-    double PRECISION, dimension(N) :: truex = (/0.45757758,  0.17643674,  0.31928777,  0.1409372 , -0.23345483/)
+    double PRECISION, dimension(N,N) :: A
+    double PRECISION, dimension(N) :: b
+    double PRECISION, dimension(N) :: truex
     double PRECISION, dimension(N) :: calcx
-    integer CTRL, i
+    integer :: CTRL, i
     double precision, PARAMETER:: TOL = 1D-7
     passed = .true.
     CTRL = 0
+    A = reshape([0.05877024, 0.28411459, 0.40437397, 0.06793575, 0.03309539, &
+                 0.5086304 , 0.16324818, 0.41410313, 0.92346009, 0.22741105, &
+                 0.19705674, 0.08176619, 0.95449347, 0.14038565, 0.51148029, &
+                 0.43147132, 0.07351833, 0.67603311, 0.53159246, 0.1574564 , &
+                 0.50511729, 0.63200965, 0.53917495, 0.35968986, 0.79263917], [N,N], order=[2,1])
+    b = [0.20798025, 0.47081858, 0.30973142, 0.46441424, 0.38044028]
+    truex = [0.45757758,  0.17643674,  0.31928777,  0.1409372 , -0.23345483]
 
     call lesolve(A, b, calcx, N, CTRL)
     if (CTRL /= 0) then
@@ -822,24 +791,25 @@ end subroutine test_lsolve
 
 
 subroutine test_sysolve()
-    implicit none
     integer, parameter :: N=4
-    double PRECISION, dimension(N,N) :: A = reshape( &
-      (/ 1.08099127E-03, 1.08098930E-03, 1.07835948E-03, 1.08281530E-03, &
-         1.08098930E-03, 1.08098953E-03, 1.07835948E-03, 1.08280751E-03, &
-         1.07835948E-03, 1.07835948E-03, 1.07923939E-03, 1.07877450E-03, &
-         1.08281530E-03, 1.08280751E-03, 1.07877450E-03, 1.08745856E-03 /), (/N,N/), order=[2,1])
-    double PRECISION, dimension(N) :: b = (/ 8.09912257E-05, 8.09893566E-05, 7.92393462E-05, 2.93463972E-04 /)
+    double PRECISION, dimension(N,N) :: A
+    double PRECISION, dimension(N) :: b
     double PRECISION, dimension(N) :: calcx
-    integer CTRL, i
+    integer :: CTRL, i
     double precision, PARAMETER:: TOL = 1D-11
     character(len=*), parameter :: test_name = "sysolve"
     passed = .true.
     CTRL = 0
 
+    A = reshape([1.08099127E-03, 1.08098930E-03, 1.07835948E-03, 1.08281530E-03, &
+                 1.08098930E-03, 1.08098953E-03, 1.07835948E-03, 1.08280751E-03, &
+                 1.07835948E-03, 1.07835948E-03, 1.07923939E-03, 1.07877450E-03, &
+                 1.08281530E-03, 1.08280751E-03, 1.07877450E-03, 1.08745856E-03], [N,N], order=[2,1])
+    b = [8.09912257E-05, 8.09893566E-05, 7.92393462E-05, 2.93463972E-04]
+
     call sysolve(A, b, calcx, 4, CTRL)
 
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         if (passed) call print_result(test_name, "failed")
         print *, "  CTRL must be 0 (is ", CTRL, ")"
         passed = .false.
@@ -858,25 +828,25 @@ end subroutine test_sysolve
 subroutine print_result(test_name, result_tag)
     character(len=*), intent(in) :: result_tag, test_name
     integer, parameter :: total_width = 30
-    
+
     character(len=1) :: filler
     integer :: left_len, right_len, fill_len
-    
+
     filler = "."
     left_len  = len_trim(test_name)
     right_len = len_trim(result_tag)
-    
+
     ! Space + filler + Space = 2 extra characters
     fill_len = total_width - left_len - right_len - 2
-    
+
     if (fill_len < 0) fill_len = 0   ! prevent negative repeat
-    
+
     print "(A, A, A, A, A, A)", &
           "test ", &
           trim(test_name),      " ", &                    ! left + space
           repeat(filler, fill_len), &                ! filling
           " ", trim(result_tag)                           ! space + right
-end subroutine
+end subroutine print_result
 
 
 subroutine initial_guess(C, T, NPT, NCP, NEQ)
@@ -885,7 +855,7 @@ subroutine initial_guess(C, T, NPT, NCP, NEQ)
     integer, intent(in) :: NEQ
     double precision, intent(out), dimension(NPT, NCP+NEQ) :: C
     double precision, intent(in),  dimension(NPT, NCP) :: T
-    integer i
+    integer :: i
     C(:,:) = 0.0
     do i = 1,NCP                 ! initialize first point
         if (T(1,i) > 0.0) then

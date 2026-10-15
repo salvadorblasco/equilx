@@ -4,7 +4,8 @@
 ! This file contains data for the unit tests
 
 module simple1
-    implicit none
+    implicit none (type, external)
+    public
 
     integer, PARAMETER :: NPT = 5
     integer, PARAMETER :: NCP = 2
@@ -159,10 +160,10 @@ module phosphoric
     integer, PARAMETER :: NCP = 2
     integer, PARAMETER :: NEQ = 4
     double precision, dimension(NPT, NCP) :: T
-    DOUBLE PRECISION, DIMENSION(NEQ) :: B 
-    DOUBLE PRECISION, DIMENSION(NEQ) :: logB = (/ 12.38, 19.578, 21.726, -13.73 /) 
-    integer, dimension(NEQ, NCP) :: P = reshape((/ 1,1,1,0, 1,2,3,-1 /), &
-                                                shape=(/ NEQ, NCP /))
+    DOUBLE PRECISION, DIMENSION(NEQ) :: B
+    DOUBLE PRECISION, DIMENSION(NEQ) :: logB = [ 12.38, 19.578, 21.726, -13.73 ]
+    integer, dimension(NEQ, NCP) :: P = reshape([ 1,1,1,0, 1,2,3,-1 ], &
+                                                shape=[NEQ, NCP])
     double precision, dimension(NPT, NCP+NEQ) :: C
 
 contains
