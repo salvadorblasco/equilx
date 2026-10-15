@@ -32,12 +32,19 @@
 ! PUBLIC PYTHON MODULE INTERFACE
 ! ====================================================================================================
 
+module eq
+    use mnr, only: nr, nr_solids
+    use mouter, only: outer, outer_solid, calc_activity_correction
+    use mpcf, only: pcf, pcf_solids
+    use mb, only: mb_solids
+    implicit none (type, external)
+    public
+contains
 
 subroutine eq_000(C, T, B, P, CTRL, NPT, NCP, NEQ)
     ! Solve equilibrium titration when no solids are present and ionic strengh is constant.
-    ! The first initial value must be provided in C(1,1:NCP). The following 
+    ! The first initial value must be provided in C(1,1:NCP). The following
     ! points take as starting value the value of the last iteration.
-    implicit none
     integer, intent(in) :: NPT                                    ! number of titration points
     integer, intent(in) :: NCP                                    ! number of components
     integer, intent(in) :: NEQ                                    ! number of equilibria
@@ -49,12 +56,12 @@ subroutine eq_000(C, T, B, P, CTRL, NPT, NCP, NEQ)
     !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
     !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
     !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
-  
-    integer i
-  
+
+    integer :: i
+
     CTRL = 0
     do i=1,NPT
-        if (i .eq. 1) then
+        if (i == 1) then
             call solve_point(C(1,:), T(1,:), B, P, CTRL, .true., NCP, NEQ)
         else
             C(i,:) = C(i-1,:)
@@ -67,9 +74,8 @@ end subroutine eq_000
 
 subroutine eq_00i(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
     ! Solve equilibrium titration when no solids are present and ionic strengh is variable.
-    ! The first initial value must be provided in C(1,1:NCP). The following 
+    ! The first initial value must be provided in C(1,1:NCP). The following
     ! points take as starting value the value of the last iteration.
-    implicit none
     integer,          intent(in)    :: NPT                               ! number of titration points
     integer,          intent(in)    :: NCP                               ! number of components
     integer,          intent(in)    :: NEQ                               ! number of equilibria
@@ -83,10 +89,10 @@ subroutine eq_00i(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, 
     integer,          INTENT(IN),    DIMENSION(NCP+NEQ)      :: charge   ! charge for every species
     DOUBLE PRECISION, INTENT(IN)                             :: DHA, DHB ! Debye-Huckel parameters A and B
     double precision, intent(in),    dimension(NEQ,3)        :: DHP      ! per-species DH parameters C, D and E
-  
-    integer i
+
+    integer :: i
     DOUBLE PRECISION, dimension(NEQ) :: corr   ! the activity correction to the equilibrium constant
-    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2 
+    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2
 
     do i=1,NEQ
         zstar(i) = -charge(NCP+i)**2 + sum(P(i,:)*charge(1:NCP)**2)
@@ -95,7 +101,7 @@ subroutine eq_00i(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, 
     corr = 1.0
     CTRL = 0
     do i=1,NPT
-        if (i .eq. 1) then
+        if (i == 1) then
             call solve_point(C(1,:), T(1,:), Bref*corr, P, CTRL, .true., NCP, NEQ)
         else
             C(i,:) = C(i-1,:)
@@ -111,9 +117,8 @@ end subroutine eq_00i
 
 subroutine eq_00f(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
     ! Solve equilibrium titration when no solids are present and ionic strengh is fixed.
-    ! The first initial value must be provided in C(1,1:NCP). The following 
+    ! The first initial value must be provided in C(1,1:NCP). The following
     ! points take as starting value the value of the last iteration.
-    implicit none
     integer,          intent(in)    :: NPT                               ! number of titration points
     integer,          intent(in)    :: NCP                               ! number of components
     integer,          intent(in)    :: NEQ                               ! number of equilibria
@@ -127,19 +132,19 @@ subroutine eq_00f(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, 
     integer,          INTENT(IN),    DIMENSION(NCP+NEQ)      :: charge   ! charge for every species
     DOUBLE PRECISION, INTENT(IN)                             :: DHA, DHB ! Debye-Huckel parameters A and B
     double precision, intent(in),    dimension(NEQ,3)        :: DHP      ! per-species DH parameters C, D and E
-  
-    integer i
+
+    integer :: i
     DOUBLE PRECISION, dimension(NEQ) :: corr   ! the activity correction to the equilibrium constant
-    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2 
-  
+    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2
+
     do i=1,NEQ
         zstar(i) = -charge(NCP+i)**2 + sum(P(i,:)*charge(1:NCP)**2)
     end do
 
-    corr = 0.0 
+    corr = 0.0
     CTRL = 0
     do i=1,NPT
-        if (i .eq. 1) then
+        if (i == 1) then
             call solve_point(C(1,:), T(1,:), Bref+corr, P, CTRL, .true., NCP, NEQ)
         else
             C(i,:) = C(i-1,:)
@@ -154,9 +159,8 @@ end subroutine eq_00f
 
 subroutine eq_0s0(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
     ! Solve titration equilibrium when solids are present. The first initial value must be provided
-    ! in the first row of C. The following points take as starting value the value of 
+    ! in the first row of C. The following points take as starting value the value of
     ! the last iteration.
-    implicit none
     integer, intent(in) :: NPT                                      ! number of titration points
     integer, intent(in) :: NCP                                      ! number of components
     integer, intent(in) :: NEQ                                      ! number of equilibria
@@ -164,8 +168,8 @@ subroutine eq_0s0(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
     integer, intent(inout) :: CTRL                                  ! control value. 0 on no error, 1 otherwise
     integer, dimension(NEQ, NCP), intent(in) :: P                   ! The soluble stoichiometry array
     integer, dimension(NSL, NCP), intent(in) :: Q                   ! The solids stoichiometry array
-    double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C   ! free concentation initial estimates (in) and refined values (out)
-    double precision, dimension(NPT, NSL), intent(inout) :: CS      ! solid concentration initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C   ! free conc. initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NSL), intent(inout) :: CS      ! solid conc. initial estimates (in) and refined values (out)
     double precision, dimension(NPT, NCP), intent(in) :: T          ! analytical concentration values
     double precision, dimension(NEQ), intent(in) :: B               ! the equilibrium constants
     double precision, dimension(NSL), intent(in) :: KS              ! the solubility constant
@@ -175,10 +179,10 @@ subroutine eq_0s0(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
     !f2py integer, intent(hide), depend(q) :: nsl = shape(q,0)
 
     integer :: i
-  
+
     CTRL = 0
     do i=1,NPT
-        if (i .eq. 1) then
+        if (i == 1) then
             call solve_point_solid(C(1,:), CS(1,:), T(1,:), B, P, KS, Q, CTRL, .true., NEQ, NCP, NSL)
         else
             C(i,:) = C(i-1,:)
@@ -192,9 +196,8 @@ end subroutine eq_0s0
 
 subroutine eq_0si(C, T, Bref, P, CS,KS, Q, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ, NSL)
     ! Solve titration equilibrium when solids are present. The first initial value must be provided
-    ! in the first row of C. The following points take as starting value the value of 
+    ! in the first row of C. The following points take as starting value the value of
     ! the last iteration.
-    implicit none
     integer, intent(in) :: NPT                                      ! number of titration points
     integer, intent(in) :: NCP                                      ! number of components
     integer, intent(in) :: NEQ                                      ! number of equilibria
@@ -202,8 +205,8 @@ subroutine eq_0si(C, T, Bref, P, CS,KS, Q, Iref, Iback, charge, DHA, DHB, DHP, C
     integer, intent(inout) :: CTRL                                  ! control value. 0 on no error, 1 otherwise
     integer, dimension(NEQ, NCP), intent(in) :: P                   ! The soluble stoichiometry array
     integer, dimension(NSL, NCP), intent(in) :: Q                   ! The solids stoichiometry array
-    double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C   ! free concentation initial estimates (in) and refined values (out)
-    double precision, dimension(NPT, NSL), intent(inout) :: CS      ! solid concentration initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C   ! free conc initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NSL), intent(inout) :: CS      ! solid conc initial estimates (in) and refined values (out)
     double precision, dimension(NPT, NCP), intent(in) :: T          ! analytical concentration values
     double precision, dimension(NEQ), intent(in) :: Bref            ! the equilibrium constants at I=Iref
     double precision, dimension(NSL), intent(in) :: KS              ! the solubility constant
@@ -219,21 +222,22 @@ subroutine eq_0si(C, T, Bref, P, CS,KS, Q, Iref, Iback, charge, DHA, DHB, DHP, C
 
     integer :: i
     DOUBLE PRECISION, dimension(NEQ) :: corr   ! the activity correction to the equilibrium constant
-    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2 
+    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2
     do i=1,NEQ
         zstar(i) = -charge(NCP+i)**2 + sum(P(i,:)*charge(1:NCP)**2)
     end do
 
-    corr = 0.0 
+    corr = 0.0
     CTRL = 0
     do i=1,NPT
-      if (i .eq. 1) then
+      if (i == 1) then
           call solve_point_solid(C(1,:), CS(1,:), T(1,:), Bref, P, KS, Q, CTRL, .true., NEQ, NCP, NSL)
       else
           C(i,:) = C(i-1,:)
           CS(i,:) = CS(i-1,:)
           call solve_point_solid(C(i,:), CS(i,:), T(i,:), Bref, P, KS, Q, CTRL, .false., NEQ, NCP, NSL)
-          call outer_solid(corr, C(i,:), charge, Bref, Iref, Iback(i), zstar, DHA, DHB, DHP, T(i,:), P, CTRL, NCP, NEQ)
+          call outer_solid(corr, C(i,:), CS(i,:), charge, Bref, KS, Q, Iref, Iback(i), zstar, DHA, DHB, DHP, &
+              T(i,:), P, CTRL, NCP, NEQ, NSL)
       end if
       if (CTRL > 50) exit  ! error unable to continue
     end do
@@ -245,7 +249,6 @@ subroutine eq_f00(C, T, B, P, REF, CTRL, NPT, NCP, NEQ)
     ! concentration is a given, not an unknown. The index of the fixed component is given in the
     ! variable REF, and the concentration is in C(:,REF). The contents of T(:,REF) is replaced
     ! with the corresponding value.
-    implicit none
     integer, intent(in) :: NPT                                     ! number of titration points
     integer, intent(in) :: NCP                                     ! number of components
     integer, intent(in) :: NEQ                                     ! number of equilibria
@@ -258,21 +261,21 @@ subroutine eq_f00(C, T, B, P, REF, CTRL, NPT, NCP, NEQ)
     !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
     !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
     !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
-  
+
     double precision :: Cref
     double precision, dimension(NEQ)        :: fB  ! the frozen equilibrium constants
     integer,          dimension(NEQ, NCP-1) :: fP  ! The frozen stoichiometry array
     double precision, dimension(NEQ+NCP-1)  :: fC  ! frozen initial estimates (in) and refined values (out)
     double precision, dimension(NCP-1)      :: fT  ! frozen analytical concentration values
-    integer i, j
+    integer :: i, j
     CTRL = 0
-  
+
     call freeze_stoich(P, fP, REF, NCP, NEQ)
 
     do i=1,NPT
         Cref = C(i,REF)
         call freeze_component(Cref, B, fB, T(i,:), fT, P, REF, NCP, NEQ)
-        if (i .eq. 1) then     ! first point
+        if (i == 1) then     ! first point
             do j=1,NCP         ! copy initial guess to frozenC
                 if (j < REF) fC(j) = C(1,j)
                 if (j > REF) fC(j-1) = C(1,j)
@@ -296,8 +299,6 @@ subroutine eq_fs0(C, T, B, P, CS, KS, Q, REF, CTRL, NPT, NEQ, NCP, NSL)
     ! is 1D and solids are present. The first initial value must be provided
     ! in the first row of C. The following points take as starting value the value of
     ! the last iteration.
-
-    implicit none
     integer, intent(in) :: NPT                                    ! number of titration points
     integer, intent(in) :: NCP                                    ! number of components
     integer, intent(in) :: NEQ                                    ! number of equilibria
@@ -306,8 +307,8 @@ subroutine eq_fs0(C, T, B, P, CS, KS, Q, REF, CTRL, NPT, NEQ, NCP, NSL)
     integer, intent(inout) :: CTRL                                ! control value. 0 on no error, 1 otherwise
     integer, dimension(NEQ, NCP), intent(in) :: P                 ! The soluble stoichiometry array
     integer, dimension(NSL, NCP), intent(in) :: Q                 ! The solids stoichiometry array
-    double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C ! free concentation initial estimates (in) and refined values (out)
-    double precision, dimension(NPT, NSL), intent(inout) :: CS    ! solid concentration initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C ! free conc initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NSL), intent(inout) :: CS    ! solid conc initial estimates (in) and refined values (out)
     double precision, dimension(NPT, NCP), intent(inout) :: T     ! analytical concentration values
     double precision, dimension(NEQ), intent(in) :: B             ! the equilibrium constants
     double precision, dimension(NSL), intent(in) :: KS            ! the solubility constant
@@ -362,7 +363,6 @@ subroutine eq_f0i(C, T, B, P, Iref, Iback, charge, DHA, DHB, DHP, REF, CTRL, NPT
     ! concentration is a given, not an unknown. The index of the fixed component is given in the
     ! variable REF, and the concentration is in C(:,REF). The contents of T(:,REF) is replaced
     ! with the corresponding value.
-    implicit none
     integer, intent(in) :: NPT                                     ! number of titration points
     integer, intent(in) :: NCP                                     ! number of components
     integer, intent(in) :: NEQ                                     ! number of equilibria
@@ -380,29 +380,29 @@ subroutine eq_f0i(C, T, B, P, Iref, Iback, charge, DHA, DHB, DHP, REF, CTRL, NPT
     !f2py integer, intent(hide), depend(t) :: npt = shape(t,0)
     !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
     !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
-  
+
     double precision :: Cref
     double precision, dimension(NEQ)        :: fB  ! the frozen equilibrium constants
     integer,          dimension(NEQ, NCP-1) :: fP  ! The frozen stoichiometry array
     double precision, dimension(NEQ+NCP-1)  :: fC  ! frozen initial estimates (in) and refined values (out)
     double precision, dimension(NCP-1)      :: fT  ! frozen analytical concentration values
-    integer i, j
+    integer :: i, j
     DOUBLE PRECISION, dimension(NEQ) :: corr   ! the activity correction to the equilibrium constant
-    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2 
+    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2
 
     CTRL = 0
-    corr = 0.0 
+    corr = 0.0
 
     do i=1,NEQ
         zstar(i) = -charge(NCP+i)**2 + sum(P(i,:)*charge(1:NCP)**2)
     end do
-  
+
     call freeze_stoich(P, fP, REF, NCP, NEQ)
 
     do i=1,NPT
         Cref = C(i,REF)
         call freeze_component(Cref, B, fB, T(i,:), fT, P, REF, NCP, NEQ)
-        if (i .eq. 1) then     ! first point
+        if (i == 1) then     ! first point
             do j=1,NCP         ! copy initial guess to frozenC
                 if (j < REF) fC(j) = C(1,j)
                 if (j > REF) fC(j-1) = C(1,j)
@@ -426,10 +426,8 @@ end subroutine eq_f0i
 subroutine eq_fsi(C, T, B, P, CS, KS, Q, Iref, Iback, charge, DHA, DHB, DHP, REF, CTRL, NPT, NEQ, NCP, NSL)
     ! Perform Newton-Raphson iterations per point when the beta matrix
     ! is 1D and solids are present. The first initial value must be provided
-    ! in the first row of C. The following points take as starting value the value of 
+    ! in the first row of C. The following points take as starting value the value of
     ! the last iteration.
-
-    implicit none
     integer, intent(in) :: NPT                                    ! number of titration points
     integer, intent(in) :: NCP                                    ! number of components
     integer, intent(in) :: NEQ                                    ! number of equilibria
@@ -438,8 +436,8 @@ subroutine eq_fsi(C, T, B, P, CS, KS, Q, Iref, Iback, charge, DHA, DHB, DHP, REF
     integer, intent(inout) :: CTRL                                ! control value. 0 on no error, 1 otherwise
     integer, dimension(NEQ, NCP), intent(in) :: P                 ! The soluble stoichiometry array
     integer, dimension(NSL, NCP), intent(in) :: Q                 ! The solids stoichiometry array
-    double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C ! free concentation initial estimates (in) and refined values (out)
-    double precision, dimension(NPT, NSL), intent(inout) :: CS    ! solid concentration initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C ! free conc initial estimates (in) and refined values (out)
+    double precision, dimension(NPT, NSL), intent(inout) :: CS    ! solid conc initial estimates (in) and refined values (out)
     double precision, dimension(NPT, NCP), intent(inout) :: T     ! analytical concentration values
     double precision, dimension(NEQ), intent(in) :: B             ! the equilibrium constants
     double precision, dimension(NSL), intent(in) :: KS            ! the solubility constant
@@ -452,7 +450,7 @@ subroutine eq_fsi(C, T, B, P, CS, KS, Q, Iref, Iback, charge, DHA, DHB, DHP, REF
     !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
     !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
     !f2py integer, intent(hide), depend(q) :: nsl = shape(q,0)
-  
+
     double precision :: Cref
     double precision, dimension(NEQ)        :: fB  ! the frozen equilibrium constants
     double precision, dimension(NSL)        :: fKS ! the frozen equilibrium constants
@@ -461,25 +459,25 @@ subroutine eq_fsi(C, T, B, P, CS, KS, Q, Iref, Iback, charge, DHA, DHB, DHP, REF
     double precision, dimension(NEQ+NCP-1)  :: fC  ! frozen initial estimates (in) and refined values (out)
     double precision, dimension(NCP-1)      :: fT  ! frozen analytical concentration values
     DOUBLE PRECISION, dimension(NEQ) :: corr   ! the activity correction to the equilibrium constant
-    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2 
-    integer i, j
+    integer,          dimension(NEQ) :: zstar  ! z* = sum p_i z_i^2 - z_s^2
+    integer :: i, j
 
     do i=1,NEQ
         zstar(i) = -charge(NCP+i)**2 + sum(P(i,:)*charge(1:NCP)**2)
     end do
     CTRL = 0
-    corr = 0.0 
+    corr = 0.0
 
     call freeze_stoich(P, fP, REF, NCP, NEQ)
     call freeze_stoich(Q, fQ, REF, NCP, NSL)
-  
+
     ! solve point-wise
     point_loop: do i=1,NPT
         Cref = C(i,REF)
         ! Freeze component
         call freeze_component(Cref, B, fB, T(i,:), fT, P, REF, NCP, NEQ)
         call freeze_component_solid(Cref, Q, KS, fKS, REF, NCP, NSL)
-  
+
         ! Solve point
         if (i == 1) then
             do j=1,NCP     ! copy first point to frozenC
@@ -492,7 +490,8 @@ subroutine eq_fsi(C, T, B, P, CS, KS, Q, Iref, Iback, charge, DHA, DHB, DHP, REF
             call solve_point_solid(fC, CS(i,:), fT, fB, fP, fKS, fQ, CTRL, .false., NEQ, NCP-1, NSL)
         end if
         if (CTRL > 50) exit point_loop ! error unable to continue
-        call outer_solid(corr, C(i,:), charge, B, Iref, Iback(i), zstar, DHA, DHB, DHP, T(i,:), P, CTRL, NCP, NEQ)
+        call outer_solid(corr, C(i,:), CS(i,:), charge, fB, fKS, fQ, Iref, Iback(i), zstar, DHA, DHB, DHP, T(i,:), P, &
+            CTRL, NCP, NEQ, NSL)
         if (CTRL > 50) exit point_loop ! error unable to continue
         do j=1,NCP+NEQ
           if (j < REF) C(i,j) = fC(j)
@@ -515,6 +514,8 @@ subroutine freeze_stoich(P, fP, REF, NCP, NEQ)
     integer, intent(in) :: REF                         ! component of reference
     integer, INTENT(OUT), dimension(NEQ, NCP-1) :: fP  ! The stoichiometry array
     integer, intent(in),  dimension(NEQ, NCP)   :: P   ! The stoichiometry array
+
+    integer :: i
     do i=1,NCP                         ! freeze stoichiometry array
         if (i<REF) fP(:,i) = P(:,i)
         if (i>REF) fP(:,i-1) = P(:,i)
@@ -536,7 +537,7 @@ subroutine freeze_component(Cref, B, fB, T, fT, P, REF, NCP, NEQ)
     double precision, intent(out), dimension(NEQ)      :: fB  ! the frozen equilibrium constants
     double precision, intent(out), dimension(NCP-1)    :: ft  ! analytical concentration values
 
-    integer j
+    integer :: j
 
     do j=1,NEQ
         fB(j) = B(j)*Cref**P(j,REF)
@@ -560,7 +561,7 @@ subroutine freeze_component_solid(Cref, Q, KS, fKS, REF, NCP, NSL)
     double precision, INTENT(OUT), dimension(NSL)      :: fKS  ! frozen solubility constants
     integer,          intent(in),  dimension(NSL, NCP) :: Q    ! The solids stoichiometry array
 
-    INTEGER j
+    integer :: j
 
     do j=1,NSL
         fKS(j) = KS(j)/(Cref**Q(j, REF))
@@ -573,7 +574,6 @@ subroutine solve_point(C, T, B, P, CTRL, is_first, NCP, NEQ)
     ! is 1D. The first initial value must be provided in the first row
     ! of C. The following points take as starting value the value of
     ! the last iteration.
-    implicit none
     integer, intent(in)    :: NCP        ! number of components
     integer, intent(in)    :: NEQ        ! number of equilibria
     integer, intent(inout) :: CTRL       ! control value. 0 on no error, 1 otherwise
@@ -588,6 +588,7 @@ subroutine solve_point(C, T, B, P, CTRL, is_first, NCP, NEQ)
     DOUBLE PRECISION, parameter :: PCF_TOLERANCE = 0.25
     DOUBLE PRECISION, parameter :: PCF_TOLERANCE_FIRST = 1D-9
 
+    CTRL = 0
     if (COUNT(T==0.0) == NCP) then  ! trivial case: all T are zero, therefore
         C = 0.0                     ! all concentrations are zero
         return
@@ -599,7 +600,6 @@ subroutine solve_point(C, T, B, P, CTRL, is_first, NCP, NEQ)
         return
     end if
 
-    CTRL = 0
     if (is_first) then
       call pcf(C, T, B, P, PCF_TOLERANCE_FIRST, NCP, NEQ)
     else
@@ -612,9 +612,9 @@ end subroutine solve_point
 subroutine solve_point_solid(C, CS, T, B, P, KS, Q, CTRL, is_first, NEQ, NCP, NSL)
     ! Perform Newton-Raphson iterations per point when the beta matrix
     ! is 1D. The first initial value must be provided in the first row
-    ! of C. The following points take as starting value the value of 
+    ! of C. The following points take as starting value the value of
     ! the last iteration.
-    implicit none
+    use solids, only: saturation_product
     integer,          intent(in)    :: NCP                      ! number of components
     integer,          intent(in)    :: NEQ                      ! number of equilibria
     integer,          intent(in)    :: NSL                      ! number of solids
@@ -622,7 +622,7 @@ subroutine solve_point_solid(C, CS, T, B, P, KS, Q, CTRL, is_first, NEQ, NCP, NS
     logical,          intent(in)    :: is_first                 ! whether it is first point or not
     integer,          intent(in),    dimension(NEQ, NCP)  :: P  ! The stoichiometry array
     double precision, intent(inout), dimension(NEQ+NCP)   :: C  ! initial estimates (in) and refined values (out)
-    double precision, intent(inout), dimension(NSL)       :: CS ! solid concentration initial estimates (in) and refined values (out)
+    double precision, intent(inout), dimension(NSL)       :: CS ! solid conc initial estimates (in) and refined values (out)
     double precision, intent(in),    dimension(NCP)       :: T  ! analytical concentration values
     double precision, intent(in),    dimension(NEQ)       :: B  ! the equilibrium constants
     integer,          intent(in),    dimension(NSL, NCP)  :: Q  ! the equilibrium constants
@@ -671,3 +671,4 @@ subroutine solve_point_solid(C, CS, T, B, P, KS, Q, CTRL, is_first, NEQ, NCP, NS
         if (.not. any(do_solid) .and. maxval(abs(F)) < 1e-30) exit    ! no solids to do
     end do
 end subroutine solve_point_solid
+end module eq

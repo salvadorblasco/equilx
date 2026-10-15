@@ -1,11 +1,14 @@
 ! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
 ! by Salvador Blasco <salvador.blasco@uv.es>
 
+module mnr
+    implicit none (type, external)
+    public
+contains
 
 subroutine lesolve(A, b, x, n, CTRL)
   ! Solve system of lineal equations using LAPACK. This routine requires
   ! the -llapack flag at compilation and, probably also -lblas in some systems.
-  implicit none
   integer, intent(in) :: n
   double precision, dimension(n,n), intent(in) :: A   ! The nxn array of coefficients
   double precision, dimension(n),   intent(in) :: b   ! the n array of independent terms
@@ -39,14 +42,13 @@ subroutine sysolve(A, b, x, n, CTRL)
     ! Solve lineal equations using LAPACK when A is symmetric. This is always the case when
     ! solids are not present. This routine requires
     ! the -llapack flag at compilation and, probably also -lblas in some systems.
-    implicit none
     integer, intent(in) :: n
     double precision, dimension(n,n), intent(in) :: A   ! The nxn array of coefficients
     double precision, dimension(n),   intent(in) :: b   ! the n array of independent terms
     double precision, dimension(n),   intent(out) :: x  ! the n array where the result is returned
     integer, intent(inout) :: CTRL                      ! control value. 0 on no error.
 
-    ! For DGELSY 
+    ! For DGELSY
     integer, dimension(n) :: ipiv   ! pivot indices
     integer :: nrhs, lda, ldb, lwork, info
     double precision, allocatable, dimension(:) :: work
@@ -80,7 +82,7 @@ end subroutine sysolve
 
 subroutine jacobian_soluble(J, C, P, NCP, NEQ)
   ! calculate the jacobian df/dlogc of the mass balance not considering solids
-  implicit none
+  use err, only: amatrix
   double precision, INTENT(INOUT), dimension(NCP, NCP) :: J   ! jacobian
   double precision, INTENT(IN),    dimension(NCP+NEQ)  :: C   ! free concentrations
   integer,          INTENT(IN),    dimension(NEQ, NCP) :: P   ! The soluble stoichiometry array
@@ -92,7 +94,6 @@ end subroutine jacobian_soluble
 
 
 subroutine jacobian_solid(JC, C, CS, KS, P, Q, NCP, NEQ, NSL, NX, do_solids)
-  implicit none
   integer, intent(in) :: NCP                                ! number of components
   integer, intent(in) :: NEQ                                ! number of equilibria
   integer, intent(in) :: NSL                                ! number of solids
@@ -122,34 +123,12 @@ subroutine jacobian_solid(JC, C, CS, KS, P, Q, NCP, NEQ, NSL, NX, do_solids)
 end subroutine jacobian_solid
 
 
-subroutine amatrix(A, C, P, NCP, NEQ)
-  integer, intent(in) :: NCP                             ! number of components
-  integer, intent(in) :: NEQ                             ! number of equilibria
-  integer, intent(in), dimension(NEQ, NCP) :: P          ! The soluble stoichiometry array
-  double precision, dimension(NCP+NEQ), intent(in) :: C  ! free concentrations
-  double precision, dimension(NCP,NCP), intent(out) :: A ! output values of the A matrix
-
-  integer :: i, j
-  do i=1,NCP
-    do j=1,NCP
-      if (i == j) then
-        A(i,j) = C(i)
-      else
-        A(i,j) = 0.0
-      end if
-      do k=1,NEQ
-        A(i,j) = A(i,j) + P(k,i)*P(k,j)*C(NCP+k)
-      end do
-    end do
-  end do
-end subroutine amatrix
-
-
 subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
   ! Perform the actual Newton-Raphson iterations. The initial value is supplied
   ! in the C variable and it is replaced with the refined value upon exit.
   ! The free concentrations are refined in the logarithmic space.
-  implicit none
+  use mcpluss, only: cpluss
+  use mb, only: mb_soluble
   integer, intent(in) :: NCP                               ! number of components
   integer, intent(in) :: NEQ                               ! number of equilibria
   integer, intent(inout) :: ctrl                           ! ctrl -> control value.
@@ -158,14 +137,13 @@ subroutine nr(C, T, B, P, ctrl, NCP, NEQ)
   double precision, dimension(NCP), intent(in) :: T        ! analytical concentration values
   double precision, dimension(NEQ), intent(in) ::  B       ! the equilibrium constants
 
-  integer its
+  integer :: its
   double precision, dimension(NCP)      :: X               ! natural log of free concentrations
   double precision, dimension(NCP)      :: fvec
   double precision, dimension(NCP, NCP) :: jac
   double precision, dimension(NCP)      :: dx
   logical :: check, converged
-  integer :: MAXITS
-  parameter (MAXITS=100)
+  integer, parameter :: MAXITS=100
 
   X(:) = LOG(C(1:NCP))
 
@@ -208,7 +186,9 @@ end subroutine nr
 subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
   ! Perform the actual Newton-Raphson iterations. The initial value is supplied
   ! in the X variable and it is replaced with the refined value upon exit.
-  implicit none
+  use mcpluss, only: cpluss
+  use mb, only: mb_solids
+  use solids, only: saturation_product
   integer, intent(in)    :: NCP                            ! number of components
   integer, intent(in)    :: NEQ                            ! number of equilibria
   integer, intent(in)    :: NSL                            ! number of solids
@@ -216,7 +196,7 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
   integer, intent(inout) :: ctrl                           ! control value
   integer,          intent(in),    dimension(NEQ, NCP) :: P         ! stoichiometry array
   double precision, intent(inout), dimension(NCP+NEQ)  :: C         ! initial estimates (in) and refined values (out)
-  double precision, intent(inout), dimension(NSL)      :: CS        ! solid concentration initial estimates (in) and refined values (out)
+  double precision, intent(inout), dimension(NSL)      :: CS        ! solid conc initial estimates (in) and refined values (out)
   double precision, intent(in),    dimension(NCP)      :: T         ! analytical concentration values
   double precision, intent(in),    dimension(NEQ)      :: B         ! the equilibrium constants
   integer,          intent(in),    dimension(NSL, NCP) :: Q         ! the equilibrium constants
@@ -311,7 +291,6 @@ end subroutine nr_solids
 
 subroutine is_converged(dx, fvec, x, fsize, retval)
     ! test for convergence on relative values
-    implicit none
     integer,          intent(in)                   :: fsize
     double precision, intent(in), dimension(fsize) :: dx, fvec, x
     logical,          intent(inout)                :: retval
@@ -346,22 +325,22 @@ subroutine is_converged(dx, fvec, x, fsize, retval)
 end subroutine is_converged
 
 
-subroutine scale(M, V, D, N)
-    DOUBLE PRECISION, INTENT(INOUT), DIMENSION(N,N) :: M
-    DOUBLE PRECISION, INTENT(INOUT), DIMENSION(N) :: V
-    DOUBLE PRECISION, INTENT(INOUT), DIMENSION(N) :: D
-    INTEGER, INTENT(IN) :: N
+subroutine scale(M, V, D, n)
+    double precision, intent(inout), dimension(n,n) :: M
+    double precision, intent(inout), dimension(n) :: V
+    double precision, intent(inout), dimension(n) :: D
+    integer, intent(in) :: n
 
     integer :: i, j
-    do i=1,N
+    do i=1,n
       D(i) = abs(M(i,i))
     end do
-    if (any(D .eq. 0.0)) then   ! if there is any diagonal value equal to zero
+    if (any(D == 0.0)) then   ! if there is any diagonal value equal to zero
         D(:) = 1.0              ! do not scale
         return
     end if
-    do i=1,N
-      do j=1,N
+    do i=1,n
+      do j=1,n
         M(i, j) = M(i, j) / sqrt(D(i)*D(j))
       end do
       v(i) = v(i) / sqrt(D(i))
@@ -371,7 +350,6 @@ end subroutine scale
 
 subroutine is_root(fvec, NCP, check)
   ! Test for initial guess being a root. Use more stringent test than simply TOLF.
-  implicit none
   double precision, intent(in), dimension(NCP) :: fvec
   integer, intent(in) :: NCP     ! number of components
   logical, intent(inout) :: check
@@ -393,7 +371,6 @@ end subroutine is_root
 subroutine update_solids(CTRL, do_solids, si, CS, dx, NSL, NX)
     ! update the solids that are accounted for in the model according to the procedure outlined
     ! in GEOCHEMICAL AND BIOGEOCHEMICAL REACTION MODELING, 2nd ed. CRAIG M. BETHKE 4.4.3p69
-    implicit none
     integer, intent(out) :: CTRL
     double precision, intent(in),    dimension(NSL) :: si         ! the solubility index
     double precision, intent(in),    dimension(NSL) :: CS         ! concentration of solids
@@ -430,3 +407,4 @@ subroutine limit_step(incrx, n)
         incrx = incrx * MAX_STEP / MAXVAL(abs(incrx))
     end if
 end subroutine limit_step
+end module mnr

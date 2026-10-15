@@ -1,9 +1,13 @@
 ! EQ FORTRAN LIB FOR EQUILIBRIA RESOLUTION
 ! by Salvador Blasco <salvador.blasco@uv.es>
 
+module err
+    implicit none (type, external)
+    public
+contains
+
 subroutine var_conc(C, P, varB, varC, NCP, NEQ)
     ! Compute the variance of the concentrations.
-    implicit none
     double precision, intent(in),  dimension(NCP+NEQ)  :: C
     double precision, intent(out), dimension(NCP+NEQ)  :: varC
     double precision, intent(out), dimension(NEQ)      :: varB
@@ -12,7 +16,7 @@ subroutine var_conc(C, P, varB, varC, NCP, NEQ)
     integer,          intent(in)                       :: NEQ     ! number of equilibria
 
     double precision, dimension(NCP+NEQ, NEQ) :: dlogcdlogb
-    integer i
+    integer :: i
 
     call calc_dlogcdlogb(C, P, NCP, NEQ, dlogcdlogb(1:NCP,:))
     call calc_extdlogcdlogb(dlogcdlogb, P, NCP, NEQ)
@@ -79,3 +83,28 @@ subroutine calc_dlogcdlogb(C, P, NCP, NEQ, dlcdlb)
 
     dlcdlb = bm
 end subroutine calc_dlogcdlogb
+
+
+subroutine amatrix(A, C, P, NCP, NEQ)
+  integer, intent(in) :: NCP                             ! number of components
+  integer, intent(in) :: NEQ                             ! number of equilibria
+  integer, intent(in), dimension(NEQ, NCP) :: P          ! The soluble stoichiometry array
+  double precision, dimension(NCP+NEQ), intent(in) :: C  ! free concentrations
+  double precision, dimension(NCP,NCP), intent(out) :: A ! output values of the A matrix
+
+  integer :: i, j, k
+  do i=1,NCP
+    do j=1,NCP
+      if (i == j) then
+        A(i,j) = C(i)
+      else
+        A(i,j) = 0.0
+      end if
+      do k=1,NEQ
+        A(i,j) = A(i,j) + P(k,i)*P(k,j)*C(NCP+k)
+      end do
+    end do
+  end do
+end subroutine amatrix
+
+end module err

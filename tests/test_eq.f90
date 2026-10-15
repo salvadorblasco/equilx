@@ -4,7 +4,15 @@
 ! testing for the library
 
 program test
-    implicit none
+    use eq
+    use solids, only: saturation_product
+    use mb, only: mb_soluble, mb_solids
+    use mcpluss, only: cpluss
+    use mnr, only: jacobian_soluble, jacobian_solid, sysolve, lesolve
+
+    implicit none (type, external)
+
+    logical :: passed
     real :: t_start, t_stop
 
     call CPU_TIME(t_start)
@@ -22,7 +30,6 @@ program test
     call test_jac2()
     call test_lsolve()
     call test_sysolve()
-    call test_scale()
     call test_nr1()
     call test_nr2()
     call test_solve_point1()
@@ -49,7 +56,6 @@ subroutine test_case_caco3()
     double precision, dimension(NPT,NSL)     :: CS
     double precision, PARAMETER :: TOLERANCE = 1D-12
     integer :: i, j, CTRL
-    logical :: passed
     character(len=*), parameter :: test_name = "case Ca carbonate"
 
     passed = .true.
@@ -60,7 +66,7 @@ subroutine test_case_caco3()
 
     call eq_0s0(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
 
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         if (passed) then
             passed = .false.
             call print_result(test_name, "failed")
@@ -90,14 +96,12 @@ end subroutine test_case_caco3
 
 subroutine test_case_coedta()
     use cobalt_edta
-    implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, dimension(NCP+NSL) :: F
     double precision, dimension(NSL) :: SI
     double precision, dimension(NPT,NSL)     :: CS
     double precision, PARAMETER :: TOLERANCE = 1D-12
-    integer i, j, CTRL
-    logical passed
+    integer :: i, j, CTRL
     character(len=*), parameter :: test_name = "case cobalt/edta"
 
     passed = .true.
@@ -108,7 +112,7 @@ subroutine test_case_coedta()
 
     call eq_0s0(C, T, B, P, CS, KS, Q, CTRL, NPT, NCP, NEQ, NSL)
 
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         if (passed) then
             passed = .false.
             call print_result(test_name, "failed")
@@ -145,8 +149,7 @@ subroutine test_case_gallic()
     double precision, dimension(NCP-1)      :: fT  ! frozen analytical concentration values
     double precision :: Cref
     integer, parameter :: REF=1
-    integer j, CTRL
-    logical passed
+    integer :: j, CTRL
     double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-14
     character(len=*), parameter :: test_name = "case gallic"
@@ -185,13 +188,11 @@ end subroutine test_case_gallic
 
 subroutine test_case_large()
     use large_fixture
-    implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     !!double precision, dimension(NCP+NEQ) :: C
     double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-10
-    integer i, j, CTRL
-    logical passed
+    integer :: i, j, CTRL
     character(len=*), parameter :: test_name = "case p53/Cu/Zn/Im"
     passed = .true.
     call initialize()
@@ -201,7 +202,7 @@ subroutine test_case_large()
 
     call initial_guess(C, T, NPT, NCP, NEQ)
     call eq_000(C, T, B, P, CTRL, NPT, NCP, NEQ)
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         if (passed) then
             passed = .false.
             call print_result(test_name, "failed")
@@ -230,7 +231,6 @@ subroutine test_nr1()
     double precision, dimension(NCP+NEQ) :: C
     double precision, PARAMETER :: TOLERANCE = 1D-7
     integer i, CTRL
-    logical passed
     integer, PARAMETER :: POINT=5
     passed = .true.
     C = 0.99*tC(POINT,:)
@@ -261,9 +261,8 @@ subroutine test_nr2()
     double precision, dimension(NCP+NEQ) :: C
     double precision, dimension(NSL)     :: CS
     double precision, PARAMETER :: TOLERANCE = 1D-6
-    integer i, CTRL, NX
-    logical passed
-    logical, dimension(NSL) :: do_solids = (/ .true. /)
+    integer :: i, CTRL, NX
+    logical, dimension(NSL) :: do_solids = [ .true. ]
     integer, PARAMETER :: POINT=3
     passed = .true.
     C = 0.9*tC(POINT,:)
@@ -300,8 +299,7 @@ end subroutine test_nr2
 subroutine test_pcf1()
     use simple1
     double precision, dimension(NCP+NEQ) :: C
-    logical passed
-    integer i, j
+    integer :: i, j
     double precision :: test
     double precision, PARAMETER :: TOLERANCE = 0.95
     passed = .true.
@@ -313,7 +311,7 @@ subroutine test_pcf1()
                 C(j) = 1D-12
             end if
         end do
-        call pcf(C, T(i,:), B, P, 1E-9, NCP, NEQ)
+        call pcf(C, DBLE(T(i,:)), B, P, 1D-9, NCP, NEQ)
         do j=1,NCP
             test = abs(C(j) - tC(i,j))/(C(j) + tC(i,j))
             if (test == 1.0) then
@@ -335,8 +333,7 @@ end subroutine test_pcf1
 subroutine test_pcf2()
     use simple1
     double precision, dimension(NCP+NEQ) :: C
-    logical passed
-    integer i, j
+    integer :: i, j
     double precision :: test
     double precision, PARAMETER :: TOLERANCE = 0.95
     passed = .true.
@@ -348,7 +345,7 @@ subroutine test_pcf2()
                 C(j) = 1D-12
             end if
         end do
-        call pcf(C, T(i,:), B, P, 1E-9, NCP, NEQ)
+        call pcf(C, DBLE(T(i,:)), B, P, 1D-9, NCP, NEQ)
         do j=1,NCP
             test = abs(C(j) - tC(i,j))/(C(j) + tC(i,j))
             if (test == 1.0) then
@@ -372,7 +369,6 @@ subroutine test_pcf3()
     implicit none
     double precision, dimension(NCP+NEQ) :: C
     double precision, dimension(NCP) :: fprev, fpost
-    logical passed
     integer i, j
     double precision, PARAMETER :: TOLERANCE = 0.95
     passed = .true.
@@ -389,7 +385,7 @@ subroutine test_pcf3()
 
         call cpluss(C, B, P, NCP, NEQ)
         call mb_soluble(fprev, C, P, T, NCP, NEQ)
-        call pcf(C, T(i,:), B, P, 1E-9, NCP, NEQ)
+        call pcf(C, T(i,:), B, P, 1D-9, NCP, NEQ)
         call mb_soluble(fpost, C, P, T, NCP, NEQ)
         do j=1,NCP
             if (abs(fpost(j)) > abs(fprev(j))) then
@@ -410,8 +406,7 @@ subroutine test_solve_point1()
     implicit none
     double precision, dimension(NCP+NEQ) :: C
     double precision, PARAMETER :: TOLERANCE = 1D-8
-    integer i, CTRL
-    logical passed
+    integer :: i, CTRL
     integer, PARAMETER :: POINT=5
     passed = .true.
     do i = 1,NCP                 ! initialize first point
@@ -422,7 +417,7 @@ subroutine test_solve_point1()
         end if
     end do
     call solve_point(C, T(POINT,:), B, P, CTRL, .true., NCP, NEQ)
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         if (passed) call print_result("solve_point1", "failed")
         passed = .false.
         print "(A, I3)", "  control value returned ", CTRL
@@ -446,8 +441,7 @@ subroutine test_solve1()
     implicit none
     double precision, dimension(NPT, NCP+NEQ) :: C
     double precision, PARAMETER :: TOLERANCE = 1D-6
-    integer i, j, CTRL
-    logical passed
+    integer :: i, j, CTRL
     passed = .true.
     call initial_guess(C, T, NPT, NCP, NEQ)
     call eq_000(C, T, B, P, CTRL, NPT, NCP, NEQ)
@@ -470,7 +464,6 @@ subroutine test_case_hexaprotic()
     double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-15
     integer :: i, j, CTRL
-    logical :: passed
     character(len=*), parameter :: test_name = "case hexaprotic"
     passed = .true.
     call initialize()
@@ -505,7 +498,6 @@ subroutine test_case_phosphoric()
     double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-10
     integer i, j, CTRL
-    logical passed
     character(len=*), parameter :: test_name = "case phosphoric"
 
     passed = .true.
@@ -542,7 +534,6 @@ subroutine test_case_molybdate()
     double precision, dimension(NCP) :: F
     double precision, PARAMETER :: TOLERANCE = 1D-15
     integer :: i, j, CTRL
-    logical :: passed
     character(len=*), parameter :: test_name = "case molybdate"
 
     passed = .true.
@@ -581,7 +572,6 @@ subroutine test_case_aluminium()
     double precision, dimension(NCP+NSL)     :: F
     double precision, PARAMETER :: TOLERANCE = 1D-9
     integer :: i, j, CTRL
-    logical :: passed
     character(len=*), parameter :: test_name = "case aluminium"
 
     passed = .true.
@@ -628,7 +618,6 @@ subroutine test_cpluss1()
     double precision, dimension(NCP+NEQ) :: C
     double precision, PARAMETER:: TOL = 1e-8
     integer :: i, j
-    logical :: passed
     passed = .true.
     do i=1,NPT
         C(1:NCP) = tC(i,1:NCP)
@@ -651,7 +640,6 @@ subroutine test_cpluss2()
     double precision, dimension(NCP+NEQ) :: C
     double precision, PARAMETER:: TOL = 1e-8
     integer i, j
-    logical passed
     passed = .true.
     do i=1,NPT
         C(1:NCP) = tC(i,1:NCP)
@@ -675,7 +663,6 @@ subroutine test_cpluss3()
                                                    8.4818E-04, 3.1553E-03, 1.1738E-03, 4.5651E-12/)
     double precision, PARAMETER:: TOL = 1e-6
     integer j
-    logical passed
     call initialize()
     passed = .true.
     C(1:2) = (/ 4.4289D-22, 3.7200D-03 /)
@@ -696,7 +683,6 @@ subroutine test_mb1()
     implicit none
     double precision, dimension(NPT,NCP) :: F
     double precision, PARAMETER:: TOL = 1e-7
-    logical passed
     integer i,j
     passed = .true.
     do i=1,NPT
@@ -718,7 +704,6 @@ subroutine test_mb2()
     double precision, dimension(NPT,NCP) :: F
     double precision, PARAMETER:: TOL = 1e-7
     integer i,j
-    logical passed
     passed = .true.
     do i=1,NPT
         call mb_solids(F(i,:), tC(i,:), P, T(i,:), Q, tCS(i,:), NCP, NEQ, NSL)
@@ -739,7 +724,6 @@ subroutine test_si2()
     double precision, dimension(NPT, NSL) :: SI
     double precision, dimension(NPT) :: tSI = (/0.0, 0.92650466, 1.0, 0.92650466, 0.0 /)
     double precision, PARAMETER:: TOL = 1e-7
-    logical passed
     integer i
     passed = .true.
     do i=1,NPT
@@ -758,7 +742,6 @@ subroutine test_jac1()
     use simple1
     implicit none
     DOUBLE PRECISION, DIMENSION(NCP, NCP) :: Jac
-    logical passed
     integer i, j, k
     double precision, PARAMETER:: TOL = 1D-7
     passed = .true.
@@ -783,7 +766,6 @@ subroutine test_jac2()
     use simple2
     implicit none
     DOUBLE PRECISION, DIMENSION(NCP+NSL, NCP+NSL) :: Jac
-    logical passed
     integer i, j, k, nx
     double precision, PARAMETER:: TOL = 1D-6
     logical, dimension(NSL) :: do_solids = (/.true./)
@@ -818,13 +800,12 @@ subroutine test_lsolve()
     double PRECISION, dimension(N) :: truex = (/0.45757758,  0.17643674,  0.31928777,  0.1409372 , -0.23345483/)
     double PRECISION, dimension(N) :: calcx
     integer CTRL, i
-    logical passed
     double precision, PARAMETER:: TOL = 1D-7
     passed = .true.
     CTRL = 0
 
     call lesolve(A, b, calcx, N, CTRL)
-    if (CTRL .ne. 0) then
+    if (CTRL /= 0) then
         call print_result(test_name, "failed")
         print *, "  CTRL must be 0 (is ", CTRL, ")"
         passed = .false.
@@ -851,7 +832,6 @@ subroutine test_sysolve()
     double PRECISION, dimension(N) :: b = (/ 8.09912257E-05, 8.09893566E-05, 7.92393462E-05, 2.93463972E-04 /)
     double PRECISION, dimension(N) :: calcx
     integer CTRL, i
-    logical passed
     double precision, PARAMETER:: TOL = 1D-11
     character(len=*), parameter :: test_name = "sysolve"
     passed = .true.
@@ -873,54 +853,6 @@ subroutine test_sysolve()
     end do
     if (passed) call print_result(test_name, "passed")
 end subroutine test_sysolve
-
-
-subroutine test_scale()
-    double PRECISION, dimension(5,5) :: A = reshape( &
-     (/0.05877024, 0.28411459, 0.40437397, 0.06793575, 0.03309539, &
-       0.5086304 , 0.16324818, 0.41410313, 0.92346009, 0.22741105, &
-       0.19705674, 0.08176619, 0.95449347, 0.14038565, 0.51148029, &
-       0.43147132, 0.07351833, 0.67603311, 0.53159246, 0.1574564 , &
-       0.50511729, 0.63200965, 0.53917495, 0.35968986, 0.79263917/), (/5,5/), order=[2,1])
-    double PRECISION, dimension(5,5) :: sA = reshape( &
-     (/ 1.        , 2.90061861, 1.70733202, 0.38435296, 0.15333841, &
-        5.19277386, 1.        , 1.04905403, 3.13476182, 0.63219292, &
-        0.83200529, 0.20713958, 1.        , 0.19708194, 0.58803701, &
-        2.44109004, 0.24956406, 0.94905653, 1.        , 0.24256779, &
-        2.34032269, 1.75695957, 0.61987691, 0.55411643, 1.        /), (/5,5/), order=[2,1])
-    double PRECISION, dimension(5) :: b = (/0.20798025, 0.47081858, 0.30973142, 0.46441424, 0.38044028/)
-    double PRECISION, dimension(5) :: sb = (/ 0.85791326, 1.16527764, 0.31702884, 0.6369658 , 0.42731558 /)
-    double PRECISION, dimension(5) :: sdiag = (/ 0.05877024, 0.16324818, 0.95449347, 0.53159246, 0.79263917 /)
-    double PRECISION, dimension(5) :: diag
-    integer i, j
-    logical passed
-    double precision, PARAMETER:: TOL = 1D-6
-
-    passed = .true.
-    do i=1,5
-        diag(i) = A(i,i)
-    end do
-    call scale(A, b, diag, 5)
-    do i=1,5
-        do j=1,5
-            if (abs(A(i,j)-sA(i,j)) > TOL) then
-                print *, "test scale ......... failed for A(", i,",",j,")=", A(i,j)," should be ", sA(i,j)
-                passed = .false.
-            end if
-        end do
-    end do
-    do i=1,5
-        if (abs(b(i)-sb(i)) > TOL) then
-            print *, "test scale ......... failed for b(", i,")=", b(i)," should be ", sb(i)
-            passed = .false.
-        end if
-        if (abs(diag(i)-sdiag(i)) > TOL) then
-            print *, "test scale ......... failed for diag(", i,")=", diag(i)," should be ", sdiag(i)
-            passed = .false.
-        end if
-    end do
-    if (passed) call print_result("scale", "passed")
-end subroutine test_scale
 
 
 subroutine print_result(test_name, result_tag)

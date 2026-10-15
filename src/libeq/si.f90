@@ -3,6 +3,10 @@
 !
 ! This file contains routines related to solubility
 
+module solids
+    implicit none (type, external)
+    public
+contains
 
 subroutine saturation_product(C, Q, NCP, NSL, SI)
   ! Calculate the saturation product, defined as
@@ -14,6 +18,7 @@ subroutine saturation_product(C, Q, NCP, NSL, SI)
   double precision, dimension(NSL),      intent(out) :: SI ! the solubility product
 
   double precision :: aux
+  integer :: i, j
 
   SI(:) = 0.0
   do i=1,NSL
@@ -24,3 +29,4 @@ subroutine saturation_product(C, Q, NCP, NSL, SI)
     SI(i) = aux
   end do
 end subroutine saturation_product
+end module solids

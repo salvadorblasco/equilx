@@ -2,10 +2,15 @@
 !
 ! by Salvador Blasco <salvador.blasco@uv.es>
 
+module mpcf
+    implicit none (type, external)
+    public
+contains
 
 subroutine pcf(C, T, B, P, THRESH, NCP, NEQ)
   ! Implementation of the Positive Continuous Fraction (PCF) as described
   ! by Carrayrou (2004) and Marinoni (2017).
+  use mcpluss, only: cpluss
   integer,          intent(in) :: NCP                        ! number of species
   integer,          intent(in) :: NEQ                        ! number of equilibria
   double precision, intent(in) :: THRESH                     ! acceptable threshold
@@ -16,8 +21,8 @@ subroutine pcf(C, T, B, P, THRESH, NCP, NEQ)
 
   double precision, dimension(NCP) :: expn, convaux
   integer :: i, iter
-  double precision :: theta, check_convergence
-  double precision            :: sump, sumr, calc_theta
+  double precision :: theta
+  double precision            :: sump, sumr
   integer,          parameter :: MAXITS = 100
 
 
@@ -34,7 +39,7 @@ subroutine pcf(C, T, B, P, THRESH, NCP, NEQ)
         C(i) = theta * C(i) * (sump/sumr)**expn(i) + (1-theta)*C(i)
     end do
     !print *, iter, convaux
-    if (maxval(convaux) .lt. THRESH) exit ! converged
+    if (maxval(convaux) < THRESH) exit ! converged
   end do
   ! update C before finishing
   call cpluss(C, B, P, NCP, NEQ)
@@ -44,7 +49,8 @@ end subroutine pcf
 subroutine pcf_solids(C, CS, T, B, KS, P, Q, THRESH, NCP, NEQ, NSL)
     ! Implementation of the Positive Continuous Fraction (PCF) as described
     ! by Carrayrou (2017) when solids are present.
-    implicit none
+    use mcpluss, only: cpluss
+    use solids, only: saturation_product
     integer,          intent(in) :: NCP                        ! number of species
     integer,          intent(in) :: NEQ                        ! number of equilibria
     integer,          intent(in) :: NSL                        ! number of solids
@@ -56,16 +62,16 @@ subroutine pcf_solids(C, CS, T, B, KS, P, Q, THRESH, NCP, NEQ, NSL)
     integer,          intent(in),    dimension(NEQ, NCP) :: P  ! stoichiometry matrix
     double precision, intent(in),    dimension(NSL)      :: KS  ! equilibrium constants
     integer,          intent(in),    dimension(NSL, NCP) :: Q  ! solid stoichiometry matrix
-  
+
     double precision, dimension(NCP) :: expn, convaux
     integer :: i, j, iter
     double precision :: theta, auxd
-    double precision            :: sump, sumr, calc_theta, check_convergence
+    double precision            :: sump, sumr
     integer,          parameter :: MAXITS = 500
     double precision, DIMENSION(NSL) :: SI
     integer :: current_solid, comp_control
     double precision, parameter :: SI_THRESH = 5.0
-  
+
     call find_exponent(P, NCP, NEQ, expn)
     current_solid = -1         ! no current solid
     comp_control = -1          ! no component controlling
@@ -91,28 +97,28 @@ subroutine pcf_solids(C, CS, T, B, KS, P, Q, THRESH, NCP, NEQ, NSL)
         call cpluss(C, B, P, NCP, NEQ)
         ! calculate sump and sumr
         do i=1,NCP
-            if (i .eq. comp_control) then
+            if (i == comp_control) then
                 sump = 1.0
                 sumr = SI(current_solid)**(1.0/Q(current_solid, comp_control))
-            else   
+            else
                 call calc_sum_solids(i, T, C, CS, P, Q, sump, sumr, NCP, NEQ, NSL)
             end if
             convaux(i) = check_convergence(sumr, sump)
 
             ! update concentrations
             theta = calc_theta(sump, sumr)
-            if (i .eq. comp_control) then
+            if (i == comp_control) then
                 auxd = C(comp_control)
                 auxd = auxd + sum(P(:, comp_control)*C(NCP+1:NCP+NEQ))
                 do j=1,NSL
-                    if (j .eq. current_solid) cycle
+                    if (j == current_solid) cycle
                     auxd = auxd + Q(j, comp_control)*CS(j)
                 end do
                 CS(current_solid) = (T(comp_control) - auxd)/Q(current_solid, comp_control)
             end if
             C(i) = theta * C(i) * (sump/sumr)**expn(i) + (1-theta)*C(i)
         end do
-        if (maxval(convaux) .lt. THRESH) exit  ! converged
+        if (maxval(convaux) < THRESH) exit  ! converged
     end do
 end subroutine pcf_solids
 
@@ -120,9 +126,7 @@ end subroutine pcf_solids
 subroutine find_exponent(P, NCP, NEQ, expn)
     ! find the smallest strictly positive
     ! stoichiometric coefficient that
-    ! the jth component presents in Morel's Table. 
-
-    implicit none
+    ! the jth component presents in Morel's Table.
     integer,          intent(in) :: NCP                        ! number of species
     integer,          intent(in) :: NEQ                        ! number of equilibria
     integer,          intent(in),    dimension(NEQ, NCP) :: P  ! stoichiometry matrix
@@ -136,7 +140,6 @@ end subroutine find_exponent
 
 
 subroutine calc_sum(comp, T, C, P, sump, sumr, NCP, NEQ)
-    implicit none
     integer,          intent(in) :: NCP                        ! number of species
     integer,          intent(in) :: NEQ                        ! number of equilibria
     integer, intent(in) :: comp
@@ -145,8 +148,8 @@ subroutine calc_sum(comp, T, C, P, sump, sumr, NCP, NEQ)
     integer,          intent(in),    dimension(NEQ, NCP) :: P  ! stoichiometry matrix
     double precision, intent(in),    dimension(NCP)      :: T  ! the analytical concentration
 
-    integer j
-    if (T(comp) .ge. 0.0) then
+    integer :: j
+    if (T(comp) >= 0.0) then
       sump = T(comp)
       sumr = C(comp)
     else
@@ -164,7 +167,6 @@ end subroutine calc_sum
 
 
 subroutine calc_sum_solids(comp, T, C, CS, P, Q, sump, sumr, NCP, NEQ, NSL)
-    implicit none
     integer,          intent(in) :: NCP                        ! number of species
     integer,          intent(in) :: NEQ                        ! number of equilibria
     integer,          intent(in) :: NSL                        ! number of solids
@@ -176,8 +178,8 @@ subroutine calc_sum_solids(comp, T, C, CS, P, Q, sump, sumr, NCP, NEQ, NSL)
     integer,          intent(in),    dimension(NSL, NCP) :: Q  ! stoichiometry matrix
     double precision, intent(in),    dimension(NCP)      :: T  ! the analytical concentration
 
-    integer j
-    if (T(comp) .ge. 0.0) then
+    integer :: j
+    if (T(comp) >= 0.0) then
       sump = T(comp)
       sumr = C(comp)
     else
@@ -223,3 +225,4 @@ function check_convergence(sumr, sump) result(conv)
         conv = conv/(sumr+sump)      ! will be 1 thus ruining the value of convergence testing
     end if                           ! if the sum of both is zero, also problem
 end function check_convergence
+end module mpcf

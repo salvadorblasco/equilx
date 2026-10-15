@@ -131,7 +131,8 @@ module molybdate
 contains
 
 subroutine initialize()
-    integer i
+    use mouter, only: full_charge
+    integer :: i
     double precision, parameter :: initial_molybd = 0.001009
     double precision, parameter :: initial_proton = 0.006036
     double precision, parameter :: buret_proton = -0.09985
