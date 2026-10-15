@@ -571,7 +571,7 @@ end subroutine freeze_component_solid
 subroutine solve_point(C, T, B, P, CTRL, is_first, NCP, NEQ)
     ! Perform Newton-Raphson iterations per point when the beta matrix
     ! is 1D. The first initial value must be provided in the first row
-    ! of C. The following points take as starting value the value of 
+    ! of C. The following points take as starting value the value of
     ! the last iteration.
     implicit none
     integer, intent(in)    :: NCP        ! number of components
@@ -584,10 +584,21 @@ subroutine solve_point(C, T, B, P, CTRL, is_first, NCP, NEQ)
     double precision, intent(in),    dimension(NEQ)      :: B  ! the equilibrium constants
     !f2py integer, intent(hide), depend(p) :: ncp = shape(p,1)
     !f2py integer, intent(hide), depend(p) :: neq = shape(p,0)
-  
+
     DOUBLE PRECISION, parameter :: PCF_TOLERANCE = 0.25
     DOUBLE PRECISION, parameter :: PCF_TOLERANCE_FIRST = 1D-9
-  
+
+    if (COUNT(T==0.0) == NCP) then  ! trivial case: all T are zero, therefore
+        C = 0.0                     ! all concentrations are zero
+        return
+    end if
+
+    if (COUNT(T==0.0) == NCP-1) then  ! trivial case: all T are zero except one, therefore
+        C = 0.0                       ! all concentrations are zero except that one which
+        C(1:NCP) = T                  ! is equal to T
+        return
+    end if
+
     CTRL = 0
     if (is_first) then
       call pcf(C, T, B, P, PCF_TOLERANCE_FIRST, NCP, NEQ)
