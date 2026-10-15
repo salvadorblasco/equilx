@@ -25,14 +25,15 @@ end subroutine var_conc
 
 
 subroutine calc_extdlogcdlogb(dlogcdlogb, P, NCP, NEQ)
+    implicit none (type, external)
     double precision, intent(inout), dimension(NCP+NEQ, NEQ) :: dlogcdlogb
     integer,          intent(in),    dimension(NEQ, NCP)     :: P
     integer,          intent(in)                             :: NCP     ! number of components
     integer,          intent(in)                             :: NEQ     ! number of equilibria
 
-    integer i
+    integer :: i
     do i=1,NEQ
-        dlogcdlogb(i,:) = sum(P(i,:) * dlogcdlogb(:,i))
+        dlogcdlogb(i,:) = DOT_PRODUCT(P(i,:), dlogcdlogb(1:NCP,i))
         dlogcdlogb(i,i) = dlogcdlogb(i,i) + 1.0
     end do
 end subroutine calc_extdlogcdlogb
@@ -47,12 +48,13 @@ subroutine calc_dlogcdlogb(C, P, NCP, NEQ, dlcdlb)
 
     double precision, dimension(NCP, NCP) :: Am
     double precision, dimension(NCP, NEQ) :: bm
-    integer i, j
+    integer :: i, j
 
-    ! For DGELSY 
+    ! For DGELSY
     integer, dimension(NCP) :: ipiv   ! pivot indices
     integer :: lwork, info
     double precision, allocatable, dimension(:) :: work
+    external dsysv
 
     ! compute A matrix
     call amatrix(Am, C, P, NCP, NEQ)
