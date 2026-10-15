@@ -604,7 +604,7 @@ end subroutine fit_emf
 subroutine lm(maxits)
     ! routine for Levenberg-Marquardt iterations.
     use misc, only: lesolve
-    use stat, only: fit_sigma
+    use stat, only: fit_sigma, calc_covariance
     integer, intent(in) :: maxits
 
     integer :: NX ! number of variables to optimize
@@ -803,7 +803,8 @@ subroutine lm(maxits)
         call lesolve(dampedM, F, dx, NX, CTRL)
     end do main_loop
 
-    call calc_covariance(M)
+    allocate(covariance(size(M,1), size(M,2)))
+    call calc_covariance(M, covariance, emf_diagnostic)
 
     DEALLOCATE(jac, dx, fvec, M)
 end subroutine lm
@@ -982,9 +983,7 @@ subroutine jacobian_lm(jac)
                 aux = variables(j)%destination_index1  ! titration index to which this is referred
                 select case (variables(j)%jtype)
                     case (J_LBETA)
-                        do k=1,NCP
-                            bvec(k, j) = -P(aux,k)*C(i,aux+NCP)
-                        end do
+                        bvec(:, j) = -P(aux,:)*C(i,aux+NCP)
                     case (J_TINIT)
                         if (variables(j)%destination_index2 /= curr_titr) then
                             bvec(:,j) = 0.0
@@ -1023,10 +1022,12 @@ subroutine jacobian_lm(jac)
             aux = variables(j)%origin_index
             select case (variables(j)%jtype)
                 case (J_LBETA)
+                    ! main term from Nernst's equation
                     jac(i, aux) = jac(i, aux) - variables(j)%ratio*use_slope(curr_titr)*nernst*bvec(eac,j)
+                    ! addition of junction terms if any
                     do k=1,size(junctionp,dim=2)
-                        tmpi = junctionc(curr_titr,k)
-                        if (tmpi > NCP) then
+                        tmpi = junctionc(curr_titr,k)  ! species index
+                        if (tmpi > NCP) then           ! not a component, calculate
                             tmpd = DOT_PRODUCT(P(tmpi-NCP,:),bvec(:,j))
                             if (j == tmpi) tmpd = tmpd + 1.0
                         else
@@ -1038,6 +1039,17 @@ subroutine jacobian_lm(jac)
                     if (curr_titr == variables(j)%destination_index2) then
                         tmpd = - variables(j)%ratio*use_slope(curr_titr)*nernst*bvec(eac,j)
                         jac(i, aux) = jac(i, aux) + tmpd
+                        ! addition of junction terms if any
+                        do k=1,size(junctionp,dim=2)
+                            tmpi = junctionc(curr_titr,k)  ! species index
+                            if (tmpi > NCP) then           ! not a component, calculate
+                                tmpd = DOT_PRODUCT(P(tmpi-NCP,:),bvec(:,j))
+                                if (j == tmpi) tmpd = tmpd + 1.0
+                            else
+                                tmpd = use_junction(curr_titr,k)*C(i,tmpi)*bvec(tmpi,j)
+                            end if
+                            jac(i, aux) = jac(i, aux) + tmpd
+                        end do
                     end if
                 case (J_EMF0)
                     if (curr_titr == variables(j)%destination_index1) then
@@ -1286,43 +1298,6 @@ function calc_rho(descent, step, gradient, M, damping) result(rho)
                 -0.5*DOT_PRODUCT(step, damping*(D*step))
     rho = descent/predicted
 end function calc_rho
-
-
-! Given the Hessian matrix, calculate the covariance
-subroutine calc_covariance(H)
-    double precision, intent(in), dimension(:,:) :: H
-
-    integer :: n, info, i, j
-
-    external dpotrf
-    external dpotri
-
-    n = size(H, dim=1)
-    allocate(covariance(n,n))
-
-    covariance = H
-
-    ! 1. LU factorization
-    call DPOTRF('U', n, covariance, n, info)
-    if (info /= 0) then
-        emf_diagnostic="COV could not be calculated"
-        return
-    end if
-
-    ! 2. Invert using the factors
-    call DPOTRI('U', n, covariance, n, info)
-    if (info /= 0) then
-        emf_diagnostic="COV could not be calculated"
-        return
-    end if
-
-    ! 3. Copy the lower triangular matrix
-    do i=1,n
-        do j=i+1,n
-            covariance(j,i) = covariance(i,j)
-        end do
-    end do
-end subroutine calc_covariance
 
 
 subroutine report_variables(step)

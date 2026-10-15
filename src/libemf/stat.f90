@@ -25,6 +25,42 @@ function fit_sigma(residuals, weights, npoints, nparams) result(sigma)
 end function fit_sigma
 
 
+! Given the Hessian matrix, calculate the covariance
+subroutine calc_covariance(H, cov, msg)
+    double precision, intent(in), dimension(:,:) :: H
+    double precision, intent(out), dimension(:,:) :: cov
+    character(len=45), intent(out) :: msg
+
+    integer :: n, info, i, j
+
+    external dpotrf
+    external dpotri
+
+    n = size(H, dim=1)
+
+    cov = H
+
+    ! 1. LU factorization
+    call DPOTRF('U', n, cov, n, info)
+    if (info /= 0) then
+        msg="COV could not be calculated"
+        return
+    end if
+
+    ! 2. Invert using the factors
+    call DPOTRI('U', n, cov, n, info)
+    if (info /= 0) then
+        msg="COV could not be calculated"
+        return
+    end if
+
+    ! 3. Copy the lower triangular matrix
+    do i=1,n
+        do j=i+1,n
+            cov(j,i) = cov(i,j)
+        end do
+    end do
+end subroutine calc_covariance
 
 end module stat
 
