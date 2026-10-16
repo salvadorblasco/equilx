@@ -38,7 +38,7 @@ subroutine calc_extdlogcdlogb(dlogcdlogb, P, NCP, NEQ)
     integer :: i
     do i=1,NEQ
         dlogcdlogb(NCP+i,:) = DOT_PRODUCT(P(i,:), dlogcdlogb(1:NCP,i))
-        dlogcdlogb(NCP+i,i) = dlogcdlogb(i,i) + 1.0
+        dlogcdlogb(NCP+i,i) = dlogcdlogb(NCP+i,i) + 1.0
     end do
 end subroutine calc_extdlogcdlogb
 
