@@ -124,7 +124,7 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, n_junct, out
     integer, intent(in)                             :: n_junct   ! number of junction components (usually zero)
     integer, intent(in)                             :: outn
 
-    integer :: i, j
+    integer :: i
 
     emf_diagnostic = "no error"
 
@@ -306,6 +306,7 @@ end subroutine set_ionic_ignored
 
 
 subroutine set_ionic_constant(charge, Iref, init_ions, buret_ions, actv_params)
+    use mouter, only: calc_activity_correction
     integer, intent(in), dimension(:) :: charge
     real,    intent(in), dimension(:) :: init_ions
     real,    intent(in), dimension(:) :: buret_ions
@@ -316,18 +317,6 @@ subroutine set_ionic_constant(charge, Iref, init_ions, buret_ions, actv_params)
     integer :: i
     integer, dimension(NEQ) :: zstar
     double precision, dimension(NEQ,3) :: params
-
-    interface
-        subroutine calc_activity_correction(corr, Ix, Iref, zstarx, DHA, DHB, DHC, DHD, DHE, NEQx)
-            double precision, INTENT(OUT), dimension(NEQx) :: corr  ! the correction for log(beta) from I to Iref
-            double precision, intent(in) :: Ix                      ! the ionic strength to calculate the correction from
-            double precision, intent(in) :: Iref                   ! reference ionic strength
-            double precision, intent(in) :: DHA, DHB               ! debye-huckel parameters A and B
-            double precision, intent(in), dimension(NEQx) :: DHC, DHD, DHE ! per-species debye-huckel parameters C-E
-            integer, intent(in),  dimension(NEQx) :: zstarx  ! z*
-            integer, intent(in)          :: NEQx                     ! the number of equilibria
-        end subroutine calc_activity_correction
-    end interface
 
     ion_model = 1
     ion_Iref = Iref
@@ -623,11 +612,11 @@ subroutine lm(maxits)
     double precision, allocatable, dimension(:)   :: dx
     double precision, allocatable, dimension(:)   :: fvec, trial_fvec, F
     double precision, allocatable, dimension(:)   :: gradient
-    double precision, allocatable, dimension(:,:) :: M, dampedM
+    double precision, allocatable :: M(:,:), dampedM(:,:), diagM(:)
     double precision :: gradient_norm, sumsq, damping, trial_sumsq
     double precision :: predicted, actual, rho
-    double precision :: sigma
-    integer :: i
+    double precision :: sigma, cond
+    integer :: i, j
     integer :: CTRL
     logical :: exit_condition
     double precision :: relative_step
@@ -636,7 +625,7 @@ subroutine lm(maxits)
 
     NX = size(xvalues)
     ALLOCATE(jac(NPT, NX))
-    ALLOCATE(dx(NX))
+    ALLOCATE(dx(NX), diagM(NX))
     ALLOCATE(gradient(NX))
     ALLOCATE(fvec(NPT))
     ALLOCATE(trial_fvec(NPT))
@@ -647,69 +636,58 @@ subroutine lm(maxits)
     dx = 0.0
     jac = 0.0
     fvec = 0.0
-    damping = 1D+2
+    damping = 1D-2
     sumsq = HUGE(1D1)
     trial_sumsq = 0.0
     trial_fvec = 0.0
 
-    iter = 0
+    ! initial calculations
+    call update_equil()
+    call calc_resid(fvec)
+    sumsq = SUM(weights*fvec**2)
+    call jacobian_lm(jac)
+    gradient = -MATMUL(TRANSPOSE(jac), weights*fvec)
+    M = 0.0
+    do i = 1,NX
+        do j = 1,NX
+            M(i,j) = M(i,j) + SUM(jac(:,i)*weights*jac(:,j))
+            dampedM(i,j) = M(i,j)
+        end do
+        diagM(i) = M(i,i)
+        dampedM(i,i) = (1.0 + damping) * M(i,i)
+    end do
+
+    write(outu, "(A)") "Starting Levenberg-Marquardt iterations"
+    write(outu,"(A,E14.6)") " ..  initial sumsq = ", sumsq
+
+    iter = 1
     main_loop: do while (iter < maxits)
-        call try_step(dx)
-
-        call update_equil()
-
-        !do i=1,NPT
-        !!    print "(*(E12.4))", C(i,:)
-        !    print "(*(F14.4))", V(i), -LOG10(C(i,3))
-        !end do
-        !stop
-
-        call calc_resid(fvec)
-        trial_sumsq = SUM(weights*fvec**2)
-
-        if (iter == 0) then
-            sumsq = trial_sumsq
-            call jacobian_lm(jac)
-
-            M = MATMUL(MATMUL(TRANSPOSE(jac), W), jac)
-            F = -MATMUL(MATMUL(TRANSPOSE(jac), W), fvec)
-            dampedM = M
-            do i=1,NX
-                dampedM(i,i) = (1.0 + damping) * M(i,i)
-            end do
-            call lesolve(dampedM, F, dx, NX, CTRL)
-        end if
-
+        call linalgsolve(dampedM, gradient, dx, cond, ctrl)
         if (CTRL /= 0) then
             emf_diagnostic="linear system could not be solved"
             return
         end if
+        !where (abs(dx) > MAX_STEP) dx = SIGN(MAX_STEP, dx)     ! limit step
 
-        if (iter == 0) then
-            iter = iter + 1
-            cycle main_loop
-        end if
+        call try_step(dx)
+        call update_equil()
+        call calc_resid(trial_fvec)
+        trial_sumsq = SUM(weights*trial_fvec**2)
 
-        !rho = calc_rho((chisq - trial_chisq), dx, gradient, M, damping)
-        !if (abs(rho) > RHO_THRESH) then                     ! sometimes rho can be negative very close to the solution
-
-        ! predicted reduction (quadratic model)
-        ! gradient = 2 * J^T W r   (you already compute it this way)
-        ! M        = J^T W J
-        predicted = 0.5d0 * DOT_PRODUCT(dx, damping*dx - gradient)   ! simplest form
-        ! or the more accurate form that uses the full normal matrix:
-        !predicted = 0.5d0 * DOT_PRODUCT(dx, MATMUL(M,dx) + damping*dx - gradient)
-
+        predicted = 0.5d0 * DOT_PRODUCT(dx, MATMUL(M, dx)) &
+                  + damping * DOT_PRODUCT(dx*dx, diagM)
         actual     = sumsq - trial_sumsq          ! positive when the step is good
 
-        if (predicted > 10.0d0 * EPSILON(1.0d0) * (1.0d0 + abs(sumsq))) then
+        if (predicted > 100.0d0 * EPSILON(1.0d0) * (1.0d0 + abs(sumsq))) then
             rho = actual / predicted
+        else if (predicted > 0.0 .and. actual > 0.0) then
+            rho = 0.5
         else
             rho = -1.0d0          ! model is not decreasing → force rejection
         end if
-        !print "(2(A,E12.4))", "predicted=", predicted, " actual=", actual
+        !print "(3(A,E12.4))", "rho=",rho, "predicted=", predicted, " actual=", actual
 
-        if (rho > 0.0) then
+        if (rho > 1D-3) then
             ! step accepted
             write(outu, '(/,A,I4,/)') "Iteration", iter
             write (outu, "(A,E14.4)") "   damping = ", damping
@@ -717,16 +695,24 @@ subroutine lm(maxits)
 
             xvalues = xvalues + dx
             sumsq = trial_sumsq
+            fvec = trial_fvec
 
+            call update_equil()
+            call calc_resid(trial_fvec)
             call jacobian_lm(jac)
-
-            M = MATMUL(MATMUL(TRANSPOSE(jac), W), jac)
-            F = -MATMUL(MATMUL(TRANSPOSE(jac), W), fvec)
-            gradient = 2*MATMUL(MATMUL(TRANSPOSE(jac),W),fvec)
+            gradient = -MATMUL(TRANSPOSE(jac), weights*fvec)
             gradient_norm = NORM2(gradient)
+            do i = 1,NX
+                do j = 1,NX
+                    M(i,j) = M(i,j) + SUM(jac(:,i)*weights*jac(:,j))
+                end do
+                diagM(i) = M(i,i)
+            end do
+
             sigma = fit_sigma(fvec, weights, NPT, NX)
 
             write(outu, '(A,E14.6)') "   sumsq", sumsq
+            write(outu, '(A,E14.6)') "   sigma", sigma
 
             ! Exit check
             relative_step = NORM2(dx) / (1.0d0 + NORM2(xvalues))
@@ -750,7 +736,7 @@ subroutine lm(maxits)
                 exit_condition = exit_condition .and. .true.
             else
                 write(outu, '(A)') " NO"
-                exit_condition = exit_condition .and. .true.
+                exit_condition = .false.
             end if
 
             ! Gradient norm check
@@ -758,26 +744,15 @@ subroutine lm(maxits)
             write(outu, '(A,E14.6)', advance='no') "   gradn", relative_grad
             if (relative_grad < THRESHOLD) then
                 write(outu, '(A)') " YES"
-                !exit_condition = exit_condition .and. .true.
+                exit_condition = exit_condition .and. .true.
             else
                 write(outu, '(A)') " NO"
-                !exit_condition = exit_condition .and. .false.
+                exit_condition = .false.
             end if
-
 
             if (exit_condition) exit main_loop
 
             iter = iter + 1
-        !else
-            ! step rejected
-            !damping = damping*DAMPING_UPF
-            !if (damping > DAMPING_UPPER) then
-            !    emf_diagnostic="LM loop rejected too many steps"
-            !    exit main_loop
-            !end if
-            !call lesolve(dampedM, F, dx, NX, CTRL)
-            !write (outu, "(A,E14.4)") "damping = ", damping
-            !write (outu, "(2(A,E14.4))") "trial sumsq=", trial_sumsq, " sumsq=", sumsq
         end if
 
         if (rho > 0.75d0) then
@@ -800,11 +775,12 @@ subroutine lm(maxits)
         do i=1,NX
             dampedM(i,i) = (1.0 + damping) * M(i,i)
         end do
-        call lesolve(dampedM, F, dx, NX, CTRL)
+        !call linalgsolve(dampedM, gradient, dx, cond, ctrl)
     end do main_loop
 
     allocate(covariance(size(M,1), size(M,2)))
     call calc_covariance(M, covariance, emf_diagnostic)
+    covariance = covariance * sumsq / (NPT-NX)
 
     DEALLOCATE(jac, dx, fvec, M)
 end subroutine lm
@@ -814,34 +790,8 @@ end subroutine lm
 !----------------------------------------------------------------------------------------------------
 subroutine update_equil()
     use misc, only: calc_analc
+    use eq, only: eq_000, eq_00i
     integer :: i, blow, bhigh, CTRL
-    interface
-        subroutine eq_000(C, T, B, P, CTRL, NPT, NCP, NEQ)
-            integer, intent(in) :: NPT                                    ! number of titration points
-            integer, intent(in) :: NCP                                    ! number of components
-            integer, intent(in) :: NEQ                                    ! number of equilibria
-            integer, intent(inout) :: CTRL                                ! control value. See return values in header of this file.
-            integer, dimension(NEQ, NCP), intent(in) :: P                 ! The stoichiometry array
-            double precision, dimension(NPT, NEQ+NCP), intent(inout) :: C ! initial estimates (in) and refined values (out)
-            double precision, dimension(NPT, NCP),     intent(in) :: T    ! analytical concentration values
-            double precision, dimension(NEQ),          intent(in) :: B    ! the equilibrium constants
-        end subroutine eq_000
-        subroutine eq_00i(C, T, Bref, P, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
-            integer,          intent(in)    :: NPT                               ! number of titration points
-            integer,          intent(in)    :: NCP                               ! number of components
-            integer,          intent(in)    :: NEQ                               ! number of equilibria
-            integer,          intent(inout) :: CTRL                              ! control value. See return values in header of this file.
-            double precision, intent(inout), dimension(NPT, NEQ+NCP) :: C        ! initial estimates (in) and refined values (out)
-            double precision, intent(in),    dimension(NPT, NCP)     :: T        ! analytical concentration values
-            double precision, intent(in),    dimension(NEQ)          :: Bref     ! the equilibrium constants
-            DOUBLE PRECISION, INTENT(IN)                             :: Iref     ! reference ionic strength
-            DOUBLE PRECISION, INTENT(IN),    dimension(NPT)          :: Iback    ! background ionic strength
-            integer,          intent(in),    dimension(NEQ, NCP)     :: P        ! The stoichiometry array
-            integer,          INTENT(IN),    DIMENSION(NCP+NEQ)      :: charge   ! charge for every species
-            DOUBLE PRECISION, INTENT(IN)                             :: DHA, DHB ! Debye-Huckel parameters A and B
-            double precision, intent(in),    dimension(NEQ,3)        :: DHP      ! per-species DH parameters C, D and E
-        end subroutine eq_00i
-    end interface
 
     do i=1,NTT
         call titr_bounds(i, blow, bhigh)
@@ -925,6 +875,7 @@ end subroutine calc_resid
 ! (4) standard potentials; (5) nernstian slopes; (6) constraints
 subroutine jacobian_lm(jac)
     use misc, only: msysolve
+    use err, only: amatrix
     double precision, intent(out), dimension(:,:) :: jac
 
     double precision, DIMENSION(NCP, NCP) :: Am      ! the A-matrix
@@ -937,17 +888,6 @@ subroutine jacobian_lm(jac)
     integer, DIMENSION(6,size(variables)) :: filter_jtype
     double precision :: tmpd
     integer :: tmpi
-
-    interface
-        subroutine amatrix(A, Cx, Px, NCPx, NEQx)
-          implicit none(type, external)
-          integer, intent(in) :: NCPx                              ! number of components
-          integer, intent(in) :: NEQx                              ! number of equilibria
-          integer, intent(in), dimension(NEQx, NCPx) :: Px         ! The soluble stoichiometry array
-          double precision, dimension(NCPx+NEQx), intent(in) :: Cx ! free concentrations
-          double precision, dimension(NCPx,NCPx), intent(out) :: A ! output values of the A matrix
-        end subroutine amatrix
-    end interface
 
     jac = 0.0       ! NOTE initialise jacobian
     bsize = 0
@@ -1271,35 +1211,6 @@ subroutine titr_bounds(i, low, high)
 end subroutine titr_bounds
 
 
-function calc_chisq(resid, npars) result(chisq)
-    double precision, intent(in), dimension(:) :: resid
-    integer, intent(in) :: npars
-    double precision :: chisq
-
-    chisq = sum(resid**2)/(NPT-npars)
-end function calc_chisq
-
-
-function calc_rho(descent, step, gradient, M, damping) result(rho)
-    double precision, INTENT(IN) :: descent
-    double precision, INTENT(IN), DIMENSION(:) :: step
-    double precision, INTENT(IN), DIMENSION(:) :: gradient
-    double precision, INTENT(IN), DIMENSION(:,:) :: M
-    double precision, INTENT(IN) :: damping
-
-    double precision :: rho
-    double precision :: predicted
-    double precision, DIMENSION(size(M,dim=1)) :: D
-
-    integer :: i
-
-    D = [ (M(i,i), i=1,size(M,dim=1)) ]
-    predicted = -DOT_PRODUCT(step, gradient) &
-                -0.5*DOT_PRODUCT(step, damping*(D*step))
-    rho = descent/predicted
-end function calc_rho
-
-
 subroutine report_variables(step)
     double precision, intent(in), dimension(:) :: step
     double precision :: value_
@@ -1320,5 +1231,50 @@ subroutine report_variables(step)
         end select
     end do
 end subroutine report_variables
+
+
+subroutine linalgsolve(A, B, x, cond, info)
+    double precision, intent(in) :: A(:,:)
+    double precision, intent(in) :: B(:)
+    double precision, intent(out) :: x(:)
+    double precision, intent(out) :: cond
+    integer, intent(inout) :: info
+
+    integer :: n
+    double precision :: anorm, work(3*size(x))
+    integer :: iwork(size(x))
+    integer :: linfo
+    double precision, allocatable :: tmpx(:,:)
+    double precision :: dlansy
+
+    external dpotrf
+    external dpocon
+    external dpotrs
+    external dlansy
+
+    n = size(A, dim=1)
+    allocate(tmpx(n,1))
+
+    ! 1-norm of the original matrix (needed by dpocon)
+    anorm = dlansy('1', 'U', n, A, n, work)
+    ! Cholesky factorisation
+
+    call dpotrf('U', n, A, n, linfo)
+    if (linfo /= 0) then
+       cond = 0.0
+       return
+    end if
+
+    ! Reciprocal condition-number estimate
+    call dpocon('U', n, A, n, anorm, cond, work, iwork, info)
+    ! info from dpocon is almost always 0; we ignore it
+
+    tmpx(:,1) = b
+    call dpotrs('U', n, 1, A, n, tmpx, n, info)
+    x = tmpx(:,1)
+
+    ! return condition, not reciprocal
+    cond = 1.0/cond
+end subroutine linalgsolve
 
 end module emf
