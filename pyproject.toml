@@ -23,6 +23,6 @@ dev = [
     "matplotlib>=3.10.9",
 ]
 
-[tool.fortitude]
+[tool.fortitude.check]
 line-length = 132
-ignore = ["S241"]
+ignore = ["S241", "C072"]
