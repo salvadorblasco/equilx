@@ -62,5 +62,22 @@ subroutine calc_covariance(H, cov, msg)
     end do
 end subroutine calc_covariance
 
+
+subroutine calc_correlation(cov, cor)
+    double precision, intent(in) :: cov(:,:)
+    double precision, intent(out) :: cor(:,:)
+
+    integer :: i, j
+    double precision :: di, dj
+
+    do i=1,size(cov, dim=1)
+        di = sqrt(cov(i,i))
+        do j=1,size(cov, dim=2)
+            dj = sqrt(cov(j,j))
+            cor(i,j) = cov(i,j) / (di*dj)
+        end do
+    end do
+end subroutine calc_correlation
+
 end module stat
 
