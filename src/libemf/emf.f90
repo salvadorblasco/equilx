@@ -215,7 +215,7 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, n_junct, out
                 write (outu, '(A,I1)') ' CONSTRAINT', flag_beta(i)
         end select
     end do
-    write (outu, *) ""
+    write (outu, "(/)")
 end subroutine init_module
 
 
@@ -329,7 +329,6 @@ subroutine set_ionic_constant(charge, Iref, init_ions, buret_ions, actv_params)
     do i=1,NEQ
         zstar(i) = -charges(NCP+i)**2 + sum(P(i,:)*charges(1:NCP)**2)
     end do
-
 
     params = reshape(DBLE(actv_params(3:)), [NEQ, 3])
 
@@ -601,13 +600,9 @@ subroutine lm(maxits)
 
     real, parameter :: DAMPING_UPPER   = 1e10
     real, parameter :: DAMPING_LOWER   = 1e-12
-    real, parameter :: DAMPING_UPF     = 8.0
-    real, parameter :: DAMPING_LOWF    = 3.0
-    real, parameter :: SIGMA_THRESHOLD = 1e-4
-    real, parameter :: GRAD_THRESHOLD  = 1e-2
-    real, parameter :: STEP_THRESHOLD  = 1e-6
-    double precision, parameter :: THRESHOLD  = 1e-10
-    !double precision, PARAMETER :: RHO_THRESH = 1D-4
+    double precision, parameter :: STEP_THRESHOLD  = 1D-4
+    double precision, parameter :: SSQ_THRESHOLD  = 3D-2
+    double precision, PARAMETER :: RHO_THRESH = 1D-4
     double precision, allocatable, dimension(:,:) :: jac
     double precision, allocatable, dimension(:)   :: dx
     double precision, allocatable, dimension(:)   :: fvec, trial_fvec, F
@@ -687,7 +682,7 @@ subroutine lm(maxits)
         end if
         !print "(3(A,E12.4))", "rho=",rho, "predicted=", predicted, " actual=", actual
 
-        if (rho > 1D-3) then
+        if (rho > RHO_THRESH) then
             ! step accepted
             write(outu, '(/,A,I4,/)') "Iteration", iter
             write (outu, "(A,E14.4)") "   damping = ", damping
@@ -711,17 +706,20 @@ subroutine lm(maxits)
 
             sigma = fit_sigma(fvec, weights, NPT, NX)
 
-            write(outu, '(A,E14.6)') "   sumsq", sumsq
-            write(outu, '(A,E14.6)') "   sigma", sigma
+            write (outu, "(A,E14.4)") " damping", damping
+            write (outu, '(A,E14.6)') "   sumsq", sumsq
+            write (outu, '(A,E14.6)') "   sigma", sigma
+            write (outu, '(A,E14.6)') "  |grad|", gradient_norm
+            write (outu, "(A8,E14.6,2(A,E12.4),A)")   "     rho", rho, " [actual=", actual, ", predicted=", predicted, "]"
 
             ! Exit check
             relative_step = NORM2(dx) / (1.0d0 + NORM2(xvalues))
-            relative_grad = MAXVAL(ABS(gradient)) / (1.0d0 + ABS(sumsq))
-            relative_sumsq = ABS(actual) / (1.0d0 + sumsq)
+            !relative_grad = MAXVAL(ABS(gradient)) / (1.0d0 + ABS(sumsq))
+            relative_sumsq = ABS(actual) / (1.0d0 + sumsq/(NPT-NX))
 
             ! Sigma check
-            write(outu, '(A,E14.6)', advance='no') "   sumsq", relative_sumsq
-            if (relative_sumsq < THRESHOLD) then
+            write(outu, '(A,E14.6)', advance='no') " descent", relative_sumsq
+            if (relative_sumsq < SSQ_THRESHOLD) then
                 write(outu, '(A)') " YES"
                 exit_condition = .true.
             else
@@ -731,7 +729,7 @@ subroutine lm(maxits)
 
             ! step length check
             write(outu, '(A,E14.6)', advance='no') "   step ", relative_step
-            if (relative_step < THRESHOLD) then
+            if (relative_step < STEP_THRESHOLD) then
                 write(outu, '(A)') " YES"
                 exit_condition = exit_condition .and. .true.
             else
@@ -739,16 +737,6 @@ subroutine lm(maxits)
                 exit_condition = .false.
             end if
 
-            ! Gradient norm check
-            ! NOTE seems to be useless
-            write(outu, '(A,E14.6)', advance='no') "   gradn", relative_grad
-            if (relative_grad < THRESHOLD) then
-                write(outu, '(A)') " YES"
-                exit_condition = exit_condition .and. .true.
-            else
-                write(outu, '(A)') " NO"
-                exit_condition = .false.
-            end if
 
             if (exit_condition) exit main_loop
 
@@ -756,14 +744,12 @@ subroutine lm(maxits)
         end if
 
         if (rho > 0.75d0) then
-            damping = max(damping / 3.0d0, DAMPING_LOWER)   ! strong decrease
+            damping = max(damping / 1.0d1, DAMPING_LOWER)   ! strong decrease
         else if (rho > 0.25d0) then
             damping = max(damping / 2.0d0, DAMPING_LOWER)   ! mild decrease
         else
             damping = damping * 2.0d0   ! increase
         end if
-
-        write (outu, "(A,E14.4)") "damping = ", damping
 
         if (damping >= DAMPING_UPPER * 0.99d0) then
             emf_diagnostic = "LM stalled at maximum damping"
