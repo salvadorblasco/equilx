@@ -473,19 +473,36 @@ subroutine finalize()
 end subroutine finalize
 
 
-subroutine fit_emf(maxits, temp)
+subroutine fit_emf(maxits, temp, criterion)
     use misc, only: calc_analc
     real,   intent(in) :: temp   ! in degrees Celsius
     integer, intent(in) :: maxits
+    character(len=*), intent(in), optional :: criterion
 
     double precision :: cov, tmpval
     real, parameter :: nernst_base = 0.08617333262 ! mV/K
     integer :: NX, NV
     integer :: i, j, blow, bhigh
+    real :: thrsh_step, thrsh_ssq
     double precision, parameter :: TDAMP = 0.01
     double precision, parameter :: TMIN = 1D-10
     real, PARAMETER :: TOKELVIN = 273.15
     !character(len=8) :: cflag
+
+    select case (criterion)
+        case ("loose")
+            thrsh_step  = 1E-3
+            thrsh_ssq   = 1E-1
+        case ("tight")
+            thrsh_step  = 2E-5
+            thrsh_ssq   = 1E-4
+        case ("normal")
+            thrsh_step  = 1E-4
+            thrsh_ssq   = 3E-2
+        case default
+            thrsh_step  = 1E-4
+            thrsh_ssq   = 3E-2
+    end select
 
     ! handle temperature
     nernst = nernst_base*(temp+TOKELVIN)  ! mV
@@ -519,7 +536,7 @@ subroutine fit_emf(maxits, temp)
         end do
     end do
 
-    call lm(maxits)
+    call lm(maxits, thrsh_ssq, thrsh_step)
 
     ! post processing
     ! update values
@@ -589,19 +606,19 @@ end subroutine fit_emf
 !----------------------------------------------------------------------------------------------------
 ! Run the Levenberg-Marquardt loop.
 !----------------------------------------------------------------------------------------------------
-subroutine lm(maxits)
+subroutine lm(maxits, thrsh_ssq, thrsh_step)
     ! routine for Levenberg-Marquardt iterations.
     use misc, only: lesolve
     use stat, only: fit_sigma, calc_covariance
     integer, intent(in) :: maxits
+    real, intent(in) :: thrsh_step !STEP_THRESHOLD  = 1D-4
+    real, intent(in) :: thrsh_ssq  !SSQ_THRESHOLD  = 3D-2
 
     integer :: NX ! number of variables to optimize
     integer :: iter  ! iteration number
 
     real, parameter :: DAMPING_UPPER   = 1e10
     real, parameter :: DAMPING_LOWER   = 1e-12
-    double precision, parameter :: STEP_THRESHOLD  = 1D-4
-    double precision, parameter :: SSQ_THRESHOLD  = 3D-2
     double precision, PARAMETER :: RHO_THRESH = 1D-4
     double precision, allocatable, dimension(:,:) :: jac
     double precision, allocatable, dimension(:)   :: dx
@@ -719,7 +736,7 @@ subroutine lm(maxits)
 
             ! Sigma check
             write(outu, '(A,E14.6)', advance='no') " descent", relative_sumsq
-            if (relative_sumsq < SSQ_THRESHOLD) then
+            if (relative_sumsq < thrsh_ssq) then
                 write(outu, '(A)') " YES"
                 exit_condition = .true.
             else
@@ -729,7 +746,7 @@ subroutine lm(maxits)
 
             ! step length check
             write(outu, '(A,E14.6)', advance='no') "   step ", relative_step
-            if (relative_step < STEP_THRESHOLD) then
+            if (relative_step < thrsh_step) then
                 write(outu, '(A)') " YES"
                 exit_condition = exit_condition .and. .true.
             else
