@@ -150,6 +150,38 @@ subroutine derivative_1d(n, x, y, dy)
 
 end subroutine derivative_1d
 
+
+subroutine build_species_names(stoich, names, NCP, NEQ)
+    character(len=*), intent(inout) :: names(NCP+NEQ)
+    integer, intent(in) :: stoich(NEQ,NCP)
+    integer, intent(in) :: NCP, NEQ
+
+    integer :: i, j
+    character(len=32) :: tmp, coef
+
+    do i = 1, NEQ
+       tmp = ''
+       do j = 1, NCP
+          if (stoich(i,j) == 0) cycle
+
+          ! coefficient as string (omit the number when |coef| == 1)
+          if (abs(stoich(i,j)) == 1) then
+             coef = ''
+          else
+             write(coef,'(I0)') abs(stoich(i,j))
+          end if
+
+          ! sign: nothing for positive, '-' for negative
+          if (stoich(i,j) < 0) then
+             tmp = trim(tmp)//'-'//trim(names(j))//trim(coef)
+          else
+             tmp = trim(tmp)//trim(names(j))//trim(coef)
+          end if
+       end do
+       names(NCP+i) = adjustl(tmp)
+    end do
+end subroutine build_species_names
+
 end module misc
 
 
