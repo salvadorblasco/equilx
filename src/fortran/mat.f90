@@ -129,6 +129,7 @@ end subroutine finalize
 
 subroutine lm()
     use stat, only: fit_sigma, calc_covariance, calc_correlation
+    use linalg, only: las_cond
 
     double precision, allocatable :: jac(:,:)
     double precision, allocatable :: dx(:)
@@ -195,7 +196,7 @@ subroutine lm()
 
     iter = 1
     main_loop: do while (iter < maxits)
-        call linalgsolve(dampedM, gradient, dx, cond, ctrl)
+        call las_cond(dampedM, gradient, dx, cond, ctrl)
         where (abs(dx) > MAX_STEP) dx = SIGN(MAX_STEP, dx)     ! limit step
 
         call try_step(dx)                             ! update parameters to new step
@@ -809,49 +810,4 @@ subroutine workspace_queries(lwork, nfree, Cfree, B, lda, ldb)
     ! final work-array size
     lwork = max(lwork_geqrf, lwork_ormqr, lwork_orgqr)
 end subroutine workspace_queries
-
-
-subroutine linalgsolve(A, B, x, cond, info)
-    double precision, intent(in) :: A(:,:)
-    double precision, intent(in) :: B(:)
-    double precision, intent(out) :: x(:)
-    double precision, intent(out) :: cond
-    integer, intent(inout) :: info
-
-    integer :: n
-    double precision :: anorm, work(3*size(x))
-    integer :: iwork(size(x))
-    integer :: linfo
-    double precision, allocatable :: tmpx(:,:)
-    double precision :: dlansy
-
-    external dpotrf
-    external dpocon
-    external dpotrs
-    external dlansy
-
-    n = size(A, dim=1)
-    allocate(tmpx(n,1))
-
-    ! 1-norm of the original matrix (needed by dpocon)
-    anorm = dlansy('1', 'U', n, A, n, work)
-    ! Cholesky factorisation
-
-    call dpotrf('U', n, A, n, linfo)
-    if (linfo /= 0) then
-       cond = 0.0
-       return
-    end if
-
-    ! Reciprocal condition-number estimate
-    call dpocon('U', n, A, n, anorm, cond, work, iwork, info)
-    ! info from dpocon is almost always 0; we ignore it
-
-    tmpx(:,1) = b
-    call dpotrs('U', n, 1, A, n, tmpx, n, info)
-    x = tmpx(:,1)
-
-    ! return condition, not reciprocal
-    cond = 1.0/cond
-end subroutine linalgsolve
 end module mat
