@@ -7,8 +7,13 @@ FC = gfortran
 F2PY = uv run f2py
 RM = rm 
 
-#FFLAGS = -Wall -O2 -fPIC
-FFLAGS = -g -O0 -fPIC -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
+DEBUG ?= 0
+ifeq ($(BUILD),1)
+	FFLAGS = -g -O0 -fPIC -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
+else
+	FFLAGS = -Wall -O2 -fPIC
+end if
+
 LDFLAGS = -shared
 RPATH   = -Wl,-rpath,'$$ORIGIN/../lib'
 LLAPACK = -llapack -lblas
@@ -112,12 +117,12 @@ $(TEST_EMF): $(TESTDIR)/test_emf.f90 $(EMF_LIB)
 	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $@ $< \
 	      -L$(LIBDIR) -lemf -leq $(RPATH)
 
-teqd: $(TESTDIR)/test_eq.f90 $(TESTDIR)/test_cases.f90 $(EQ_OBJS)
-	$(FC) $(FFLAGS) -J$(MODDIR) -c $(TESTDIR)/test_cases.f90 -o $(TESTDIR)/test_cases.o
-	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $(TEST_EQ) $(TESTCASES) $(TESTDIR)/test_cases.o $(EQ_OBJS) $< $(LLAPACK)
-
-temfd: $(TESTDIR)/test_emf.f90 $(EMF_OBJS) $(EQ_OBJS)
-	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $(TEST_EMF) $(TESTCASES) $<  $(EMF_OBJS) $(EQ_OBJS) $(LLAPACK)
+# teqd: $(TESTDIR)/test_eq.f90 $(TESTDIR)/test_cases.f90 $(EQ_OBJS)
+# 	$(FC) $(FFLAGS) -J$(MODDIR) -c $(TESTDIR)/test_cases.f90 -o $(TESTDIR)/test_cases.o
+# 	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $(TEST_EQ) $(TESTCASES) $(TESTDIR)/test_cases.o $(EQ_OBJS) $< $(LLAPACK)
+# 
+# temfd: $(TESTDIR)/test_emf.f90 $(EMF_OBJS) $(EQ_OBJS)
+# 	$(FC) $(FFLAGS) -I$(MODDIR) -J$(MODDIR)  -o $(TEST_EMF) $(TESTCASES) $<  $(EMF_OBJS) $(EQ_OBJS) $(LLAPACK)
 
 run-tests: tests
 	@echo "Running tests..."
@@ -131,12 +136,5 @@ run-tests: tests
 #--------------------------------------------------------------------------------
 # other rules
 
-# %.o: %.f90
-# 	$(FC) -c $< -o $@ $(FFLAGS)
-# 
-# 
 clean:
 	$(RM) $(EQ_OBJS) $(EMF_OBJS) $(MODDIR)/*
-# 
-# deepclean: clean
-# 	$(RM) $(MODNAME)*.so
