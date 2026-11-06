@@ -79,5 +79,24 @@ subroutine calc_correlation(cov, cor)
     end do
 end subroutine calc_correlation
 
+
+pure function pearson_correlation(x, y, n) result(r)
+    double precision, intent(in) :: x(:), y(:)
+    integer, intent(in) :: n
+
+    double precision :: Sx, Sy, Sxy, SSx, SSy, r, sigma_x, sigma_y
+
+    Sx = sum(x)
+    Sy = sum(y)
+    Sxy = sum(x*y)
+    SSx = sum(x**2)
+    SSy = sum(y**2)
+
+    sigma_x = n*SSx - Sx**2
+    sigma_y = n*SSy - Sy**2
+
+    r = (n*Sxy - Sx*Sy)/sqrt(sigma_x*sigma_y)
+end function pearson_correlation
+
 end module stat
 
