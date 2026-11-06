@@ -11,25 +11,24 @@ from equilx import fsolver
 from equilx import utils
 
 
-
 def Eq(equil: EquilibriumData,
-       initial_guess: Optional[FArray] = None,
-       debye_params: Optional[DebyeHuckelParameters] = None,
-       freeze: Optional[int] = None, **kwargs) -> dict:
+       initial_guess: FArray | None = None,
+       debye_params: DebyeHuckelParameters|None = None,
+       freeze: int | None = None, **kwargs) -> dict:
     "Main function for equilibrium solving."
 
     retdict = {}
     control = 0
-
+    breakpoint()
     funcs = {
-         (False, False, False): fsolver.eq_000,
-         (False, True,  False): fsolver.eq_0s0,
-         (False, False, True):  fsolver.eq_00i,
-         (False, True,  True):  fsolver.eq_0si,
-         (True,  False, False): fsolver.eq_f00,
-         (True,  True,  False): fsolver.eq_fs0,
-         (True,  False, True):  fsolver.eq_f0i,
-         (True,  True,  True):  fsolver.eq_fsi
+         (False, False, False): fsolver.eq.eq_000,
+         (False, True,  False): fsolver.eq.eq_0s0,
+         (False, False, True):  fsolver.eq.eq_00i,
+         (False, True,  True):  fsolver.eq.eq_0si,
+         (True,  False, False): fsolver.eq.eq_f00,
+         (True,  True,  False): fsolver.eq.eq_fs0,
+         (True,  False, True):  fsolver.eq.eq_f0i,
+         (True,  True,  True):  fsolver.eq.eq_fsi
     }
     args = []
 

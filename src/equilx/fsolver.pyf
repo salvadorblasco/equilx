@@ -3,6 +3,7 @@
 
 python module fsolver
 interface
+module eq ! in ../libeq/eq.f90
 subroutine eq_000(c,t,b,p,ctrl,npt,ncp,neq) ! in eq.f90
     double precision dimension(npt,ncp + neq),intent(inout),depend(ncp,neq,npt) :: c
     double precision dimension(npt,ncp),intent(in),depend(ncp) :: t
@@ -178,6 +179,7 @@ subroutine solve_point_solid(c,cs,t,b,p,ks,q,ctrl,is_first,neq,ncp,nsl) ! in eq.
     integer, required,intent(in),check(shape(t, 0) == ncp),depend(t) :: ncp=shape(t, 0)
     integer, optional,intent(in),check(shape(cs, 0) == nsl),depend(cs) :: nsl=shape(cs, 0)
 end subroutine solve_point_solid
+end module eq
 
 module emf ! in ../libemf/emf.f90
     real, private :: value_holder
