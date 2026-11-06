@@ -25,4 +25,4 @@ dev = [
 
 [tool.fortitude.check]
 line-length = 132
-ignore = ["S241", "C072"]
+ignore = ["S241", "C072", "C091"]
