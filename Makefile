@@ -12,7 +12,7 @@ ifeq ($(BUILD),1)
 	FFLAGS = -g -O0 -fPIC -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
 else
 	FFLAGS = -Wall -O2 -fPIC
-end if
+endif
 
 LDFLAGS = -shared
 RPATH   = -Wl,-rpath,'$$ORIGIN/../lib'
@@ -25,6 +25,8 @@ LIBDIR  = $(BUILD)/lib
 BINDIR  = $(BUILD)/bin
 MODDIR  = $(BUILD)/include
 PYMDIR  = $(SRCDIR)/equilx
+FDIR    = $(SRCDIR)/fortran
+ODIR    = $(BUILD)/objs
 
 # cpluss.f90 mb.f90 si.f90 nr.f90 pcf.f90 outer.f90 eq.f90 err.f90
 EQ_SRCS = $(wildcard $(SRCDIR)/libeq/*.f90)
@@ -35,15 +37,21 @@ EMF_SRCS = $(wildcard $(SRCDIR)/libemf/*.f90)
 EMF_OBJS = $(patsubst $(SRCDIR)/libemf/%.f90,$(BUILD)/libemf/%.o,$(EMF_SRCS))
 EMF_LIB   = $(LIBDIR)/libemf.so
 
+NUKES_FILES = stat linalg misc mat nukes
+NUKES_SRCS = $(addsuffix .f90,$(addprefix $(FDIR)/,$(NUKES_FILES)))
+NUKES_OBJS = $(patsubst $(FDIR)/%.f90,$(ODIR)/%.o,$(NUKES_SRCS))
+
 TEST_EQ   = $(BINDIR)/test_eq
 TEST_EMF  = $(BINDIR)/test_emf
 
 .PHONY: all test 
 
-
 vars:
 	@echo $(EQ_SRCS) 
 	@echo $(EQ_OBJS) 
+	@echo $(NUKES_FILES)
+	@echo $(NUKES_SRCS)
+	@echo $(NUKES_OBJS)
 
 
 #--------------------------------------------------------------------------------
@@ -66,7 +74,7 @@ pymodule: $(EQ_SRCS) $(EMF_SRCS)
 	mv $(MODNAME)*.so $(PYMDIR)
 
 signature:
-	$(F2PU) --overwrite-signature -h $(SIGNATURE) eq.f90 
+	$(F2PY) --overwrite-signature -h $(SIGNATURE) eq.f90 
 
 
 #--------------------------------------------------------------------------------
@@ -96,6 +104,15 @@ $(EMF_LIB): $(EMF_OBJS)
 
 $(BUILD)/libemf/%.o: $(SRCDIR)/libemf/%.f90
 	$(FC) $(FFLAGS) -J$(MODDIR) -c $< -o $@
+
+
+nukes: $(BINDIR)/nukes
+
+$(BINDIR)/nukes: $(NUKES_OBJS) $(EQ_OBJS)
+	$(FC) $(FFLAGS) -J$(MODDIR) -I$(MODDIR) -o $@ $^ $(LLAPACK)
+
+$(ODIR)/%.o: $(FDIR)/%.f90
+	$(FC) $(FFLAGS) -J$(MODDIR) -I$(MODDIR) -c $< -o $@
 
 #--------------------------------------------------------------------------------
 # tests rules
@@ -137,4 +154,4 @@ run-tests: tests
 # other rules
 
 clean:
-	$(RM) $(EQ_OBJS) $(EMF_OBJS) $(MODDIR)/*
+	$(RM) $(EQ_OBJS) $(EMF_OBJS) $(MODDIR)/* $(ODIR)/*.o
