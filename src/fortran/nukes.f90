@@ -2,12 +2,14 @@ program nukes
     use, intrinsic :: iso_fortran_env, only: output_unit
     implicit none (type, external)
 
-    integer :: NCP, NEQ, NWL
+    integer :: NCP, NEQ, NWL, NPT
     real, allocatable :: absorbance(:,:)
     real, allocatable :: analc(:,:)
     real, allocatable :: wavelength(:)
+    real, allocatable :: lbeta(:)
     integer, allocatable :: global_stoich(:,:), active(:), flag_lbeta(:)
     character(len=*), allocatable, intent(out) :: cmpnames(:)
+    integer, allocatable :: refindices(:)
 
     integer, allocatable :: models_flags(:,:)
 
@@ -36,8 +38,8 @@ subroutine fit_try_model(n_model)
     integer, intent(in) :: n_model
 
     integer :: cNEQ
-    real, allocatable :: try_lbeta
-    integer, allocatable :: try_model, try_betaflags
+    real, allocatable :: try_lbeta(:)
+    integer, allocatable :: try_model(:,:), try_betaflags(:)
     integer :: i, j
 
     cNEQ = sum(models_flags(:,n_model))
@@ -62,6 +64,9 @@ subroutine fit_try_model(n_model)
 
     call init_module(NPT, 1, try_model, try_lbeta, try_betaflags, LE_POSITIVE, 2)
     call load_titration(absorbance, analc)
+
+
+
     call finalize()
 
     deallocate(try_model, try_lbeta, try_betaflags)
@@ -127,7 +132,7 @@ subroutine read_data()
     real, allocatable :: tmpanalc(:,:), tmpbeta(:)
     integer, parameter :: MAX_DATA = 2000, MAX_EQ = 100
     integer :: tmp_npt, nline
-    integer, allocatable :: refindices(:), tmpp(:,:), tmpactive(:), tmpkey(:), tmpint(:)
+    integer, allocatable :: tmpp(:,:), tmpactive(:), tmpkey(:), tmpint(:)
     character(len=256) :: line
     character(len=8), allocatable :: tmpnames(:)
 
@@ -188,9 +193,9 @@ subroutine read_data()
     end do
     deallocate(tmpint)
 
-    allocate(stoich(NEQ,NCP),lbeta(NEQ), active(NCP+NEQ), flag_lbeta(NEQ))
+    allocate(global_stoich(NEQ,NCP),lbeta(NEQ), active(NCP+NEQ), flag_lbeta(NEQ))
 
-    stoich = transpose(tmpp(:,1:NEQ))
+    global_stoich = transpose(tmpp(:,1:NEQ))
     lbeta = tmpbeta(1:NEQ)
     active = tmpactive(1:(NCP+NEQ))
     flag_lbeta = tmpkey(1:NEQ)
@@ -199,7 +204,7 @@ subroutine read_data()
     ! prepare components names
     allocate(cmpnames(NCP+NEQ))
     cmpnames(1:NCP) = tmpnames
-    call build_species_names(cmpnames)
+    call build_species_names(global_stoich, cmpnames, NCP, NEQ)
 
     write (outu, "(A)") " .. components found"
     do i=1,NCP+NEQ
@@ -246,8 +251,8 @@ subroutine read_data()
     extc = 0.0
     allocate(absorbance(NPT,NWL))
     wavelength = tmpdata(1,:)
-    allocate(T(NPT,NCP))
-    T = 0.0
+    allocate(analc(NPT,NCP))
+    analc = 0.0
     j = 0
     do i=1,tmp_npt
         if (refindices(i) /= 0) then
@@ -255,13 +260,13 @@ subroutine read_data()
         else
             j = j + 1
             absorbance(j,1:NWL) = tmpdata(1+i,1:NWL)
-            T(j,:) = tmpanalc(i,:)
+            analc(j,:) = tmpanalc(i,:)
         end if
     end do
 
     write(outu,"(A,I5,A)") " .. read ", NWL, " wavelengths"
 
-    deallocate(tmpdata, tmpanalc, refindices)
+    deallocate(tmpdata, tmpanalc)
     write(outu,"(A,/)") " .. data loaded correctly"
 end subroutine read_data
 

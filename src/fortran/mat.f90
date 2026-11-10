@@ -119,12 +119,14 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, letype, verb
     allocate(analc(NPT, NCP))
     allocate(absorbance(NPT,NHD))
     allocate(lbeta(NEQ))
+    allocate(extc(NPT, NHD))
 
     weights = 1.0               ! start with unit weights
     reweight_flag = .false.
 
     conc = 0.0
     conc(:,1:NCP) = analc/10.0
+    extc = 0.0
 
     titr_size = 0
     analc = 0.0
@@ -160,6 +162,14 @@ subroutine load_titration(titdata, titanalc)
 
     if (LOGLEVEL>1) write (outu, "(A)") " .. titration loaded"
 end subroutine load_titration
+
+
+subroutine fix_hdata(indx, values)
+    integer, intent(in) :: indx
+    real, intent(in) :: values(:)
+
+    extc(indx, :) = values
+end subroutine fix_hdata
 
 
 subroutine fit()

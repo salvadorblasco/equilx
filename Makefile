@@ -108,7 +108,7 @@ $(BUILD)/libemf/%.o: $(SRCDIR)/libemf/%.f90
 
 nukes: $(BINDIR)/nukes
 
-$(BINDIR)/nukes: $(NUKES_OBJS) $(EQ_OBJS)
+$(BINDIR)/nukes: $(EQ_OBJS) $(NUKES_OBJS)
 	$(FC) $(FFLAGS) -J$(MODDIR) -I$(MODDIR) -o $@ $^ $(LLAPACK)
 
 $(ODIR)/%.o: $(FDIR)/%.f90
