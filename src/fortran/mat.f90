@@ -23,18 +23,19 @@ module mat
 
     private
 
-    integer, parameter :: RF_CONSTANT = 0
-    integer, parameter :: RF_REFINE = 1
-    integer, parameter :: AC_TRANSPARENT = 0
-    integer, parameter :: AC_ACTIVE = 1
-    integer, parameter :: LE_GENERAL = 0    ! linear elimination allows positive and negative values
-    integer, parameter :: LE_POSITIVE = 1   ! linear elimination allows only positive values
+    integer, public, parameter :: RF_CONSTANT = 0
+    integer, public, parameter :: RF_REFINE = 1
+    integer, public, parameter :: AC_TRANSPARENT = 0
+    integer, public, parameter :: AC_ACTIVE = 1
+    integer, public, parameter :: LE_GENERAL = 0    ! linear elimination allows positive and negative values
+    integer, public, parameter :: LE_POSITIVE = 1   ! linear elimination allows only positive values
 
     integer :: NCP        ! number of components
     integer :: NEQ        ! number of equilibria
     integer :: NPT        ! number of titration points
     integer :: NHD        ! number of horizontal data
-    double precision,  allocatable :: T(:,:)            ! NPT x NCP
+    integer :: NTT        ! number of titrations
+    double precision,  allocatable :: analc(:,:)        ! Analytical concentration, in mmol/mL, dim NPT x NCP
     real,              allocatable :: wavelength(:)     ! NWL
     real,              allocatable :: absorbance(:,:)   ! NPT x NWL
     double precision,  allocatable, target :: extc(:,:)  ! NSP x NWL
@@ -47,12 +48,13 @@ module mat
     double precision,  allocatable :: covariance(:,:)  ! the covariance matrix
     double precision,  allocatable :: correlation(:,:)  ! the correlation matrix
     double precision :: weight_params(2)
+    integer, allocatable :: titr_size(:)    ! the size in experimental points per titration
 
     ! variables for constraints
     type value_holder
-        double precision, pointer :: origin_value => NULL()  ! points to value in xvalues
+        double precision, pointer :: origin_value => null()  ! points to value in xvalues
         integer :: origin_index                              ! index of xvalues
-        double precision, pointer :: destination_value => NULL()         ! points to value in tmp_*
+        double precision, pointer :: destination_value => null()         ! points to value in tmp_*
         integer :: destination_index1                        ! index of EQ, CP or NT
         integer :: destination_index2                        ! index of EQ, CP or NT
         integer :: id
@@ -64,26 +66,40 @@ module mat
     double precision,   allocatable, target, dimension(:) :: xvalues
     double precision, allocatable, dimension(:) :: weights
     character(len=45) :: msg
-    integer, parameter :: outu = 6
+    integer :: outu
     double precision, parameter :: LG10=LOG(10.0)
-    integer, parameter :: LOGLEVEL = 1
+
+    integer :: LOGLEVEL  ! set verbosity level; 0 -> mute output; 1 -> minimal output; 2 -> verbose output
+
     integer, parameter :: MAXITS = 100
     logical :: reweight_flag
     integer :: linear_elimination_type
 
-    public init_module, finalize, lm
+    public init_module, finalize, lm, load_titration, fit
 contains
 
-subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, letype, outn)
+!----------------------------------------------------------------------------------------------------
+! Initialize module, allocate varables
+!----------------------------------------------------------------------------------------------------
+subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, letype, verbosity, outn)
+    use, intrinsic :: iso_fortran_env, only: output_unit
     integer, intent(in)                             :: n_points  ! total number of experimental points
     integer, intent(in)                             :: n_titrs   ! number of titrations to be loaded
     integer, intent(in), dimension(:,:)             :: stoich    ! the stoichiometry array
     real,    intent(in), dimension(size(stoich, 1)) :: logbeta   ! the log10 of the formation constants
     integer, intent(in), dimension(size(stoich, 1)) :: flgbeta   ! the refinement flags for the formation constants
-    integer, intent(in)                             :: outn
+    integer, intent(in)                             :: verbosity ! level of verbosity
+    integer, intent(in), optional                   :: outn      ! the number for output unit
     integer, intent(in)                             :: letype    ! type of linear elimination
 
-    write (outu, "(A,/)") "Initiating program"
+    LOGLEVEL = verbosity
+
+    if (present(p)) then
+        outu = outn
+    else
+        outu = output_unit
+    end if
+    write (outu, "(A,/)") "Initiating module"
 
     if (letype == 0 .or. letype == 1) then
         linear_elimination_type = letype
@@ -92,41 +108,89 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, letype, outn
         return
     end if
 
+    NPT = n_points
+    NTT = n_titrs
     NEQ = size(stoich, dim=1)
     NCP = size(stoich, dim=2)
 
-    ALLOCATE(weights(NPT*NHD))
-    weight_params = [1.0D-03, 0.0D1]
-    weights = 1.0               ! start with unit weights
-    reweight_flag = .true.
-
+    allocate(weights(NPT*NHD))     ! variable allocation
     allocate(conc(NPT,NCP+NEQ))
+    allocate(titr_size(NTT))
+    allocate(analc(NPT, NCP))
+    allocate(absorbance(NPT,NHD))
+    allocate(lbeta(NEQ))
+
+    weights = 1.0               ! start with unit weights
+    reweight_flag = .false.
+
     conc = 0.0
-    conc(:,1:NCP) = T/10.0
+    conc(:,1:NCP) = analc/10.0
 
-    lbeta = lbeta * LG10
+    titr_size = 0
+    analc = 0.0
+    absorbance = 0.0
 
-    call lm()
-
-    lbeta = lbeta / LG10
+    lbeta = logbeta * LG10
+    !call lm()
+    !lbeta = lbeta / LG10
 end subroutine init_module
 
 
-! Clear all variables and deallocate memory
+subroutine load_titration(titdata, titanalc)
+    real, intent(in) :: titdata(:,:)
+    real, intent(in) :: titanalc(:,:)
+
+    integer, save :: current_titration = 0
+    integer :: low, high, dsize
+
+    current_titration = current_titration + 1
+    dsize = size(titdata, dim=1)
+    titr_size(current_titration) = dsize
+
+    call titr_bounds(current_titration, low, high)
+
+    if (size(titdata, dim=2) /= NHD) then
+        msg="ERROR: titdata has wrong dimension"
+        if (LOGLEVEL>1) write (outu, "(A)"), msg
+        return
+    end if
+
+    absorbance(low:high,:) = titrdata
+    analc(low:high,:) = titanalc
+
+    if (LOGLEVEL>1) write (outu, "(A)"), " .. titration loaded"
+end subroutine load_titration
+
+
+subroutine fit()
+    call lm()
+end subroutine fit
+
+
+!----------------------------------------------------------------------------------------------------
+! Clear all variables and deallocate memory.
+!----------------------------------------------------------------------------------------------------
 subroutine finalize()
     write (outu, "(/,A)") "Memory cleanup"
 
-    if (allocated(T))          deallocate(T)
+    if (allocated(analc))      deallocate(analc)
     if (allocated(wavelength)) deallocate(wavelength)
     if (allocated(cmpnames))   deallocate(cmpnames)
     if (allocated(extc))       deallocate(extc)
     if (allocated(active))     deallocate(active)
     if (allocated(weights))    deallocate(weights)
+    if (allocated(conc))       deallocate(conc)
+    if (allocated(titr_size))  deallocate(titr_size)
+    if (allocated(absorbance)) deallocate(absorbance)
+    if (allocated(lbeta))      deallocate(lbeta)
 
-    write (outu,"(A)") "Program terminated"
+    write (outu,"(/,A)") "Module terminated"
 end subroutine finalize
 
 
+!----------------------------------------------------------------------------------------------------
+! Performe Levenberg-Marquardt iterations.
+!----------------------------------------------------------------------------------------------------
 subroutine lm()
     use stat, only: fit_sigma, calc_covariance, calc_correlation
     use linalg, only: las_cond
@@ -319,7 +383,7 @@ subroutine lm()
     covariance = covariance * sumsq / (NPT*NHD-NX)
     call calc_correlation(covariance, correlation)
 
-    DEALLOCATE(jac, dx, fvec, M)
+    deallocate(jac, dx, fvec, M)
 end subroutine lm
 
 
@@ -334,11 +398,11 @@ subroutine take_marquardt(damping, jac, M, dampedM)
 
     call calc_jacobian(jac)
     M = 0.0
-    DO i = 1,NX
-        DO j = 1,NX
+    do i = 1,NX
+        do j = 1,NX
             M(i,j) = M(i,j) + SUM(jac(:,i)*weights*jac(:,j))
-        END DO
-    END DO
+        end do
+    end do
     dampedM = M
     do i=1,NX
         dampedM(i,i) = (1.0 + damping) * M(i,i)
@@ -350,7 +414,7 @@ subroutine update_equil()
     use eq, only: eq_000
     integer :: CTRL
 
-    call eq_000(conc, T, EXP(lbeta), P, CTRL, NPT, NCP, NEQ)
+    call eq_000(conc, analc, EXP(lbeta), P, CTRL, NPT, NCP, NEQ)
 end subroutine update_equil
 
 
@@ -443,11 +507,11 @@ subroutine calc_jacobian(jac)
 end subroutine calc_jacobian
 
 
-subroutine reweight(resids, aobs, fit)
+subroutine reweight(resids, aobs, do_fit)
     use, intrinsic :: iso_fortran_env, only: dp => real64
     double precision, intent(in) :: resids(:,:)
     real, intent(in) :: aobs(:,:)
-    logical, intent(in) :: fit
+    logical, intent(in) :: do_fit
 
     double precision, allocatable :: y(:)  ! residuals squared
     double precision, allocatable :: A2(:) ! absorbance squared
@@ -472,26 +536,26 @@ subroutine reweight(resids, aobs, fit)
     allocate(A2(n))
     A2 = reshape(aobs, [n])**2
 
-    if (fit) then
-    allocate(y(n),  w(n), X(n,2), bvec(n))
+    if (do_fit) then
+        allocate(y(n),  w(n), X(n,2), bvec(n))
 
-    ! initial guess
-    !weight_params = [1D-6, 0.0_dp]
-    y = reshape(resids, [n])**2
+        ! initial guess
+        !weight_params = [1D-6, 0.0_dp]
+        y = reshape(resids, [n])**2
 
-    X(:,1) = 1.0_dp
-    X(:,2) = A2
-    bvec = y
+        X(:,1) = 1.0_dp
+        X(:,2) = A2
+        bvec = y
 
-    !----- query optimal work-space size for DGELS ----------------------------
-    call dgels("N", n, 2, 1, X, n, bvec, n, work_query, -1, iinfo)
-    lwork = int(work_query(1))
-    allocate(work(lwork))
-    call dgels("N", n, 2, 1, X, n, bvec, n, work, lwork, iinfo)
+        !----- query optimal work-space size for DGELS ----------------------------
+        call dgels("N", n, 2, 1, X, n, bvec, n, work_query, -1, iinfo)
+        lwork = int(work_query(1))
+        allocate(work(lwork))
+        call dgels("N", n, 2, 1, X, n, bvec, n, work, lwork, iinfo)
 
-    weight_params(1) = SQRT(max(bvec(1), MIN_A2))
-    weight_params(2) = SQRT(max(bvec(2), 0.0))
-end if
+        weight_params(1) = SQRT(max(bvec(1), MIN_A2))
+        weight_params(2) = SQRT(max(bvec(2), 0.0))
+    end if
 
     ! recalculate weights
     do i=1,n
@@ -557,7 +621,7 @@ subroutine solve_extc()
        return
     end if
 
-    ALLOCATE(Acorr(NPT, NHD))
+    allocate(Acorr(NPT, NHD))
     Acorr = absorbance
     l_species: do i=1,(NCP+NEQ)
         if (active(i) < 0) then
@@ -578,13 +642,13 @@ subroutine solve_extc()
 
     lda = NPT
     ldb = MAX(NPT, nfree)
-    ALLOCATE(B(ldb, NHD))
+    allocate(B(ldb, NHD))
     B(1:NPT,:) = Acorr
     if (NPT < nfree) B(NPT+1:ldb,:) = 0.0
 
     call workspace_queries(lwork, nfree, Cfree, B, lda, ldb)
     allocate(tau(nfree))
-    ALLOCATE(work(lwork))
+    allocate(work(lwork))
 
     ! QR factorisation
     call dgeqrf(NPT, nfree, Cfree, lda, tau, work, lwork, info)
@@ -810,4 +874,13 @@ subroutine workspace_queries(lwork, nfree, Cfree, B, lda, ldb)
     ! final work-array size
     lwork = max(lwork_geqrf, lwork_ormqr, lwork_orgqr)
 end subroutine workspace_queries
+
+
+subroutine titr_bounds(i, low, high)
+    integer, intent(in) :: i
+    integer, intent(out) :: low, high
+    low = 1+sum(titr_size(1:(i-1)))  ! this should work also for i==1
+    high = low + titr_size(i) - 1
+end subroutine titr_bounds
+
 end module mat
