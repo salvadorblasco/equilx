@@ -519,7 +519,7 @@ subroutine reweight(resids, aobs, do_fit)
     double precision, allocatable :: X(:,:)  ! design matrix
 
     integer, parameter :: MAX_ITS = 10
-    integer :: i, j, lwork
+    integer :: i, lwork
     integer :: n  ! number of data points
     double precision  :: work_query(1)
     double precision, allocatable :: work(:), bvec(:)
@@ -698,7 +698,7 @@ subroutine solve_extc_nnls(info)
   integer  :: maxit
   integer, allocatable :: idx(:), jpvt(:), free_idx(:), bound_idx(:)
   real(dp), allocatable :: A(:,:), b(:), x(:), work(:), dual(:), resid(:)
-  real(dp) :: rcond, normb, tol, alpha, max_dual
+  real(dp) :: rcond, normb, tol, max_dual
   real(dp), parameter :: eps = epsilon(1.0_dp)
   logical  :: converged
   integer :: nsp
