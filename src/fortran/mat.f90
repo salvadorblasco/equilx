@@ -94,7 +94,7 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, letype, verb
 
     LOGLEVEL = verbosity
 
-    if (present(p)) then
+    if (present(outn)) then
         outu = outn
     else
         outu = output_unit
@@ -151,14 +151,14 @@ subroutine load_titration(titdata, titanalc)
 
     if (size(titdata, dim=2) /= NHD) then
         msg="ERROR: titdata has wrong dimension"
-        if (LOGLEVEL>1) write (outu, "(A)"), msg
+        if (LOGLEVEL>1) write (outu, "(A)") msg
         return
     end if
 
-    absorbance(low:high,:) = titrdata
+    absorbance(low:high,:) = titdata
     analc(low:high,:) = titanalc
 
-    if (LOGLEVEL>1) write (outu, "(A)"), " .. titration loaded"
+    if (LOGLEVEL>1) write (outu, "(A)") " .. titration loaded"
 end subroutine load_titration
 
 
@@ -564,7 +564,7 @@ subroutine reweight(resids, aobs, do_fit)
         weights(i) = 1.0D0 / sigma2
     end do
     deallocate(A2)
-    if (fit) deallocate(y,  w, X, bvec, work)
+    if (do_fit) deallocate(y,  w, X, bvec, work)
 end subroutine reweight
 
 
