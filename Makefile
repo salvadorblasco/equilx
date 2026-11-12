@@ -8,7 +8,7 @@ F2PY = uv run f2py
 RM = rm 
 
 DEBUG ?= 0
-ifeq ($(BUILD),1)
+ifeq ($(DEBUG),1)
 	FFLAGS = -g -O0 -fPIC -fbacktrace -fbounds-check -ffpe-trap=zero,invalid -Wall
 else
 	FFLAGS = -Wall -O2 -fPIC

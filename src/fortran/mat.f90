@@ -39,9 +39,9 @@ module mat
     real,              allocatable :: wavelength(:)     ! NWL
     real,              allocatable :: absorbance(:,:)   ! NPT x NWL
     double precision,  allocatable, target :: extc(:,:)  ! NSP x NWL
-    double precision,  allocatable :: conc(:,:)
+    double precision,  allocatable :: conc(:,:)         ! NPT, NSP
     character(len=12), allocatable :: cmpnames(:)
-    integer,           allocatable :: P(:,:)
+    integer,           allocatable :: stoich(:,:)
     double precision,  allocatable, target :: lbeta(:)
     integer,           allocatable :: flag_lbeta(:)
     integer,           allocatable :: active(:)
@@ -74,6 +74,7 @@ module mat
     integer, parameter :: MAXITS = 100
     logical :: reweight_flag
     integer :: linear_elimination_type
+    integer :: current_titration
 
     public init_module, finalize, lm, load_titration, fit
 contains
@@ -81,16 +82,18 @@ contains
 !----------------------------------------------------------------------------------------------------
 ! Initialize module, allocate varables
 !----------------------------------------------------------------------------------------------------
-subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, letype, verbosity, outn)
+subroutine init_module(n_points, n_horiz, n_titrs, model, logbeta, flgbeta, activity, letype, verbosity, outn)
     use, intrinsic :: iso_fortran_env, only: output_unit
-    integer, intent(in)                             :: n_points  ! total number of experimental points
-    integer, intent(in)                             :: n_titrs   ! number of titrations to be loaded
-    integer, intent(in), dimension(:,:)             :: stoich    ! the stoichiometry array
-    real,    intent(in), dimension(size(stoich, 1)) :: logbeta   ! the log10 of the formation constants
-    integer, intent(in), dimension(size(stoich, 1)) :: flgbeta   ! the refinement flags for the formation constants
-    integer, intent(in)                             :: verbosity ! level of verbosity
-    integer, intent(in), optional                   :: outn      ! the number for output unit
-    integer, intent(in)                             :: letype    ! type of linear elimination
+    integer, intent(in) :: n_points                   ! total number of experimental points
+    integer, intent(in) :: n_titrs                    ! number of titrations to be loaded
+    integer, intent(in) :: n_horiz                    ! number of horizontal data
+    integer, intent(in) :: model(:,:)                 ! the stoichiometry array
+    real,    intent(in) :: logbeta(size(stoich, 1))   ! the log10 of the formation constants
+    integer, intent(in) :: flgbeta(size(stoich, 1))   ! the refinement flags for the formation constants
+    integer, intent(in) :: activity(:)
+    integer, intent(in) :: verbosity                  ! level of verbosity
+    integer, intent(in) :: letype                     ! type of linear elimination
+    integer, intent(in), optional :: outn             ! the number for output unit
 
     LOGLEVEL = verbosity
 
@@ -110,8 +113,9 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, letype, verb
 
     NPT = n_points
     NTT = n_titrs
-    NEQ = size(stoich, dim=1)
-    NCP = size(stoich, dim=2)
+    NHD = n_horiz
+    NEQ = size(model, dim=1)
+    NCP = size(model, dim=2)
 
     allocate(weights(NPT*NHD))     ! variable allocation
     allocate(conc(NPT,NCP+NEQ))
@@ -119,22 +123,29 @@ subroutine init_module(n_points, n_titrs, stoich, logbeta, flgbeta, letype, verb
     allocate(analc(NPT, NCP))
     allocate(absorbance(NPT,NHD))
     allocate(lbeta(NEQ))
-    allocate(extc(NPT, NHD))
+    allocate(flag_lbeta(NEQ))
+    allocate(extc(NCP+NEQ, NHD))
+    allocate(active(NCP+NEQ))
+    allocate(stoich(NEQ,NCP))
 
     weights = 1.0               ! start with unit weights
     reweight_flag = .false.
 
     conc = 0.0
-    conc(:,1:NCP) = analc/10.0
     extc = 0.0
+    stoich = model
 
     titr_size = 0
     analc = 0.0
     absorbance = 0.0
 
+    active = activity
+
+    flag_lbeta = flgbeta
     lbeta = logbeta * LG10
     !call lm()
     !lbeta = lbeta / LG10
+    current_titration = 0
 end subroutine init_module
 
 
@@ -142,7 +153,6 @@ subroutine load_titration(titdata, titanalc)
     real, intent(in) :: titdata(:,:)
     real, intent(in) :: titanalc(:,:)
 
-    integer, save :: current_titration = 0
     integer :: low, high, dsize
 
     current_titration = current_titration + 1
@@ -153,7 +163,9 @@ subroutine load_titration(titdata, titanalc)
 
     if (size(titdata, dim=2) /= NHD) then
         msg="ERROR: titdata has wrong dimension"
-        if (LOGLEVEL>1) write (outu, "(A)") msg
+        if (LOGLEVEL>1) then
+            write (outu, "(A,2(A,I4))") msg, " got", size(titdata, dim=2), " expected", NHD
+        end if
         return
     end if
 
@@ -164,15 +176,21 @@ subroutine load_titration(titdata, titanalc)
 end subroutine load_titration
 
 
-subroutine fix_hdata(indx, values)
-    integer, intent(in) :: indx
-    real, intent(in) :: values(:)
-
-    extc(indx, :) = values
-end subroutine fix_hdata
-
-
 subroutine fit()
+    integer :: i, j
+
+    do i=1,NCP
+        conc(:,i) = analc(:,i) / 10.0
+    end do
+    where (conc < 0.0) conc=1D-12
+
+    do i=1,NCP+NEQ
+        if (active(i) < 0) then
+            j = -active(i)
+            extc(j,:) = absorbance(j,:) / analc(j,:)
+        end if
+    end do
+
     call lm()
 end subroutine fit
 
@@ -193,8 +211,10 @@ subroutine finalize()
     if (allocated(titr_size))  deallocate(titr_size)
     if (allocated(absorbance)) deallocate(absorbance)
     if (allocated(lbeta))      deallocate(lbeta)
+    if (allocated(flag_lbeta)) deallocate(flag_lbeta)
+    if (allocated(stoich))     deallocate(stoich)
 
-    write (outu,"(/,A)") "Module terminated"
+    write (outu,"(A)") "Module terminated"
 end subroutine finalize
 
 
@@ -236,7 +256,7 @@ subroutine lm()
 
     call create_variables(NX)
 
-    write (outu, "(A)") "Allocating variables"
+    write (outu, "(A)") " .. Allocating variables"
     write (outu, "(3(A,I5),/)") " .. NPT=", NPT, ", NWL=", NHD, ", NX=", NX
 
     allocate(resid(NPT,NHD))
@@ -424,7 +444,7 @@ subroutine update_equil()
     use eq, only: eq_000
     integer :: CTRL
 
-    call eq_000(conc, analc, EXP(lbeta), P, CTRL, NPT, NCP, NEQ)
+    call eq_000(conc, analc, EXP(lbeta), stoich, CTRL, NPT, NCP, NEQ)
 end subroutine update_equil
 
 
@@ -490,8 +510,8 @@ subroutine calc_jacobian(jac)
     allocate(tmp_vec(nfree))
 
     l_point: do k=1,NPT
-        call calc_dlogcdlogb(conc(k,:), P, NCP, NEQ, dc(1:NCP,:,k))
-        call calc_extdlogcdlogb(dc(:,:,k), P, NCP, NEQ)
+        call calc_dlogcdlogb(conc(k,:), stoich, NCP, NEQ, dc(1:NCP,:,k))
+        call calc_extdlogcdlogb(dc(:,:,k), stoich, NCP, NEQ)
     end do l_point
 
     ! convert dlogC/dlogB in dC/dlogB
@@ -587,17 +607,17 @@ subroutine build_species_names(names)
     do i = 1, NEQ
        tmp = ''
        do j = 1, NCP
-          if (P(i,j) == 0) cycle
+          if (stoich(i,j) == 0) cycle
 
           ! coefficient as string (omit the number when |coef| == 1)
-          if (abs(P(i,j)) == 1) then
+          if (abs(stoich(i,j)) == 1) then
              coef = ''
           else
-             write(coef,'(I0)') abs(P(i,j))
+             write(coef,'(I0)') abs(stoich(i,j))
           end if
 
           ! sign: nothing for positive, '-' for negative
-          if (P(i,j) < 0) then
+          if (stoich(i,j) < 0) then
              tmp = trim(tmp)//'-'//trim(names(j))//trim(coef)
           else
              tmp = trim(tmp)//trim(names(j))//trim(coef)

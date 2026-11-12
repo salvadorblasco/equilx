@@ -8,46 +8,51 @@ program nukes
     real, allocatable :: wavelength(:)
     real, allocatable :: lbeta(:)
     integer, allocatable :: global_stoich(:,:), active(:), flag_lbeta(:)
-    character(len=*), allocatable, intent(out) :: cmpnames(:)
+    character(len=12), allocatable :: cmpnames(:)
     integer, allocatable :: refindices(:)
 
     integer, allocatable :: models_flags(:,:)
 
     integer, parameter :: outu = output_unit    ! output unit to write to
 
-    write(outu, "(A)") "N   N U  U K  K EEEE  SSS"
-    write(outu, "(A)") "NN  N U  U K K  E    S   "
-    write(outu, "(A)") "N N N U  U KK   EE    SS "
-    write(outu, "(A)") "N  NN U  U K K  E       S"
-    write(outu, "(A)") "N   N  UU  K  K EEEE SSS "
+    write(outu, "(A)") "     N   N U  U K  K EEEE  SSS"
+    write(outu, "(A)") "     NN  N U  U K K  E    S   "
+    write(outu, "(A)") "     N N N U  U KK   EE    SS "
+    write(outu, "(A)") "     N  NN U  U K K  E       S"
+    write(outu, "(A)") "     N   N  UU  K  K EEEE SSS "
     write(outu, "(A,/)") "by Salvador Blasco <salvador.blasco@uv.es>"
     write(outu, "(A,/)") "Starting program"
 
     call read_data()
     call generate_combinations(flag_lbeta, models_flags)
+    call cycle_models()
 
-    do i=1,size(models_flags, dim=2)
-        write (outu, "(A,I2)") "Trying model", i
-        call try_model(i)
-    end do
 contains
 
+subroutine cycle_models()
+    integer :: i
+    do i=1,size(models_flags, dim=2)
+        write (outu, "(A,I2,/)") "Trying model", i
+        call fit_try_model(models_flags(i,:))
+    end do
+end subroutine cycle_models
 
-subroutine fit_try_model(n_model)
+
+subroutine fit_try_model(mflags)
     use mat, only: init_module, finalize, load_titration, fit, LE_POSITIVE
-    integer, intent(in) :: n_model
+    integer, intent(in) :: mflags(:)
 
     integer :: cNEQ
     real, allocatable :: try_lbeta(:)
     integer, allocatable :: try_model(:,:), try_betaflags(:)
     integer :: i, j
 
-    cNEQ = sum(models_flags(:,n_model))
+    cNEQ = sum(mflags)
     allocate(try_model(cNEQ, NCP), try_lbeta(cNEQ), try_betaflags(cNEQ))
 
     j = 0
     do i=1,NEQ
-        if (models_flags(i,n_model) == 1) then
+        if (mflags(i) == 1) then
             j = j + 1
             try_model(j,:) = global_stoich(i,:)
             try_lbeta(j) = lbeta(i)
@@ -62,11 +67,9 @@ subroutine fit_try_model(n_model)
         end if
     end do
 
-    call init_module(NPT, 1, try_model, try_lbeta, try_betaflags, LE_POSITIVE, 2)
+    call init_module(NPT, NWL, 1, try_model, try_lbeta, try_betaflags, refindices, LE_POSITIVE, 2)
     call load_titration(absorbance, analc)
-
-
-
+    call fit()
     call finalize()
 
     deallocate(try_model, try_lbeta, try_betaflags)
@@ -89,7 +92,7 @@ subroutine generate_combinations(mask, COMBOS)
   integer :: j, i, bit, bmask, col
 
   !NEQ = size(mask)
-  NCM = 2**sum(mask)
+  NCM = 2**sum(mask)-1
   allocate(COMBOS(NEQ, NCM))
 
   ! build bit mask
@@ -120,6 +123,7 @@ end subroutine generate_combinations
 !------------------------------------------------------------------
 subroutine read_data()
     use misc, only: build_species_names
+    use mat, only: AC_TRANSPARENT, AC_ACTIVE
     !integer, intent(out) :: NCP, NEQ, NWL
     !real, allocatable, intent(out) :: lbeta(:), absorbance(:,:), wavelength(:)
     !integer, allocatable, intent(out) :: stoich(:,:), active(:), flag_lbeta(:)
@@ -243,25 +247,18 @@ subroutine read_data()
         if (active(i) < 0) then
             if (refindices(-active(i)) /= 0) stop "Duplicate index"
             refindices(-active(i)) = i
-            NPT = NPT - 1
         end if
     end do
 
-    allocate(extc(NCP+NEQ,NWL))
-    extc = 0.0
     allocate(absorbance(NPT,NWL))
     wavelength = tmpdata(1,:)
     allocate(analc(NPT,NCP))
     analc = 0.0
     j = 0
     do i=1,tmp_npt
-        if (refindices(i) /= 0) then
-            extc(i,:) = tmpdata(1+refindices(i),1:NWL) / tmpanalc(i,refindices(i))
-        else
-            j = j + 1
-            absorbance(j,1:NWL) = tmpdata(1+i,1:NWL)
-            analc(j,:) = tmpanalc(i,:)
-        end if
+        j = j + 1
+        absorbance(j,1:NWL) = tmpdata(1+i,1:NWL)
+        analc(j,:) = tmpanalc(i,:)
     end do
 
     write(outu,"(A,I5,A)") " .. read ", NWL, " wavelengths"
