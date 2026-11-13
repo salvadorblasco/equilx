@@ -36,7 +36,6 @@ module mat
     integer :: NHD        ! number of horizontal data
     integer :: NTT        ! number of titrations
     double precision,  allocatable :: analc(:,:)        ! Analytical concentration, in mmol/mL, dim NPT x NCP
-    real,              allocatable :: wavelength(:)     ! NWL
     real,              allocatable :: absorbance(:,:)   ! NPT x NWL
     double precision,  allocatable, target :: extc(:,:)  ! NSP x NWL
     double precision,  allocatable :: conc(:,:)         ! NPT, NSP
@@ -65,7 +64,7 @@ module mat
     type(value_holder), allocatable, dimension(:) :: variables
     double precision,   allocatable, target, dimension(:) :: xvalues
     double precision, allocatable, dimension(:) :: weights
-    character(len=45) :: msg
+    character(len=45), public :: msg
     integer :: outu
     double precision, parameter :: LG10=LOG(10.0)
 
@@ -75,6 +74,14 @@ module mat
     logical :: reweight_flag
     integer :: linear_elimination_type
     integer :: current_titration
+
+    real, public :: stat_ssr   ! sum of squared residuals
+    real, public :: stat_rms   ! root-mean-square of residuals
+    integer, public :: stat_dof    ! degrees of freedom
+    integer, public :: stat_nobs    ! number of observations
+
+    real, allocatable, public :: out_lbeta(:)
+    real, allocatable, public :: out_errlbeta(:)
 
     public init_module, finalize, lm, load_titration, fit
 contains
@@ -176,6 +183,12 @@ subroutine load_titration(titdata, titanalc)
 end subroutine load_titration
 
 
+subroutine set_weights_const(w)
+    real, intent(in) :: w
+    weights = w
+end subroutine set_weights_const
+
+
 subroutine fit()
     integer :: i, j
 
@@ -192,6 +205,23 @@ subroutine fit()
     end do
 
     call lm()
+
+    stat_nobs = NPT*NHD
+    stat_rms = REAL(SQRT(stat_ssr/stat_nobs))
+
+    allocate(out_lbeta(NEQ), out_errlbeta(NEQ))
+
+    out_lbeta = REAL(lbeta / LG10)
+    j = 0
+    do i = 1,NEQ
+        if (flag_lbeta(i) == 0) then
+            out_errlbeta(i) = 0.0
+        else
+            j = j + 1
+            out_errlbeta(i) = REAL(sqrt(covariance(j,j)))
+        end if
+    end do
+
 end subroutine fit
 
 
@@ -201,18 +231,19 @@ end subroutine fit
 subroutine finalize()
     write (outu, "(/,A)") "Memory cleanup"
 
-    if (allocated(analc))      deallocate(analc)
-    if (allocated(wavelength)) deallocate(wavelength)
-    if (allocated(cmpnames))   deallocate(cmpnames)
-    if (allocated(extc))       deallocate(extc)
-    if (allocated(active))     deallocate(active)
-    if (allocated(weights))    deallocate(weights)
-    if (allocated(conc))       deallocate(conc)
-    if (allocated(titr_size))  deallocate(titr_size)
-    if (allocated(absorbance)) deallocate(absorbance)
-    if (allocated(lbeta))      deallocate(lbeta)
-    if (allocated(flag_lbeta)) deallocate(flag_lbeta)
-    if (allocated(stoich))     deallocate(stoich)
+    if (allocated(analc))        deallocate(analc)
+    if (allocated(cmpnames))     deallocate(cmpnames)
+    if (allocated(extc))         deallocate(extc)
+    if (allocated(active))       deallocate(active)
+    if (allocated(weights))      deallocate(weights)
+    if (allocated(conc))         deallocate(conc)
+    if (allocated(titr_size))    deallocate(titr_size)
+    if (allocated(absorbance))   deallocate(absorbance)
+    if (allocated(lbeta))        deallocate(lbeta)
+    if (allocated(flag_lbeta))   deallocate(flag_lbeta)
+    if (allocated(stoich))       deallocate(stoich)
+    if (allocated(out_lbeta))    deallocate(out_lbeta)
+    if (allocated(out_errlbeta)) deallocate(out_errlbeta)
 
     write (outu,"(A)") "Module terminated"
 end subroutine finalize
@@ -232,9 +263,7 @@ subroutine lm()
     double precision, allocatable :: resid(:,:)
     double precision, allocatable :: gradient(:)
     double precision :: gradient_norm, sumsq, damping, trial_sumsq
-    double precision :: sigma
-    double precision :: normalize
-    double precision :: predicted, actual, rho, cond, auxd
+    double precision :: predicted, actual, rho, cond
     double precision :: relative_step
     double precision :: relative_grad
     double precision :: relative_sumsq
@@ -251,7 +280,6 @@ subroutine lm()
     integer :: iter
     integer :: n_active
 
-    normalize = MAXVAL(absorbance)
     n_active = sum(active)
 
     call create_variables(NX)
@@ -280,7 +308,7 @@ subroutine lm()
     call update_equil()                           ! update free concentrations
     call solve_extc_nnls(ctrl)
     call calc_resid(resid)                        ! calculate residuals
-    call reweight(resid, absorbance, .false.)
+    if (reweight_flag) call reweight(resid, absorbance, .false.)
     resid = absorbance - matmul(conc, extc)
     fvec = reshape(resid, [ NPT*NHD ])
     sumsq = SUM(weights*fvec**2)
@@ -407,11 +435,19 @@ subroutine lm()
         end if
     end do main_loop
 
+    if (iter == MAXITS) then
+        msg = "iteration limit reached"
+    else
+        msg = "normal exit"
+    end if
+
     allocate(covariance(size(M,1), size(M,2)))
     allocate(correlation(size(M,1), size(M,2)))
     call calc_covariance(M, covariance, msg)
     covariance = covariance * sumsq / (NPT*NHD-NX)
     call calc_correlation(covariance, correlation)
+    stat_ssr = REAL(sumsq)
+    stat_dof = NPT*NHD - NX
 
     deallocate(jac, dx, fvec, M)
 end subroutine lm
@@ -554,8 +590,6 @@ subroutine reweight(resids, aobs, do_fit)
     double precision  :: work_query(1)
     double precision, allocatable :: work(:), bvec(:)
     integer :: iinfo
-    double precision :: prev_params(2)
-    double precision :: rel_change
     double precision :: sigma2
     double precision, parameter :: TOL = 1D-5
     double precision, parameter :: MIN_A2 = 1D-12
@@ -596,36 +630,6 @@ subroutine reweight(resids, aobs, do_fit)
     deallocate(A2)
     if (do_fit) deallocate(y,  w, X, bvec, work)
 end subroutine reweight
-
-
-subroutine build_species_names(names)
-    character(len=*), intent(inout) :: names(:)
-
-    integer :: i, j
-    character(len=32) :: tmp, coef
-
-    do i = 1, NEQ
-       tmp = ''
-       do j = 1, NCP
-          if (stoich(i,j) == 0) cycle
-
-          ! coefficient as string (omit the number when |coef| == 1)
-          if (abs(stoich(i,j)) == 1) then
-             coef = ''
-          else
-             write(coef,'(I0)') abs(stoich(i,j))
-          end if
-
-          ! sign: nothing for positive, '-' for negative
-          if (stoich(i,j) < 0) then
-             tmp = trim(tmp)//'-'//trim(names(j))//trim(coef)
-          else
-             tmp = trim(tmp)//trim(names(j))//trim(coef)
-          end if
-       end do
-       names(NCP+i) = adjustl(tmp)
-    end do
-end subroutine build_species_names
 
 
 subroutine solve_extc()

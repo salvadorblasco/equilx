@@ -11,7 +11,13 @@ program nukes
     character(len=12), allocatable :: cmpnames(:)
     integer, allocatable :: refindices(:)
 
+    real, allocatable :: models_ssr(:)
+    real, allocatable :: models_rms(:)
+    real, allocatable :: models_aic(:)
+    real, allocatable :: models_bic(:)
+
     integer, allocatable :: models_flags(:,:)
+    integer :: num_models
 
     integer, parameter :: outu = output_unit    ! output unit to write to
 
@@ -25,8 +31,20 @@ program nukes
 
     call read_data()
     call generate_combinations(flag_lbeta, models_flags)
-    call cycle_models()
 
+    num_models = size(models_flags, dim=2)
+    allocate(models_ssr(num_models))
+    allocate(models_rms(num_models))
+    allocate(models_aic(num_models))
+    allocate(models_bic(num_models))
+
+    call cycle_models()
+    call print_final()
+
+    if (allocated(models_ssr)) deallocate(models_ssr)
+    if (allocated(models_rms)) deallocate(models_rms)
+    if (allocated(models_aic)) deallocate(models_aic)
+    if (allocated(models_bic)) deallocate(models_bic)
 contains
 
 subroutine cycle_models()
@@ -70,11 +88,59 @@ subroutine fit_try_model(mflags)
     call init_module(NPT, NWL, 1, try_model, try_lbeta, try_betaflags, refindices, LE_POSITIVE, 2)
     call load_titration(absorbance, analc)
     call fit()
+
+    call report_model(try_model)
+
     call finalize()
 
     deallocate(try_model, try_lbeta, try_betaflags)
 end subroutine fit_try_model
 
+
+subroutine report_model(model)
+    use mat, only: msg, out_lbeta, out_errlbeta, stat_ssr, stat_dof, stat_rms, stat_nobs
+    integer, intent(in) :: model(:,:)
+
+    real :: aic, bic
+    integer :: i, nparms
+
+    write (outu, "(/,A)") " .. output message: " // msg
+
+    write (outu, "(A3, *(A12))", advance='no') "N", cmpnames(1:NCP)
+    write (outu, "(2A8)") "logB", "error"
+    do i=1,size(model, dim=1)
+        write (outu, "(I3,*(I8))", advance='no') i, model(i,:)
+        write (outu, "(2F12.4)") out_lbeta(i), out_errlbeta(i)
+    end do
+
+    nparms = stat_nobs - stat_dof
+    aic = stat_nobs*LOG(stat_ssr/stat_nobs) + 2*nparms
+    bic = stat_nobs*LOG(stat_ssr/stat_nobs) + nparms*LOG(REAL(stat_nobs))
+    write (outu, "(5X,A,E14.4)") "SSR=", stat_ssr
+    write (outu, "(5X,A,E14.4)") "RMS=", stat_rms
+    write (outu, "(5X,A,E14.4)") "RXS=", stat_ssr/stat_dof
+    write (outu, "(5X,A,E14.4)") "AIC=", aic
+    write (outu, "(5X,A,E14.4)") "BIC=", bic
+    write (outu, "(5X,A,I14)")   "DOF=", stat_dof
+end subroutine report_model
+
+
+subroutine print_final()
+    integer :: i, best
+
+    best = minloc(models_bic, dim=1)
+    write (outu, "(A,/)") "Final report"
+    write (outu, "(A6,4A14)") "Model", "SSR", "RMS", "BIC", "AIC"
+    do i = 1,num_models
+        write (outu, "(I6, 4E14.4)", advance='no') i, models_ssr(i), models_rms(i), models_bic(i), models_aic(i)
+        if (i == best) then
+            write (outu, "(A)") " best"
+        else
+            write (outu, "(/)")
+        end if
+    end do
+
+end subroutine print_final
 
 !------------------------------------------------------------------
 !  Generate combinatorial pattern for a all nested sub-models.
@@ -222,6 +288,7 @@ subroutine read_data()
         end if
     end do
 
+    write (outu, "(A, I0, A)") " .. found ", NEQ, " equilibria"
     write (outu, "(A)") " .. reading analytical concentrations (values assumed to be mol/L)"
     do i=1,NCP
         read(*, *, iostat=ios) tmpanalc(:,i)
