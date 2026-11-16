@@ -68,9 +68,9 @@ module mat
     integer :: outu
     double precision, parameter :: LG10=LOG(10.0)
 
-    integer :: LOGLEVEL  ! set verbosity level; 0 -> mute output; 1 -> minimal output; 2 -> verbose output
+    integer :: LOGLEVEL  ! set verbosity level; 0 -> mute output; 1 -> minimal output; 2 -> verbose output; 3->pedantic
 
-    integer, parameter :: MAXITS = 100
+    integer, parameter :: MAXITS = 20
     logical :: reweight_flag
     integer :: linear_elimination_type
     integer :: current_titration
@@ -91,16 +91,18 @@ contains
 !----------------------------------------------------------------------------------------------------
 subroutine init_module(n_points, n_horiz, n_titrs, model, logbeta, flgbeta, activity, letype, verbosity, outn)
     use, intrinsic :: iso_fortran_env, only: output_unit
-    integer, intent(in) :: n_points                   ! total number of experimental points
-    integer, intent(in) :: n_titrs                    ! number of titrations to be loaded
-    integer, intent(in) :: n_horiz                    ! number of horizontal data
-    integer, intent(in) :: model(:,:)                 ! the stoichiometry array
-    real,    intent(in) :: logbeta(size(stoich, 1))   ! the log10 of the formation constants
-    integer, intent(in) :: flgbeta(size(stoich, 1))   ! the refinement flags for the formation constants
+    integer, intent(in) :: n_points                  ! total number of experimental points
+    integer, intent(in) :: n_titrs                   ! number of titrations to be loaded
+    integer, intent(in) :: n_horiz                   ! number of horizontal data
+    integer, intent(in) :: model(:,:)                ! the stoichiometry array
+    real,    intent(in) :: logbeta(size(model, 1))   ! the log10 of the formation constants
+    integer, intent(in) :: flgbeta(size(model, 1))   ! the refinement flags for the formation constants
     integer, intent(in) :: activity(:)
-    integer, intent(in) :: verbosity                  ! level of verbosity
-    integer, intent(in) :: letype                     ! type of linear elimination
-    integer, intent(in), optional :: outn             ! the number for output unit
+    integer, intent(in) :: verbosity                 ! level of verbosity
+    integer, intent(in) :: letype                    ! type of linear elimination
+    integer, intent(in), optional :: outn            ! the number for output unit
+
+    integer :: i
 
     LOGLEVEL = verbosity
 
@@ -123,6 +125,12 @@ subroutine init_module(n_points, n_horiz, n_titrs, model, logbeta, flgbeta, acti
     NHD = n_horiz
     NEQ = size(model, dim=1)
     NCP = size(model, dim=2)
+
+    if (LOGLEVEL==3) write (outu, "(A,I4)") " .. NPT=", NPT
+    if (LOGLEVEL==3) write (outu, "(A,I4)") " .. NTT=", NTT
+    if (LOGLEVEL==3) write (outu, "(A,I4)") " .. NHD=", NHD
+    if (LOGLEVEL==3) write (outu, "(A,I4)") " .. NEQ=", NEQ
+    if (LOGLEVEL==3) write (outu, "(A,I4)") " .. NCP=", NCP
 
     allocate(weights(NPT*NHD))     ! variable allocation
     allocate(conc(NPT,NCP+NEQ))
@@ -149,6 +157,22 @@ subroutine init_module(n_points, n_horiz, n_titrs, model, logbeta, flgbeta, acti
     active = activity
 
     flag_lbeta = flgbeta
+
+    if (LOGLEVEL==3) then
+        write (outu, "(A)") " .. model to refine is"
+        do i=1,NEQ
+            write (outu, "(5X,I4)", advance='no') i
+            write (outu, "(*(I4))", advance='no') model(i,:)
+            write (outu, "(F12.4)", advance='no') logbeta(i)
+            if (flgbeta(i) == 1) then
+                write (outu, "(A)") " REFINE"
+            else
+                write (outu, "(/)")
+            end if
+        end do
+    end if
+
+
     lbeta = logbeta * LG10
     !call lm()
     !lbeta = lbeta / LG10
@@ -244,6 +268,10 @@ subroutine finalize()
     if (allocated(stoich))       deallocate(stoich)
     if (allocated(out_lbeta))    deallocate(out_lbeta)
     if (allocated(out_errlbeta)) deallocate(out_errlbeta)
+    if (allocated(variables))    deallocate(variables)
+    if (allocated(xvalues))      deallocate(xvalues)
+    if (allocated(covariance))   deallocate(covariance)
+    if (allocated(correlation))  deallocate(correlation)
 
     write (outu,"(A)") "Module terminated"
 end subroutine finalize

@@ -51,7 +51,7 @@ subroutine cycle_models()
     integer :: i
     do i=1,size(models_flags, dim=2)
         write (outu, "(A,I2,/)") "Trying model", i
-        call fit_try_model(models_flags(i,:))
+        call fit_try_model(models_flags(:,i))
     end do
 end subroutine cycle_models
 
@@ -85,7 +85,7 @@ subroutine fit_try_model(mflags)
         end if
     end do
 
-    call init_module(NPT, NWL, 1, try_model, try_lbeta, try_betaflags, refindices, LE_POSITIVE, 2)
+    call init_module(NPT, NWL, 1, try_model, try_lbeta, try_betaflags, refindices, LE_POSITIVE, 3)
     call load_titration(absorbance, analc)
     call fit()
 
@@ -94,6 +94,8 @@ subroutine fit_try_model(mflags)
     call finalize()
 
     deallocate(try_model, try_lbeta, try_betaflags)
+
+    write (outu, "(/,A)") "NUKES ended normally"
 end subroutine fit_try_model
 
 
@@ -158,13 +160,13 @@ subroutine generate_combinations(mask, COMBOS)
   integer :: j, i, bit, bmask, col
 
   !NEQ = size(mask)
-  NCM = 2**sum(mask)-1
+  NCM = 2**count(mask /= 0)-1
   allocate(COMBOS(NEQ, NCM))
 
   ! build bit mask
   bmask = 0
   do i = 1, NEQ
-     if (MASK(i) == 0) bmask = ior(bmask, ishft(1, i-1))
+     if (MASK(i) < 2) bmask = ior(bmask, ishft(1, i-1))
   end do
 
   ! enumerate and filter
