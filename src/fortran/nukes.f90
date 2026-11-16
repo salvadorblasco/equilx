@@ -29,6 +29,8 @@ program nukes
     write(outu, "(A,/)") "by Salvador Blasco <salvador.blasco@uv.es>"
     write(outu, "(A,/)") "Starting program"
 
+    call process_cmd()
+
     call read_data()
     call generate_combinations(flag_lbeta, models_flags)
 
@@ -47,17 +49,33 @@ program nukes
     if (allocated(models_bic)) deallocate(models_bic)
 contains
 
+subroutine process_cmd()
+    integer :: i
+    character(len=32) :: arg
+    do i=1,COMMAND_ARGUMENT_COUNT()
+        call GET_COMMAND_ARGUMENT(i, arg)
+        select case (trim(arg))
+            case ('-v', '--version')
+                write (outu, '(2A)') 'version 0.1'
+                stop
+            case default
+        end select
+    end do
+end subroutine process_cmd
+
+
 subroutine cycle_models()
     integer :: i
     do i=1,size(models_flags, dim=2)
         write (outu, "(A,I2,/)") "Trying model", i
-        call fit_try_model(models_flags(:,i))
+        call fit_try_model(i, models_flags(:,i))
     end do
 end subroutine cycle_models
 
 
-subroutine fit_try_model(mflags)
+subroutine fit_try_model(mindex, mflags)
     use mat, only: init_module, finalize, load_titration, fit, LE_POSITIVE
+    integer, intent(in) :: mindex
     integer, intent(in) :: mflags(:)
 
     integer :: cNEQ
@@ -89,7 +107,7 @@ subroutine fit_try_model(mflags)
     call load_titration(absorbance, analc)
     call fit()
 
-    call report_model(try_model)
+    call report_model(mindex, try_model)
 
     call finalize()
 
@@ -99,8 +117,9 @@ subroutine fit_try_model(mflags)
 end subroutine fit_try_model
 
 
-subroutine report_model(model)
+subroutine report_model(mindex, model)
     use mat, only: msg, out_lbeta, out_errlbeta, stat_ssr, stat_dof, stat_rms, stat_nobs
+    integer, intent(in) :: mindex
     integer, intent(in) :: model(:,:)
 
     real :: aic, bic
@@ -124,6 +143,11 @@ subroutine report_model(model)
     write (outu, "(5X,A,E14.4)") "AIC=", aic
     write (outu, "(5X,A,E14.4)") "BIC=", bic
     write (outu, "(5X,A,I14)")   "DOF=", stat_dof
+
+    models_ssr(mindex) = stat_ssr
+    models_rms(mindex) = stat_rms
+    models_aic(mindex) = aic
+    models_bic(mindex) = bic
 end subroutine report_model
 
 
@@ -138,7 +162,7 @@ subroutine print_final()
         if (i == best) then
             write (outu, "(A)") " best"
         else
-            write (outu, "(/)")
+            write (outu, "()")
         end if
     end do
 
@@ -337,4 +361,3 @@ subroutine read_data()
 end subroutine read_data
 
 end program nukes
-
