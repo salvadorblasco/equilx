@@ -17,7 +17,6 @@
 ! 6. call finalize to deallocate and cleanup
 !----------------------------------------------------------------------------------------------------
 
-
 module mat
     implicit none (type, external)
 
@@ -70,14 +69,14 @@ module mat
 
     integer :: LOGLEVEL  ! set verbosity level; 0 -> mute output; 1 -> minimal output; 2 -> verbose output; 3->pedantic
 
-    integer, parameter :: MAXITS = 20
+    integer, parameter :: MAXITS = 100
     logical :: reweight_flag
     integer :: linear_elimination_type
     integer :: current_titration
 
-    real, public :: stat_ssr   ! sum of squared residuals
-    real, public :: stat_rms   ! root-mean-square of residuals
-    integer, public :: stat_dof    ! degrees of freedom
+    real, public :: stat_ssr        ! sum of squared residuals
+    real, public :: stat_rms        ! root-mean-square of residuals
+    integer, public :: stat_dof     ! degrees of freedom
     integer, public :: stat_nobs    ! number of observations
 
     real, allocatable, public :: out_lbeta(:)

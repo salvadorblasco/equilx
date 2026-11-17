@@ -56,6 +56,7 @@ contains
 subroutine process_cmd()
     integer :: i
     character(len=32) :: arg
+
     do i=1,COMMAND_ARGUMENT_COUNT()
         call GET_COMMAND_ARGUMENT(i, arg)
         select case (trim(arg))
@@ -63,6 +64,8 @@ subroutine process_cmd()
                 write (outu, '(2A)') 'version 0.1'
                 stop
             case default
+                write (outu, '(3A)') "ERROR: argument ", trim(arg), " not recognized."
+                stop
         end select
     end do
 end subroutine process_cmd
@@ -71,7 +74,7 @@ end subroutine process_cmd
 subroutine cycle_models()
     integer :: i
     do i=1,size(models_flags, dim=2)
-        write (outu, "(A,I2,/)") "Trying model", i
+        write (outu, "(/,A,I3)") "Trying model", i
         call fit_try_model(i, models_flags(:,i))
     end do
 end subroutine cycle_models
@@ -113,7 +116,7 @@ subroutine fit_try_model(mindex, mflags)
     call load_titration(absorbance, analc)
     call fit()
 
-    call report_model(mindex, try_model)
+    call report_model(mindex, try_model, try_betaflags)
 
     call finalize()
 
@@ -121,21 +124,30 @@ subroutine fit_try_model(mindex, mflags)
 end subroutine fit_try_model
 
 
-subroutine report_model(mindex, model)
+subroutine report_model(mindex, model, flags)
     use mat, only: msg, out_lbeta, out_errlbeta, stat_ssr, stat_dof, stat_rms, stat_nobs
     integer, intent(in) :: mindex
-    integer, intent(in) :: model(:,:)
+    integer, intent(in) :: model(:,:), flags(:)
 
     real :: aic, bic
     integer :: i, nparms
 
     write (outu, "(/,A)") " .. output message: " // msg
 
-    write (outu, "(A3, *(A12))", advance='no') "N", cmpnames(1:NCP)
-    write (outu, "(2A8)") "logB", "error"
+    !write (outu, "(A3, *(A8))", advance='no') "N", cmpnames(1:NCP)
+    write (outu, "(A3)", advance='no') "N"
+    do i=1,NCP
+        write (outu, "(A8)", advance='no') trim(cmpnames(i))
+    end do
+    write (outu, "(2A12)") "logB", "error"
     do i=1,size(model, dim=1)
         write (outu, "(I3,*(I8))", advance='no') i, model(i,:)
-        write (outu, "(2F12.4)") out_lbeta(i), out_errlbeta(i)
+        write (outu, "(2F12.4)", advance='no') out_lbeta(i), out_errlbeta(i)
+        if (flags(i) == 1) then
+            write (outu, "(A)") " refined"
+        else
+            write (outu, "(A)") ""
+        end if
     end do
 
     nparms = stat_nobs - stat_dof
@@ -162,7 +174,7 @@ subroutine print_final()
     integer :: i, best
 
     best = minloc(stats(:)%bic, dim=1)
-    write (outu, "(A,/)") "Final report"
+    write (outu, "(/,A,/)") "Final report"
     write (outu, "(2A6,3A14)") "Model", "Parms", "SSR", "RMS", "BIC"
     do i = 1,num_models
         write (outu, "(I6, I6, 3E14.4)", advance='no') i, stats(i)%nparms, stats(i)%ssr, &
