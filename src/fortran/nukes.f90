@@ -11,11 +11,17 @@ program nukes
     character(len=12), allocatable :: cmpnames(:)
     integer, allocatable :: refindices(:)
 
-    real, allocatable :: models_ssr(:)
-    real, allocatable :: models_rms(:)
-    real, allocatable :: models_aic(:)
-    real, allocatable :: models_bic(:)
+    type :: model_stats
+        real :: ssr
+        real :: rms
+        real :: aic
+        real :: bic
+        integer :: dof
+        integer :: nparms
+        real, allocatable :: values(:), errors(:)
+    end type model_stats
 
+    type(model_stats), allocatable :: stats(:)
     integer, allocatable :: models_flags(:,:)
     integer :: num_models
 
@@ -35,18 +41,13 @@ program nukes
     call generate_combinations(flag_lbeta, models_flags)
 
     num_models = size(models_flags, dim=2)
-    allocate(models_ssr(num_models))
-    allocate(models_rms(num_models))
-    allocate(models_aic(num_models))
-    allocate(models_bic(num_models))
+
+    allocate(stats(num_models))
 
     call cycle_models()
     call print_final()
 
-    if (allocated(models_ssr)) deallocate(models_ssr)
-    if (allocated(models_rms)) deallocate(models_rms)
-    if (allocated(models_aic)) deallocate(models_aic)
-    if (allocated(models_bic)) deallocate(models_bic)
+    if (allocated(stats)) deallocate(stats)
 contains
 
 subroutine process_cmd()
@@ -55,7 +56,7 @@ subroutine process_cmd()
     do i=1,COMMAND_ARGUMENT_COUNT()
         call GET_COMMAND_ARGUMENT(i, arg)
         select case (trim(arg))
-            case ('-v', '--version')
+            case ('--version')
                 write (outu, '(2A)') 'version 0.1'
                 stop
             case default
@@ -85,6 +86,8 @@ subroutine fit_try_model(mindex, mflags)
 
     cNEQ = sum(mflags)
     allocate(try_model(cNEQ, NCP), try_lbeta(cNEQ), try_betaflags(cNEQ))
+
+    allocate(stats(mindex)%values(cNEQ),stats(mindex)%errors(cNEQ))
 
     j = 0
     do i=1,NEQ
@@ -144,21 +147,24 @@ subroutine report_model(mindex, model)
     write (outu, "(5X,A,E14.4)") "BIC=", bic
     write (outu, "(5X,A,I14)")   "DOF=", stat_dof
 
-    models_ssr(mindex) = stat_ssr
-    models_rms(mindex) = stat_rms
-    models_aic(mindex) = aic
-    models_bic(mindex) = bic
+    stats(mindex)%ssr = stat_ssr
+    stats(mindex)%rms = stat_rms
+    stats(mindex)%bic = bic
+    stats(mindex)%aic = aic
+    stats(mindex)%dof = stat_dof
+    stats(mindex)%nparms = nparms
 end subroutine report_model
 
 
 subroutine print_final()
     integer :: i, best
 
-    best = minloc(models_bic, dim=1)
+    best = minloc(stats(:)%bic, dim=1)
     write (outu, "(A,/)") "Final report"
-    write (outu, "(A6,4A14)") "Model", "SSR", "RMS", "BIC", "AIC"
+    write (outu, "(A6,2A6,4A14)") "Model", "DOF", "Params", "SSR", "RMS", "BIC", "AIC"
     do i = 1,num_models
-        write (outu, "(I6, 4E14.4)", advance='no') i, models_ssr(i), models_rms(i), models_bic(i), models_aic(i)
+        write (outu, "(I6, 2I6, 3E14.4)", advance='no') i, stats(i)%dof, stats(i)%nparms, stats(i)%ssr, &
+           stats(i)%rms, stats(i)%bic
         if (i == best) then
             write (outu, "(A)") " best"
         else
