@@ -28,11 +28,11 @@ program nukes
 
     integer, parameter :: outu = output_unit    ! output unit to write to
 
-    write(outu, "(A)") "     N   N U  U K  K EEEE  SSS"
-    write(outu, "(A)") "     NN  N U  U K K  E    S   "
-    write(outu, "(A)") "     N N N U  U KK   EE    SS "
-    write(outu, "(A)") "     N  NN U  U K K  E       S"
-    write(outu, "(A)") "     N   N  UU  K  K EEEE SSS "
+    write(outu, "(/,A)") "     N   N U  U K  K EEEE  SSS"
+    write(outu, "(A)")   "     NN  N U  U K K  E    S   "
+    write(outu, "(A)")   "     N N N U  U KK   EE    SS "
+    write(outu, "(A)")   "     N  NN U  U K K  E       S"
+    write(outu, "(A,/)") "     N   N  UU  K  K EEEE SSS "
     write(outu, "(A,/)") "by Salvador Blasco <salvador.blasco@uv.es>"
     write(outu, "(A,/)") "Starting program"
 
@@ -49,6 +49,8 @@ program nukes
     call print_final()
 
     if (allocated(stats)) deallocate(stats)
+
+    write (outu, "(/,A)") "NUKES ended normally"
 contains
 
 subroutine process_cmd()
@@ -107,7 +109,7 @@ subroutine fit_try_model(mindex, mflags)
         end if
     end do
 
-    call init_module(NPT, NWL, 1, try_model, try_lbeta, try_betaflags, refindices, LE_POSITIVE, 3)
+    call init_module(NPT, NWL, 1, try_model, try_lbeta, try_betaflags, refindices, LE_POSITIVE, 1)
     call load_titration(absorbance, analc)
     call fit()
 
@@ -116,8 +118,6 @@ subroutine fit_try_model(mindex, mflags)
     call finalize()
 
     deallocate(try_model, try_lbeta, try_betaflags)
-
-    write (outu, "(/,A)") "NUKES ended normally"
 end subroutine fit_try_model
 
 
