@@ -19,6 +19,7 @@ program nukes
         integer :: dof
         integer :: nparms
         real, allocatable :: values(:), errors(:)
+        character(len=45) :: msg
     end type model_stats
 
     type(model_stats), allocatable :: stats(:)
@@ -153,6 +154,7 @@ subroutine report_model(mindex, model)
     stats(mindex)%aic = aic
     stats(mindex)%dof = stat_dof
     stats(mindex)%nparms = nparms
+    stats(mindex)%msg = msg
 end subroutine report_model
 
 
@@ -161,15 +163,16 @@ subroutine print_final()
 
     best = minloc(stats(:)%bic, dim=1)
     write (outu, "(A,/)") "Final report"
-    write (outu, "(A6,2A6,4A14)") "Model", "DOF", "Params", "SSR", "RMS", "BIC", "AIC"
+    write (outu, "(2A6,3A14)") "Model", "Parms", "SSR", "RMS", "BIC"
     do i = 1,num_models
-        write (outu, "(I6, 2I6, 3E14.4)", advance='no') i, stats(i)%dof, stats(i)%nparms, stats(i)%ssr, &
+        write (outu, "(I6, I6, 3E14.4)", advance='no') i, stats(i)%nparms, stats(i)%ssr, &
            stats(i)%rms, stats(i)%bic
         if (i == best) then
-            write (outu, "(A)") " best"
+            write (outu, "(A6)", advance='no') " best "
         else
-            write (outu, "()")
+            write (outu, "(6X)", advance='no')
         end if
+        write (outu, "(A)") stats(i)%msg
     end do
 
 end subroutine print_final
