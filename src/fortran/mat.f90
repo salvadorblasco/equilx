@@ -111,7 +111,7 @@ subroutine init_module(n_points, n_horiz, n_titrs, model, logbeta, flgbeta, acti
     else
         outu = output_unit
     end if
-    write (outu, "(A,/)") "Initiating module"
+    if (LOGLEVEL>1) write (outu, "(A,/)") "Initiating module"
 
     if (letype == 0 .or. letype == 1) then
         linear_elimination_type = letype
@@ -174,8 +174,6 @@ subroutine init_module(n_points, n_horiz, n_titrs, model, logbeta, flgbeta, acti
 
 
     lbeta = logbeta * LG10
-    !call lm()
-    !lbeta = lbeta / LG10
     current_titration = 0
 end subroutine init_module
 
@@ -253,7 +251,7 @@ end subroutine fit
 ! Clear all variables and deallocate memory.
 !----------------------------------------------------------------------------------------------------
 subroutine finalize()
-    write (outu, "(/,A)") "Memory cleanup"
+    if (LOGLEVEL>1) write (outu, "(/,A)") "Memory cleanup"
 
     if (allocated(analc))        deallocate(analc)
     if (allocated(cmpnames))     deallocate(cmpnames)
@@ -273,7 +271,7 @@ subroutine finalize()
     if (allocated(covariance))   deallocate(covariance)
     if (allocated(correlation))  deallocate(correlation)
 
-    write (outu,"(A)") "Module terminated"
+    if (LOGLEVEL>1) write (outu,"(A)") "Module terminated"
 end subroutine finalize
 
 
@@ -312,8 +310,10 @@ subroutine lm()
 
     call create_variables(NX)
 
-    write (outu, "(A)") " .. Allocating variables"
-    write (outu, "(3(A,I5),/)") " .. NPT=", NPT, ", NWL=", NHD, ", NX=", NX
+    if (LOGLEVEL>1) then
+        write (outu, "(A)") " .. Allocating variables"
+        write (outu, "(3(A,I5),/)") " .. NPT=", NPT, ", NWL=", NHD, ", NX=", NX
+    end if
 
     allocate(resid(NPT,NHD))
 
@@ -332,7 +332,8 @@ subroutine lm()
     trial_sumsq = 0.0
     trial_fvec = 0.0
 
-    write(outu, "(A)") "Starting Levenberg-Marquardt iterations"
+    if (LOGLEVEL>1) write(outu, "(A)") "Starting Levenberg-Marquardt iterations"
+
     call update_equil()                           ! update free concentrations
     call solve_extc_nnls(ctrl)
     call calc_resid(resid)                        ! calculate residuals
@@ -342,7 +343,8 @@ subroutine lm()
     sumsq = SUM(weights*fvec**2)
     call take_marquardt(damping, jac, M, dampedM)
     gradient = -MATMUL(TRANSPOSE(jac), weights*fvec)
-    write(outu,"(A,E14.6)") " ..  initial sumsq = ", sumsq
+
+    if (LOGLEVEL>1) write(outu,"(A,E14.6)") " ..  initial sumsq = ", sumsq
 
     iter = 1
     main_loop: do while (iter < maxits)
@@ -377,11 +379,14 @@ subroutine lm()
 
         if (rho > 1D-3) then
             ! step accepted
-            write(outu, "(/,A,I4,/)") "Iteration", iter
-            write(outu, "(A)") "   #    previous        step         new"
-            do i=1,NX
-                write(outu, "(I4,3F12.4)") i, xvalues(i)/LG10, dx(i)/LG10, (xvalues(i)+dx(i))/LG10
-            end do
+
+            if (LOGLEVEL>1) then
+                write(outu, "(/,A,I4,/)") "Iteration", iter
+                write(outu, "(A)") "   #    previous        step         new"
+                do i=1,NX
+                    write(outu, "(I4,3F12.4)") i, xvalues(i)/LG10, dx(i)/LG10, (xvalues(i)+dx(i))/LG10
+                end do
+            end if
 
             xvalues = xvalues + dx
 
@@ -393,47 +398,45 @@ subroutine lm()
             call take_marquardt(damping, jac, M, dampedM)
             gradient = -MATMUL(TRANSPOSE(jac), weights*fvec)
             sumsq = SUM(weights*fvec**2)
-
             gradient_norm = NORM2(gradient)
-            write(outu, "(/,A8,E14.6)") "   sumsq", sumsq
-            write(outu, "(A8,2E14.4)")  " weights", weight_params
-            write(outu, "(A8,E14.6)")   " damping", damping
-            write(outu, "(A8,E14.6,2(A,E12.4),A)")   "     rho", rho, " [actual=", actual, ", predicted=", predicted, "]"
-            write(outu, "(A8,E14.6)")   "    cond", cond
+
+            if (LOGLEVEL>2) then
+                write(outu, "(/,A8,E14.6)") "   sumsq", sumsq
+                write(outu, "(A8,2E14.4)")  " weights", weight_params
+                write(outu, "(A8,E14.6)")   " damping", damping
+                write(outu, "(A8,E14.6,2(A,E12.4),A)")   "     rho", rho, " [actual=", actual, ", predicted=", predicted, "]"
+                write(outu, "(A8,E14.6)")   "    cond", cond
+            end if
+            if (LOGLEVEL==1) write (outu, "(A)", advance='no') '.'
 
             ! Exit check
             relative_step = NORM2(dx) / (1.0d0 + NORM2(xvalues))
             relative_grad = MAXVAL(ABS(gradient)) / (1.0d0 + ABS(sumsq))
             relative_sumsq = ABS(actual) / (1.0d0 + sumsq)
 
-            ! Sigma check
-            write(outu, "(A8,E14.6)", advance="no") " descent", relative_sumsq
-            if (relative_sumsq < THRESHOLD_SSQ) then
-                write(outu, "(A)") " YES"
-                exit_condition = .true.
-            else
-                write(outu, "(A)") " NO"
-                exit_condition = .false.
-            end if
+            exit_condition = (relative_sumsq < THRESHOLD_SSQ) .and. (relative_step < THRESHOLD_STEP)
 
-            ! step length check
-            write(outu, "(A,E14.6)", advance="no") "  rstep ", relative_step
-            if (relative_step < THRESHOLD_STEP) then
-                write(outu, "(A)") " YES"
-                exit_condition = exit_condition .and. .true.
-            else
-                write(outu, "(A)") " NO"
-                exit_condition = .false.
-            end if
+            if (LOGLEVEL > 1) then
+                write(outu, "(A8,E14.6)", advance="no") " descent", relative_sumsq
+                if (relative_sumsq < THRESHOLD_SSQ) then
+                    write(outu, "(A)") " YES"
+                else
+                    write(outu, "(A)") " NO"
+                end if
 
-            ! Gradient norm check
-            write(outu, "(A,E14.6)", advance="no") "  rgradn", relative_grad
-            if (relative_grad < THRESHOLD_GRAD) then
-                write(outu, "(A)") " YES"
-                !exit_condition = exit_condition .and. .true.
-            else
-                write(outu, "(A)") " NO"
-                !exit_condition = .false.
+                write(outu, "(A,E14.6)", advance="no") "  rstep ", relative_step
+                if (relative_step < THRESHOLD_STEP) then
+                    write(outu, "(A)") " YES"
+                else
+                    write(outu, "(A)") " NO"
+                end if
+
+                write(outu, "(A,E14.6)", advance="no") "  rgradn", relative_grad
+                if (relative_grad < THRESHOLD_GRAD) then
+                    write(outu, "(A)") " YES"
+                else
+                    write(outu, "(A)") " NO"
+                end if
             end if
 
             if (rho > 0.75d0) then
@@ -452,7 +455,7 @@ subroutine lm()
             damping = damping * 2.0d0   ! increase
             if (damping >= DAMPING_UPPER * 0.99d0) then
                 msg = "LM stalled at maximum damping"
-                write (outu, "(A)") msg
+                if (LOGLEVEL>1) write (outu, "(A)") msg
                 exit main_loop
             end if
 
