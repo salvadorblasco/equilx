@@ -34,7 +34,7 @@ program nukes
     write(outu, "(5X,A)")   "NN  N  U   U  K  K   E      S"
     write(outu, "(5X,A)")   "N N N  U   U  KKK    EEE     SSS "
     write(outu, "(5X,A)")   "N  NN  U   U  K  K   E          S"
-    write(outu, "(5X,A,/)") "N   N   UUU   K   K  EEEEE  SSSS"
+    write(outu, "(5X,A,/)") "N   N   UUU   K   K  EEEEE  SSSS  version 0.1"
     write(outu, "(A,/)") "by Salvador Blasco <salvador.blasco@uv.es>"
     write(outu, "(A,/)") "Starting program"
 
@@ -71,7 +71,7 @@ subroutine process_cmd()
                 stop
             end if
             call GET_COMMAND_ARGUMENT(i, varg)
-            print *, "catched: ", varg
+            catch_arg = .false.
             varg => null()
         else
             call GET_COMMAND_ARGUMENT(i, arg)
@@ -80,17 +80,18 @@ subroutine process_cmd()
                     write (outu, '(A)') 'version 0.1'
                     stop
                 case ('--basename')
-                    write (outu, '(A)') 'basename!!'
                     varg => basename
                     catch_arg = .true.
+                case ('--help', '-h')
+                    write (outu, '(A,/)') "Usage: nukes [OPTION...] < data"
+                    write (outu, '(2X,A)') "--version            print version and exit"
+                    write (outu, '(2X,A)') "--basename [name]    use [name] as basename to store the models"
                 case default
                     write (outu, '(3A)') "ERROR: argument ", trim(arg), " not recognized."
                     stop
             end select
         end if
     end do
-    print "(3A)", "basename is [", trim(basename), "]"
-    stop
 end subroutine process_cmd
 
 
