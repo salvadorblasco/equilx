@@ -28,11 +28,13 @@ program nukes
 
     integer, parameter :: outu = output_unit    ! output unit to write to
 
-    write(outu, "(/,A)") "     N   N U  U K  K EEEE  SSS"
-    write(outu, "(A)")   "     NN  N U  U K K  E    S   "
-    write(outu, "(A)")   "     N N N U  U KK   EE    SS "
-    write(outu, "(A)")   "     N  NN U  U K K  E       S"
-    write(outu, "(A,/)") "     N   N  UU  K  K EEEE SSS "
+    character(len=32), target :: basename
+
+    write(outu, "(/,5X,A)") "N   N  U   U  K   K  EEEEE   SSSS"
+    write(outu, "(5X,A)")   "NN  N  U   U  K  K   E      S"
+    write(outu, "(5X,A)")   "N N N  U   U  KKK    EEE     SSS "
+    write(outu, "(5X,A)")   "N  NN  U   U  K  K   E          S"
+    write(outu, "(5X,A,/)") "N   N   UUU   K   K  EEEEE  SSSS"
     write(outu, "(A,/)") "by Salvador Blasco <salvador.blasco@uv.es>"
     write(outu, "(A,/)") "Starting program"
 
@@ -56,18 +58,39 @@ contains
 subroutine process_cmd()
     integer :: i
     character(len=32) :: arg
+    character(len=32), pointer :: varg
+    logical :: catch_arg
+
+    catch_arg = .false.
+    varg => null()
 
     do i=1,COMMAND_ARGUMENT_COUNT()
-        call GET_COMMAND_ARGUMENT(i, arg)
-        select case (trim(arg))
-            case ('--version')
-                write (outu, '(2A)') 'version 0.1'
+        if (catch_arg) then
+            if (.not. ASSOCIATED(varg)) then
+                write (outu, '(A)') "ERROR: value argument expected"
                 stop
-            case default
-                write (outu, '(3A)') "ERROR: argument ", trim(arg), " not recognized."
-                stop
-        end select
+            end if
+            call GET_COMMAND_ARGUMENT(i, varg)
+            print *, "catched: ", varg
+            varg => null()
+        else
+            call GET_COMMAND_ARGUMENT(i, arg)
+            select case (trim(arg))
+                case ('--version')
+                    write (outu, '(A)') 'version 0.1'
+                    stop
+                case ('--basename')
+                    write (outu, '(A)') 'basename!!'
+                    varg => basename
+                    catch_arg = .true.
+                case default
+                    write (outu, '(3A)') "ERROR: argument ", trim(arg), " not recognized."
+                    stop
+            end select
+        end if
     end do
+    print "(3A)", "basename is [", trim(basename), "]"
+    stop
 end subroutine process_cmd
 
 
