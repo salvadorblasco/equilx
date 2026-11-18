@@ -76,9 +76,6 @@ subroutine process_cmd()
         else
             call GET_COMMAND_ARGUMENT(i, arg)
             select case (trim(arg))
-                case ('--version')
-                    write (outu, '(A)') 'version 0.1'
-                    stop
                 case ('--basename')
                     varg => basename
                     catch_arg = .true.
