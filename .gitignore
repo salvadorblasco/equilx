@@ -12,6 +12,7 @@ benchmark/
 
 # Other
 sandbox/
+data/
 
 *.o
 *.mod
