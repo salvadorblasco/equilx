@@ -23,15 +23,6 @@ class TestSolver(unittest.TestCase):
                 npt.assert_allclose(y, np.zeros_like(y), atol=1e-8)
 
 
-    # def test_pp(self):
-    #     equil, ref = self.fixtures['phosphoric']
-    #     result = Eq(equil, freeze=ref)
-    #     y = mass_action(equil,
-    #                     result['free concentration'],
-    #                     result.get('solid concentration', None))
-    #     print("max = ", np.max(y), " min=", np.min(y))
-    #     npt.assert_allclose(y, np.zeros_like(y), atol=1e-8)
-
     def setUp(self) -> None:
         self.fixtures = all_fixtures
         return super().setUp()
