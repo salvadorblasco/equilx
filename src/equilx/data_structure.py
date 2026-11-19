@@ -1,9 +1,8 @@
-from collections.abc import Sequence
-from dataclasses import dataclass, field, MISSING
-from functools import cached_property
 import itertools
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from functools import cached_property
 from enum import IntEnum, auto
-from typing import Optional
 from collections.abc import Iterable
 from collections.abc import Iterator
 
@@ -322,7 +321,7 @@ class EquilibriumData(_EquilCommon):
 @dataclass(kw_only=True)
 class ModelData(_EquilCommon):
     log_beta_flags: list[Flags]
-    log_solids_flags: list[Flags] = field(init=False, default_factory=lambda: [])
+    log_solids_flags: list[Flags] = field(init=False, default_factory=list)
 
     @property
     def degrees_of_freedom(self) -> int:
