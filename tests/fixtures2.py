@@ -24,7 +24,7 @@ def case_phosphoric():
         charges=charge,
         component_labels=labels,
         background_ions=background_ions)
-    return eq
+    return eq, 1
 
 
 def large_fixture1():
