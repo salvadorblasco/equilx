@@ -81,6 +81,8 @@ module mat
 
     real, allocatable, public :: out_lbeta(:)
     real, allocatable, public :: out_errlbeta(:)
+    real, allocatable, public :: out_residuals(:,:)
+    real, allocatable, public :: out_midfit(:,:)
 
     public init_module, finalize, lm, load_titration, fit
 contains
@@ -243,6 +245,11 @@ subroutine fit()
         end if
     end do
 
+    allocate(out_residuals(NPT,NHD))
+    allocate(out_midfit(NCP+NEQ,NHD))
+
+    out_midfit = extc
+    call calc_resid(out_residuals)
 end subroutine fit
 
 
@@ -269,6 +276,8 @@ subroutine finalize()
     if (allocated(xvalues))      deallocate(xvalues)
     if (allocated(covariance))   deallocate(covariance)
     if (allocated(correlation))  deallocate(correlation)
+    if (allocated(out_residuals)) deallocate(out_residuals)
+    if (allocated(out_midfit))   deallocate(out_midfit)
 
     if (LOGLEVEL>1) write (outu,"(A)") "Module terminated"
 end subroutine finalize
