@@ -19,7 +19,7 @@ def Eq(equil: EquilibriumData,
 
     retdict = {}
     control = 0
-    breakpoint()
+    #breakpoint()
     funcs = {
          (False, False, False): fsolver.eq.eq_000,
          (False, True,  False): fsolver.eq.eq_0s0,
@@ -52,6 +52,9 @@ def Eq(equil: EquilibriumData,
     args.append(np.asfortranarray(10**equil.log_beta))
     args.append(np.asfortranarray(equil.stoichiometry))
 
+    if freeze is not None:
+        args.append(freeze)
+
     if with_solids:
         args.append(np.zeros((equil.n_points, equil.n_solids), order='F'))
         args.append(np.asfortranarray(equil.solid_stoichiometry))
@@ -66,11 +69,6 @@ def Eq(equil: EquilibriumData,
         args.append(np.zeros((equil.n_equils, 3), order='F'))
 
     args.append(control)
-
-    # solve           (C, T, B,    P,                                                CTRL, NPT, NCP, NEQ)
-    # solve_vis       (C, T, Bref, P,            Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ)
-    # solve_solids    (C, T, B,    P, CS, KS, Q,                                     CTRL, NPT, NCP, NEQ, NSL)
-    # solve_solids_vis(C, T, Bref, P, CS, KS, Q, Iref, Iback, charge, DHA, DHB, DHP, CTRL, NPT, NCP, NEQ, NSL)
 
     caller = funcs[(with_frozen, with_solids, variable_ionic)]
     caller(*args)
