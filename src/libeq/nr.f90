@@ -83,9 +83,9 @@ end subroutine sysolve
 subroutine jacobian_soluble(J, C, P, NCP, NEQ)
   ! calculate the jacobian df/dlogc of the mass balance not considering solids
   use err, only: amatrix
-  double precision, INTENT(INOUT), dimension(NCP, NCP) :: J   ! jacobian
-  double precision, INTENT(IN),    dimension(NCP+NEQ)  :: C   ! free concentrations
-  integer,          INTENT(IN),    dimension(NEQ, NCP) :: P   ! The soluble stoichiometry array
+  double precision, intent(inout), dimension(NCP, NCP) :: J   ! jacobian
+  double precision, intent(in),    dimension(NCP+NEQ)  :: C   ! free concentrations
+  integer,          intent(in),    dimension(NEQ, NCP) :: P   ! The soluble stoichiometry array
   integer, intent(in) :: NCP                                  ! number of components
   integer, intent(in) :: NEQ                                  ! number of equilibria
   J(:,:) = 0.0
@@ -97,13 +97,13 @@ subroutine jacobian_solid(JC, C, CS, KS, P, Q, NCP, NEQ, NSL, NX, do_solids)
   integer, intent(in) :: NCP                                ! number of components
   integer, intent(in) :: NEQ                                ! number of equilibria
   integer, intent(in) :: NSL                                ! number of solids
-  integer, intent(IN) ::  NX
+  integer, intent(in) ::  NX
   integer,          intent(in),  dimension(NEQ, NCP) :: P  ! The soluble stoichiometry array
   integer,          intent(in),  dimension(NSL, NCP) :: Q  ! The solids stoichiometry array
   double precision, intent(in),  dimension(NEQ+NCP)  :: C  ! free concentation initial estimates (in) and refined values (out)
   double precision, intent(in),  dimension(NSL)      :: KS ! the solubility product
   double precision, intent(in),  dimension(NSL)      :: CS
-  double precision, INTENT(OUT), dimension(NX, NX)   :: JC  ! jacobian
+  double precision, intent(out), dimension(NX, NX)   :: JC  ! jacobian
   logical,          intent(in),  dimension(NSL)      :: do_solids
 
   integer :: i, j, k
@@ -192,7 +192,7 @@ subroutine nr_solids(C, CS, T, B, P, KS, Q, ctrl, do_solids, NCP, NEQ, NSL, NX)
   integer, intent(in)    :: NCP                            ! number of components
   integer, intent(in)    :: NEQ                            ! number of equilibria
   integer, intent(in)    :: NSL                            ! number of solids
-  integer, INTENT(INOUT)    :: NX                             ! number of refined variables
+  integer, intent(inout)    :: NX                             ! number of refined variables
   integer, intent(inout) :: ctrl                           ! control value
   integer,          intent(in),    dimension(NEQ, NCP) :: P         ! stoichiometry array
   double precision, intent(inout), dimension(NCP+NEQ)  :: C         ! initial estimates (in) and refined values (out)
@@ -358,7 +358,7 @@ subroutine is_root(fvec, NCP, check)
   integer :: i
 
   check = .false.
-  test=0.
+  test=0.0
   do i=1,NCP
     if (abs(fvec(i)) > test) test=abs(fvec(i))
   end do
@@ -368,13 +368,10 @@ subroutine is_root(fvec, NCP, check)
 end subroutine is_root
 
 
-subroutine update_solids(CTRL, do_solids, si, CS, dx, NSL, NX)
+subroutine update_solids(do_solids, si, NSL, NX)
     ! update the solids that are accounted for in the model according to the procedure outlined
     ! in GEOCHEMICAL AND BIOGEOCHEMICAL REACTION MODELING, 2nd ed. CRAIG M. BETHKE 4.4.3p69
-    integer, intent(out) :: CTRL
     double precision, intent(in),    dimension(NSL) :: si         ! the solubility index
-    double precision, intent(in),    dimension(NSL) :: CS         ! concentration of solids
-    double precision, intent(in),    dimension(NX) ::  dx         ! concentration of solids
     logical,          intent(inout), dimension(NSL) :: do_solids  ! the solids to be included
     integer,          intent(in) :: NSL, NX                       ! the number of solids
     double precision, parameter :: SOLUBILITY_TOLERANCE = 1.0E-6
@@ -400,7 +397,7 @@ subroutine limit_step(incrx, n)
     ! than the max step, nothing is done. If it is, the vector is scaled so that the
     ! largest step is the max step allowed and the rest are scaled accordingly.
     integer, intent(in) :: n   ! the size of the vector
-    DOUBLE PRECISION, intent(inout), dimension(n) :: incrx  ! the vector to be scaled
+    double precision, intent(inout), dimension(n) :: incrx  ! the vector to be scaled
     double precision, parameter :: MAX_STEP = 20.0
 
     if (any(abs(incrx) > MAX_STEP)) then
