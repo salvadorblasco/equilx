@@ -41,6 +41,9 @@ NUKES_FILES = stat linalg misc mat nukes
 NUKES_SRCS = $(addsuffix .f90,$(addprefix $(FDIR)/,$(NUKES_FILES)))
 NUKES_OBJS = $(patsubst $(FDIR)/%.f90,$(ODIR)/%.o,$(NUKES_SRCS))
 
+F_SRCS = $(wildcard $(SRCDIR)/fortran/*.f90)
+F_OBJS = $(patsubst $(FDIR)/%.f90,$(ODIR)/%.o,$(F_SRCS))
+
 TEST_EQ   = $(BINDIR)/test_eq
 TEST_EMF  = $(BINDIR)/test_emf
 
@@ -69,7 +72,7 @@ PYMDIR = $(SRCDIR)/equilx
 MODNAME=fsolver
 SIGNATURE=$(PYMDIR)/$(MODNAME).pyf
 
-pymodule: $(EQ_SRCS) $(EMF_SRCS)
+pymodule: $(EQ_SRCS) $(EMF_SRCS) $(F_SRCS)
 	$(F2PY) -c $(SIGNATURE) -m $(BINDIR)/$(MODNAME) $(EQ_SRCS) $^ $(LLAPACK)
 	mv $(MODNAME)*.so $(PYMDIR)
 
