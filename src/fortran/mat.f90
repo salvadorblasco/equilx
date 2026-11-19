@@ -37,14 +37,14 @@ module mat
     double precision,  allocatable :: analc(:,:)        ! Analytical concentration, in mmol/mL, dim NPT x NCP
     real,              allocatable :: absorbance(:,:)   ! NPT x NWL
     double precision,  allocatable, target :: extc(:,:)  ! NSP x NWL
-    double precision,  allocatable :: conc(:,:)         ! NPT, NSP
+    double precision,  allocatable, public :: conc(:,:)         ! NPT, NSP
     character(len=12), allocatable :: cmpnames(:)
     integer,           allocatable :: stoich(:,:)
     double precision,  allocatable, target :: lbeta(:)
     integer,           allocatable :: flag_lbeta(:)
     integer,           allocatable :: active(:)
-    double precision,  allocatable :: covariance(:,:)  ! the covariance matrix
-    double precision,  allocatable :: correlation(:,:)  ! the correlation matrix
+    double precision,  allocatable, public :: covariance(:,:)  ! the covariance matrix
+    double precision,  allocatable, public :: correlation(:,:)  ! the correlation matrix
     double precision :: weight_params(2)
     integer, allocatable :: titr_size(:)    ! the size in experimental points per titration
 
