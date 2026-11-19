@@ -2,15 +2,14 @@
 
 "Test collection for potentiometry data fitting."
 
-import unittest
 import io
 import random
+import unittest
 
 import numpy as np
 import numpy.testing as npt
-
-from equilx.potentiometry import PotentiometryOpt
 from equilx.consts import Flags
+from equilx.potentiometry import PotentiometryOpt
 
 from fixtures_potentiometry import case_znedta
 

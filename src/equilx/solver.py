@@ -1,14 +1,10 @@
 "Module for solving equilibrium problems."
 
-from typing import Optional
-
 import numpy as np
 
+from equilx import fsolver, utils
+from equilx.data_structure import DebyeHuckelParameters, EquilibriumData
 from equilx.mytypes import FArray
-from equilx.data_structure import EquilibriumData, DebyeHuckelParameters
-
-from equilx import fsolver
-from equilx import utils
 
 
 def Eq(equil: EquilibriumData,
