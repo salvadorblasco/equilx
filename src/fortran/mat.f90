@@ -81,7 +81,7 @@ module mat
 
     real, allocatable, public :: out_lbeta(:)
     real, allocatable, public :: out_errlbeta(:)
-    real, allocatable, public :: out_residuals(:,:)
+    double precision, allocatable, public :: out_residuals(:,:)
     real, allocatable, public :: out_midfit(:,:)
 
     public init_module, finalize, lm, load_titration, fit

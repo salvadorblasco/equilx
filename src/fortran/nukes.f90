@@ -83,6 +83,7 @@ subroutine process_cmd()
                     write (outu, '(A,/)') "Usage: nukes [OPTION...] < data"
                     write (outu, '(2X,A)') "--version            print version and exit"
                     write (outu, '(2X,A)') "--basename [name]    use [name] as basename to store the models"
+                    stop
                 case default
                     write (outu, '(3A)') "ERROR: argument ", trim(arg), " not recognized."
                     stop
@@ -138,6 +139,7 @@ subroutine fit_try_model(mindex, mflags)
     call fit()
 
     call report_model(mindex, try_model, try_betaflags)
+    call save_model(mindex, try_model, try_betaflags)
 
     call finalize()
 
@@ -189,6 +191,39 @@ subroutine report_model(mindex, model, flags)
     stats(mindex)%nparms = nparms
     stats(mindex)%msg = msg
 end subroutine report_model
+
+
+subroutine save_model(mindex, model, flags)
+    use mat, only: out_residuals, out_midfit, conc
+    integer, intent(in) :: mindex
+    integer, intent(in) :: model(:,:), flags(:)
+
+    integer :: io
+    integer :: i
+    character(len=40) :: filename
+
+    write(filename, "(2A,I0,A)") trim(basename), '.', mindex, '.out'
+    open(newunit=io, file=filename, status='new', action='write')
+
+    write(io, "(A,/)") "Free concentrations"
+    write (io, "(4X, *(A12))") adjustr([character(len=12) :: cmpnames])
+    do i=1,size(conc, dim=1)
+        write (io, "(I4, *(E12.4))") i, conc(i,:)
+    end do
+
+    write(io, "(/,A,/)") "Extinction coefficients"
+    write (io, "(4X, *(A12))") adjustr([character(len=12) :: cmpnames])
+    do i=1, NWL
+        write (io, "(F12.2, *(E12.4))") wavelength(i), out_midfit(:,i)
+    end do
+
+    write(io, "(/,A,/)") "Residuals"
+    do i=1, NWL
+        write (io, "(F12.2, *(E12.4))") wavelength(i), out_residuals(:,i)
+    end do
+
+    close(io)
+end subroutine save_model
 
 
 subroutine print_final()
