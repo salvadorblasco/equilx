@@ -203,7 +203,7 @@ subroutine save_model(mindex, model, flags)
     character(len=40) :: filename
 
     write(filename, "(2A,I0,A)") trim(basename), '.', mindex, '.out'
-    open(newunit=io, file=filename, status='new', action='write')
+    open(newunit=io, file=filename, status='replace', action='write')
 
     write(io, "(A,/)") "Free concentrations"
     write (io, "(4X, *(A12))") adjustr([character(len=12) :: cmpnames])
