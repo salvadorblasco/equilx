@@ -46,6 +46,7 @@ F_OBJS = $(patsubst $(FDIR)/%.f90,$(ODIR)/%.o,$(F_SRCS))
 
 TEST_EQ   = $(BINDIR)/test_eq
 TEST_EMF  = $(BINDIR)/test_emf
+TEST_LINALG = $(BINDIR)/test_linalg
 
 .PHONY: all test 
 
@@ -123,11 +124,18 @@ $(ODIR)/%.o: $(FDIR)/%.f90
 TESTCASES:=$(wildcard $(TESTDIR)/case*.f90)
 
 
-tests: $(TEST_EQ) $(TEST_EMF)
+tests: $(TEST_EQ) $(TEST_EMF) $(TEST_LINALG)
 
 teq: $(TEST_EQ)
 
 temf: $(TEST_EMF)
+
+test-linalg: $(TEST_LINALG)
+	$(TEST_LINALG)
+
+$(TEST_LINALG): $(FDIR)/linalg.f90 $(TESTDIR)/test_linalg.f90
+	mkdir -p $(BINDIR) $(MODDIR)
+	$(FC) $(FFLAGS) -J$(MODDIR) -I$(MODDIR) -o $@ $^ $(LLAPACK)
 
 $(TEST_EQ):  $(TESTDIR)/test_eq.f90  $(EQ_LIB)
 	$(FC) $(FFLAGS) -J$(MODDIR) -c $(TESTDIR)/test_cases.f90 -o $(TESTDIR)/test_cases.o
@@ -150,6 +158,8 @@ run-tests: tests
 	@$(TEST_EQ) || exit 1
 	@echo ">>> test_emf"
 	@$(TEST_EMF) || exit 1
+	@echo ">>> test_linalg"
+	@$(TEST_LINALG) || exit 1
 	@echo "All tests passed."
 
 
