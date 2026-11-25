@@ -34,7 +34,7 @@ module mat
     integer :: NPT        ! number of titration points
     integer :: NHD        ! number of horizontal data
     integer :: NTT        ! number of titrations
-    double precision,  allocatable :: analc(:,:)        ! Analytical concentration, in mmol/mL, dim NPT x NCP
+    double precision,  allocatable :: analc(:,:)        ! NPTxNCP  Analytical concentration, in mmol/mL, dim NPT x NCP
     real,              allocatable :: absorbance(:,:)   ! NPT x NWL
     double precision,  allocatable, target :: extc(:,:)  ! NSP x NWL
     double precision,  allocatable, public :: conc(:,:)         ! NPT, NSP
@@ -223,7 +223,7 @@ subroutine fit()
     do i=1,NCP+NEQ
         if (active(i) < 0) then
             j = -active(i)
-            extc(j,:) = absorbance(j,:) / analc(j,:)
+            extc(i,:) = absorbance(j,:) / maxval(analc(j,:))
         end if
     end do
 
@@ -314,7 +314,7 @@ subroutine lm()
     integer :: iter
     integer :: n_active
 
-    n_active = sum(active)
+    n_active = count(active==1)
 
     call create_variables(NX)
 

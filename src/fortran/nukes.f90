@@ -136,7 +136,7 @@ subroutine fit_try_model(mindex, mflags)
         end if
     end do
 
-    call init_module(NPT, NWL, 1, try_model, try_lbeta, try_betaflags, refindices, LE, 2)
+    call init_module(NPT, NWL, 1, try_model, try_lbeta, try_betaflags, active, LE, 2)
     call load_titration(absorbance, analc)
     call set_weights_const(1.0)
     call fit()
