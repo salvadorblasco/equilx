@@ -2,6 +2,10 @@ module linalg
     implicit none (type, external)
     public
 
+    interface nnls
+        module procedure nnls_vector, nnls_matrix
+    end interface nnls
+
 contains
 subroutine las_cond(A, B, x, cond, info)
     double precision, intent(in) :: A(:,:)
@@ -48,10 +52,48 @@ subroutine las_cond(A, B, x, cond, info)
 end subroutine las_cond
 
 
-! Minimize ||A*x - b||_2 subject to x >= 0.
+! Minimize ||A - C*E||_F subject to E >= 0, one wavelength at a time.
 ! info: 0 success, -1 invalid dimensions, -2 non-finite input,
 !       1 iteration limit, 2 numerical rank failure, 3 LAPACK or numerical failure.
-subroutine nnls(a, b, x, info)
+! On failure E is zero; failed_column identifies a solver failure, or 0 otherwise.
+subroutine nnls_matrix(c, a, e, info, failed_column)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+
+    double precision, intent(in) :: c(:,:), a(:,:)
+    double precision, intent(out) :: e(:,:)
+    integer, intent(out) :: info
+    integer, intent(out), optional :: failed_column
+
+    integer :: j, npt, nsp, nwl
+
+    npt = size(c, 1)
+    nsp = size(c, 2)
+    nwl = size(a, 2)
+    e = 0.0d0
+    info = 0
+    if (present(failed_column)) failed_column = 0
+    if (npt < 1 .or. nsp < 1 .or. nwl < 1 .or. size(a, 1) /= npt .or. &
+        size(e, 1) /= nsp .or. size(e, 2) /= nwl) then
+        info = -1
+        return
+    end if
+    if (.not. all(ieee_is_finite(c)) .or. .not. all(ieee_is_finite(a))) then
+        info = -2
+        return
+    end if
+
+    do j = 1, nwl
+        call nnls_vector(c, a(:,j), e(:,j), info)
+        if (info /= 0) then
+            e = 0.0d0
+            if (present(failed_column)) failed_column = j
+            return
+        end if
+    end do
+end subroutine nnls_matrix
+
+! Minimize ||A*x - b||_2 subject to x >= 0. Status codes are as above.
+subroutine nnls_vector(a, b, x, info)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
 
     double precision, intent(in) :: a(:,:), b(:)
@@ -213,6 +255,6 @@ subroutine nnls(a, b, x, info)
         x = 0.0d0
         info = 3
     end if
-end subroutine nnls
+end subroutine nnls_vector
 
 end module linalg

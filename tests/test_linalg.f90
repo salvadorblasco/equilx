@@ -11,6 +11,9 @@ program test_linalg
     call test_dependent_columns()
     call test_ill_conditioned_fit()
     call test_invalid_input()
+    call test_matrix_fit()
+    call test_matrix_invalid_input()
+    call test_matrix_solver_failure()
     print *, "NNLS tests passed"
 
 contains
@@ -140,5 +143,55 @@ subroutine test_invalid_input()
     call nnls(a, b, x, info)
     if (info /= -2) error stop "non-finite input: unexpected status"
 end subroutine test_invalid_input
+
+subroutine test_matrix_fit()
+    double precision :: c(3,2), a(3,4), e(2,4), residual(3), dual(2)
+    integer :: info, failed_column, j
+
+    c(:,1) = [1.0d0, 0.0d0, 1.0d0]
+    c(:,2) = [1.0d0, 1.0d0, 1.0d0]
+    a(:,1) = [5.0d0, 3.0d0, 5.0d0]
+    a(:,2) = [0.0d0, 1.0d0, 0.0d0]
+    a(:,3) = 0.0d0
+    a(:,4) = -1.0d0
+    call nnls(c, a, e, info, failed_column)
+    if (info /= 0 .or. failed_column /= 0) error stop "matrix fit: unexpected status"
+    call assert_close(e(:,1), [2.0d0, 3.0d0], 1.0d-12)
+    call assert_close(e(:,2), [0.0d0, 1.0d0/3.0d0], 1.0d-12)
+    call assert_close(reshape(e(:,3:4), [4]), [0.0d0, 0.0d0, 0.0d0, 0.0d0], 1.0d-12)
+    do j = 1, size(a, 2)
+        residual = a(:,j) - matmul(c, e(:,j))
+        dual = matmul(transpose(c), residual)
+        if (any(e(:,j) < 0.0d0) .or. any(dual > 1.0d-12) .or. &
+            any(abs(e(:,j) * dual) > 1.0d-12)) error stop "matrix fit: KKT conditions not satisfied"
+    end do
+end subroutine test_matrix_fit
+
+subroutine test_matrix_invalid_input()
+    double precision :: c(2,1), a(2,2), e(1,2), wrong_e(2,2)
+    integer :: info, failed_column
+
+    c = 1.0d0
+    a = 1.0d0
+    call nnls(c, a(1:1,:), e, info, failed_column)
+    if (info /= -1 .or. failed_column /= 0 .or. any(e /= 0.0d0)) error stop "matrix dimensions"
+    call nnls(c, a, wrong_e, info)
+    if (info /= -1 .or. any(wrong_e /= 0.0d0)) error stop "matrix output dimensions"
+    call nnls(c, a(:,1:0), e(:,1:0), info)
+    if (info /= -1) error stop "zero wavelengths"
+    a(1,2) = ieee_value(0.0d0, ieee_quiet_nan)
+    call nnls(c, a, e, info, failed_column)
+    if (info /= -2 .or. failed_column /= 0 .or. any(e /= 0.0d0)) error stop "matrix non-finite input"
+end subroutine test_matrix_invalid_input
+
+subroutine test_matrix_solver_failure()
+    double precision :: c(1,1), a(1,2), e(1,2)
+    integer :: info, failed_column
+
+    c = 1.0d-200
+    a(1,:) = [1.0d-200, 1.0d200]
+    call nnls(c, a, e, info, failed_column)
+    if (info /= 3 .or. failed_column /= 2 .or. any(e /= 0.0d0)) error stop "matrix solver failure"
+end subroutine test_matrix_solver_failure
 
 end program test_linalg
