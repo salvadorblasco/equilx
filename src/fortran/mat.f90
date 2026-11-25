@@ -82,7 +82,7 @@ module mat
     real, allocatable, public :: out_lbeta(:)
     real, allocatable, public :: out_errlbeta(:)
     double precision, allocatable, public :: out_residuals(:,:)
-    real, allocatable, public :: out_midfit(:,:)
+    double precision, allocatable, public :: out_midfit(:,:)
 
     public init_module, finalize, lm, load_titration, fit
 contains
@@ -811,16 +811,32 @@ subroutine solve_extc_nnls(info)
 
      ! --- Lawson-Hanson active-set ---------------------------------------
      ! start with all variables free
-     nfree  = nsp
+     nfree  = 0
      nbound = 0
      do i = 1, nsp
-        free_idx(i) = i
+        if (active(i) == AC_ACTIVE) then
+            nfree = nfree + 1
+            free_idx(nfree) = i
+        else
+            nbound = nbound + 1
+            bound_idx(nbound) = i
+        end if
      end do
      x = 0.0_dp
 
-     converged = .false.
-     do iter = 1, maxit
+     ! safety checks
+    if (size(active) < nsp) then
+        info = -2
+       return
+    end  if
+    if (all(active(1:nsp) == 0)) then
+        ! everything transparent → trivial zero solution
+        extc(:, jwl) = 0.0_dp
+        cycle          ! or exit the wavelength loop early
+    end if
 
+    converged = .false.
+    do iter = 1, maxit
         ! 1. Build free sub-matrix and solve unconstrained LS
         if (nfree == 0) then
            x = 0.0_dp
@@ -874,21 +890,30 @@ subroutine solve_extc_nnls(info)
            dual(i) = dot_product(conc(:, i), resid)
         end do
 
-        ! 4. KKT test: all duals of bound variables >= -tol ?
-        max_dual = maxval(dual(bound_idx(1:nbound)))
-        if (max_dual <= tol) then          ! all duals non-negative (within tol)
+        ! 4+5. KKT test and possible release – only among optically-active species
+        max_dual = -huge(1.0_dp)
+        k = 0
+        do j = 1, nbound
+           i = bound_idx(j)
+           if (active(i) == 1) then               ! transparent species stay bound forever
+              if (dual(i) > max_dual) then
+                 max_dual = dual(i)
+                 k = j
+              end if
+           end if
+        end do
+
+        if (k == 0 .or. max_dual <= tol) then
+           ! either no active bound variables left, or all their duals are ≤ tol
            converged = .true.
            exit
         end if
 
-        ! 5. Release the bound variable with the largest dual
-        k = maxloc(dual(bound_idx(1:nbound)), dim=1)
+        ! release the active species that has the largest (positive) dual
         nfree = nfree + 1
         free_idx(nfree) = bound_idx(k)
-        ! compact bound list
         bound_idx(k:nbound-1) = bound_idx(k+1:nbound)
         nbound = nbound - 1
-
      end do  ! active-set iteration
 
      if (.not. converged) then
