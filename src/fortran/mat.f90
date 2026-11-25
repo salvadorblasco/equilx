@@ -84,7 +84,7 @@ module mat
     double precision, allocatable, public :: out_residuals(:,:)
     double precision, allocatable, public :: out_midfit(:,:)
 
-    public init_module, finalize, lm, load_titration, fit
+    public init_module, finalize, lm, load_titration, fit, set_weights_const
 contains
 
 !----------------------------------------------------------------------------------------------------
@@ -343,7 +343,7 @@ subroutine lm()
     if (LOGLEVEL>1) write(outu, "(A)") "Starting Levenberg-Marquardt iterations"
 
     call update_equil()                           ! update free concentrations
-    call solve_extc_nnls(ctrl)
+    call linear_elimination(ctrl)
     call calc_resid(resid)                        ! calculate residuals
     if (reweight_flag) call reweight(resid, absorbance, .false.)
     resid = absorbance - matmul(conc, extc)
@@ -361,8 +361,7 @@ subroutine lm()
 
         call try_step(dx)                             ! update parameters to new step
         call update_equil()                           ! update free concentrations
-        !call solve_extc()                             ! update extinction coefficients
-        call solve_extc_nnls(ctrl)
+        call linear_elimination(ctrl)
         call calc_resid(resid)                        ! calculate residuals
 
         trial_fvec = reshape(resid, [ NPT*NHD ])
@@ -490,6 +489,22 @@ subroutine lm()
 
     deallocate(jac, dx, fvec, M)
 end subroutine lm
+
+
+subroutine linear_elimination(ctrl)
+    integer, intent(inout) :: ctrl
+
+    select case (linear_elimination_type)
+        case (LE_GENERAL)
+            call solve_extc()                             ! update extinction coefficients
+        case (LE_POSITIVE)
+            call solve_extc_nnls(ctrl)
+        case default
+            ctrl=99
+            msg="linear_elimination_type has wrong value"
+    end select
+
+end subroutine linear_elimination
 
 
 subroutine take_marquardt(damping, jac, M, dampedM)
@@ -761,174 +776,51 @@ end subroutine solve_extc
 ! Uses Lawson-Hanson active-set + LAPACK DGELSY
 !==============================================================================
 subroutine solve_extc_nnls(info)
-  use, intrinsic :: iso_fortran_env, only: dp => real64
+    use linalg, only: nnls
+    integer,  intent(out)   :: info          ! 0 = success, <0 = illegal arg, >0 = rank issues
 
-  integer,  intent(out)   :: info          ! 0 = success, <0 = illegal arg, >0 = rank issues
-  external dgelsy
+    double precision, allocatable :: fconc(:,:), fextc(:), fabs(:)
+    integer :: nfsp
+    integer :: i, j, ih
 
-  ! ---- local ---------------------------------------------------------------
-  integer  :: jwl, i, j, k, rank, lwork, nfree, nbound, iter
-  integer  :: maxit
-  integer, allocatable :: idx(:), jpvt(:), free_idx(:), bound_idx(:)
-  real(dp), allocatable :: A(:,:), b(:), x(:), work(:), dual(:), resid(:)
-  real(dp) :: rcond, normb, tol, max_dual
-  real(dp), parameter :: eps = epsilon(1.0_dp)
-  logical  :: converged
-  integer :: nsp
+    nfsp = COUNT(active==1, DIM=1)
 
-  nsp = NCP + NEQ
+    allocate(fconc(NPT, nfsp), fextc(nfsp))
+    allocate(fabs(NPT))
 
-  info = 0
-  if (npt < 1 .or. nsp < 1 .or. NHD < 1) then
-     info = -1
-     return
-  end if
-
-  maxit  = 3 * nsp          ! more than enough for spectroscopy
-  rcond  = 1.0e-12_dp       ! relative rank tolerance for DGELSY
-  tol    = 10.0_dp * eps    ! feasibility tolerance (relative)
-
-  ! workspace for one wavelength
-  allocate(A(npt, nsp), b(npt), x(nsp), dual(nsp), resid(npt))
-  allocate(idx(nsp), jpvt(nsp), free_idx(nsp), bound_idx(nsp))
-
-  ! query optimal lwork for DGELSY (m=npt, n=nsp, nrhs=1)
-  lwork = -1
-  allocate(work(1))
-  call dgelsy(npt, nsp, 1, A, npt, b, npt, jpvt, rcond, rank, work, lwork, info)
-  lwork = int(work(1))
-  deallocate(work)
-  allocate(work(lwork))
-
-  ! ---- main loop over wavelengths ----------------------------------------
-  do jwl = 1, NHD
-
-     ! copy data for this wavelength
-     A = conc
-     b = absorbance(:, jwl)
-     normb = max(norm2(b), eps)
-     tol   = 10.0_dp * eps * normb
-
-     ! --- Lawson-Hanson active-set ---------------------------------------
-     ! start with all variables free
-     nfree  = 0
-     nbound = 0
-     do i = 1, nsp
-        if (active(i) == AC_ACTIVE) then
-            nfree = nfree + 1
-            free_idx(nfree) = i
-        else
-            nbound = nbound + 1
-            bound_idx(nbound) = i
+    j = 0
+    do i=1,NCP+NEQ
+        if (active(i) == 1) then
+            j = j + 1
+            fconc(:,j) = conc(:,i)
         end if
-     end do
-     x = 0.0_dp
+    end do
 
-     ! safety checks
-    if (size(active) < nsp) then
-        info = -2
-       return
-    end  if
-    if (all(active(1:nsp) == 0)) then
-        ! everything transparent → trivial zero solution
-        extc(:, jwl) = 0.0_dp
-        cycle          ! or exit the wavelength loop early
-    end if
+    do ih=1,NHD
+        fabs = absorbance(:,ih)
 
-    converged = .false.
-    do iter = 1, maxit
-        ! 1. Build free sub-matrix and solve unconstrained LS
-        if (nfree == 0) then
-           x = 0.0_dp
-           exit
-        end if
-
-        do j = 1, nfree
-           A(:, j) = conc(:, free_idx(j))   ! re-copy (A was overwritten by DGELSY)
-        end do
-        b = absorbance(:, jwl)
-
-        jpvt = 0
-        call dgelsy(npt, nfree, 1, A, npt, b, npt, jpvt, rcond, rank, &
-                    work, lwork, info)
-        if (info < 0) return                 ! illegal argument
-
-        ! solution is now in b(1:nfree)
-        x = 0.0_dp
-        do j = 1, nfree
-           x(free_idx(j)) = b(j)
+        ! remove reference components from the bulk
+        j = 0
+        do i=1,NCP+NEQ
+            if (active(i) < 0) then
+                fabs = fabs - conc(:,i) * extc(i,ih)
+            end if
         end do
 
-        ! 2. Feasibility: any negative free variable?
-        if (any(x(free_idx(1:nfree)) < -tol)) then
-           ! move the most negative variable to the bound set
-           k = minloc(x(free_idx(1:nfree)), dim=1)
-           nbound = nbound + 1
-           bound_idx(nbound) = free_idx(k)
-           ! compact free list
-           free_idx(k:nfree-1) = free_idx(k+1:nfree)
-           nfree = nfree - 1
-           cycle
-        end if
+        call nnls(fconc, fabs, fextc, info)
+        if (info /= 0) return
 
-        ! 3. Compute residual and dual variables for bound set
-        !    resid = b - C * x
-        resid = absorbance(:, jwl)
-        do j = 1, nsp
-           if (x(j) > 0.0_dp) resid = resid - x(j) * conc(:, j)
+        ! put results back
+        j = 0
+        do i=1,NCP+NEQ
+            if (active(i) /= 1) cycle
+            j = j + 1
+            extc(i,ih) = fextc(j)
         end do
+    end do
 
-        if (nbound == 0) then
-           converged = .true.
-           exit
-        end if
+    deallocate(fconc, fextc, fabs)
 
-        ! dual_i = c_i^T * resid   (for bound variables)
-        dual = 0.0_dp
-        do j = 1, nbound
-           i = bound_idx(j)
-           dual(i) = dot_product(conc(:, i), resid)
-        end do
-
-        ! 4+5. KKT test and possible release – only among optically-active species
-        max_dual = -huge(1.0_dp)
-        k = 0
-        do j = 1, nbound
-           i = bound_idx(j)
-           if (active(i) == 1) then               ! transparent species stay bound forever
-              if (dual(i) > max_dual) then
-                 max_dual = dual(i)
-                 k = j
-              end if
-           end if
-        end do
-
-        if (k == 0 .or. max_dual <= tol) then
-           ! either no active bound variables left, or all their duals are ≤ tol
-           converged = .true.
-           exit
-        end if
-
-        ! release the active species that has the largest (positive) dual
-        nfree = nfree + 1
-        free_idx(nfree) = bound_idx(k)
-        bound_idx(k:nbound-1) = bound_idx(k+1:nbound)
-        nbound = nbound - 1
-     end do  ! active-set iteration
-
-     if (.not. converged) then
-        ! should almost never happen; keep the last feasible point
-        info = max(info, 1)
-     end if
-
-     ! store result (force tiny negatives to zero)
-     do i = 1, nsp
-        extc(i, jwl) = max(x(i), 0.0_dp)
-     end do
-
-  end do  ! wavelength loop
-
-  deallocate(A, b, x, dual, resid, idx, jpvt, free_idx, bound_idx, work)
 end subroutine solve_extc_nnls
 
 

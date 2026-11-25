@@ -106,6 +106,7 @@ subroutine nnls(a, b, x, info)
     rejected = .false.
     iterations = 0
 
+    ! Initialize LAPACK and query workspace.
     ls_a = 0.0d0
     ls_b = 0.0d0
     jpvt = 0
@@ -116,6 +117,8 @@ subroutine nnls(a, b, x, info)
     end if
     lwork = max(1, ceiling(query(1)))
     allocate(work(lwork))
+
+    ! main loop
     do
         residual = rhs - matmul(c, y)
         dual = matmul(transpose(c), residual)
@@ -138,6 +141,8 @@ subroutine nnls(a, b, x, info)
         end if
 
         passive(k) = .true.
+
+        ! inner loop
         do
             iterations = iterations + 1
             if (iterations > 30 * n) then
@@ -204,6 +209,7 @@ subroutine nnls(a, b, x, info)
         end do
     end do
 
+    ! rescale
     do i = 1, n
         if (column_scale(i) > 0.0d0) x(i) = (y(i) * bscale / column_scale(i)) / column_norm(i)
     end do
@@ -212,4 +218,5 @@ subroutine nnls(a, b, x, info)
         info = 3
     end if
 end subroutine nnls
+
 end module linalg
