@@ -61,6 +61,7 @@ subroutine process_cmd()
     character(len=32), pointer :: varg
     logical :: catch_arg
 
+    basename = "out"    ! default value
     catch_arg = .false.
     varg => null()
 
@@ -103,7 +104,8 @@ end subroutine cycle_models
 
 
 subroutine fit_try_model(mindex, mflags)
-    use mat, only: init_module, finalize, load_titration, fit, LE_POSITIVE
+    use mat, only: init_module, finalize, load_titration, fit, set_weights_const
+    use mat, only: LE => LE_POSITIVE
     integer, intent(in) :: mindex
     integer, intent(in) :: mflags(:)
 
@@ -134,8 +136,9 @@ subroutine fit_try_model(mindex, mflags)
         end if
     end do
 
-    call init_module(NPT, NWL, 1, try_model, try_lbeta, try_betaflags, refindices, LE_POSITIVE, 1)
+    call init_module(NPT, NWL, 1, try_model, try_lbeta, try_betaflags, refindices, LE, 2)
     call load_titration(absorbance, analc)
+    call set_weights_const(1.0)
     call fit()
 
     call report_model(mindex, try_model, try_betaflags)
@@ -260,8 +263,13 @@ subroutine generate_combinations(mask, COMBOS)
 
   integer :: j, i, bit, bmask, col
 
-  !NEQ = size(mask)
-  NCM = 2**count(mask /= 0)-1
+  NCM = 2**count(mask == 2)-1  ! num combinations is 2**n but we discard all-zeroes, hence 2**n-1
+  if (NCM == 0) then   ! trivial case
+    allocate(COMBOS(NEQ, 1))
+    COMBOS = 1
+    return
+  end if
+
   allocate(COMBOS(NEQ, NCM))
 
   ! build bit mask
